@@ -500,6 +500,8 @@ class PolicyNode(Node):
         if not self.enabled:
             return
 
+        tick_start = time.perf_counter()
+
         with self._cam_lock:
             camera_snapshot = dict(self.camera_images)
 
@@ -549,9 +551,10 @@ class PolicyNode(Node):
                 self._t_inference.append(ms(t1, t2))
                 self._t_total.append(ms(t0, t2))
 
-            if self.guard.is_latency_exceeded(inference_dur, self.policy_period):
+            tick_dur = time.perf_counter() - tick_start
+            if self.guard.is_latency_exceeded(tick_dur, self.policy_period):
                 self.get_logger().warn(
-                    f"Inference latency ({inference_dur * 1000.0:.1f}ms) exceeded "
+                    f"Policy tick ({tick_dur * 1000.0:.1f}ms) exceeded "
                     f"policy period ({self.policy_period * 1000.0:.1f}ms) — action dropped.",
                     throttle_duration_sec=1.0,
                 )
