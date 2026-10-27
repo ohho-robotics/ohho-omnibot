@@ -39,7 +39,8 @@ This launch does not start foxglove, arm_cmd_mux, or the Feetech arm driver.
 `bridge_config` (default `sim_bridge.yaml`) is the ros_gz_bridge file in
 config/. `sim_teleop.launch.py` passes `sim_bridge_vr.yaml` so Gazebo
 follows `/cmd_vel/out`. The default file still maps `/cmd_vel`, which
-sim-smoke drives directly.
+sim-smoke drives directly. The Quest camera profile is `sim_vr.launch.py`.
+The safety gate is `sim_teleop.launch.py`, not this `vr` flag.
 
 `drive:=mecanum` selects the gz-sim MecanumDrive plugin instead of planar move.
 `gui:=true` opens the Gazebo client; the default is server-only so CI has no display.

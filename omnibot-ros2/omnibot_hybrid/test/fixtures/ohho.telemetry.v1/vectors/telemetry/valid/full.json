@@ -1,0 +1,89 @@
+{
+  "v": "1.0.0",
+  "t": 1735689600.5,
+  "robot_id": "omnibot-1",
+  "kind": "real",
+  "mode": {
+    "base": "teleop",
+    "arm": "hold"
+  },
+  "estop": {
+    "active": false,
+    "latched": false,
+    "source": "none"
+  },
+  "deadman": true,
+  "link": {
+    "rtt_ms": 18.5,
+    "hz": 50
+  },
+  "base": {
+    "cmd": {
+      "vx": 0.2,
+      "vy": 0,
+      "wz": 0.1
+    },
+    "meas": {
+      "vx": 0.18,
+      "vy": 0,
+      "wz": 0.09
+    },
+    "pose": {
+      "x": 1.5,
+      "y": -0.25,
+      "yaw": 0.785398163397
+    },
+    "frame": "odom"
+  },
+  "joints": [
+    {
+      "name": "arm_joint_1",
+      "pos": 0.1,
+      "vel": 0,
+      "effort": 0.2,
+      "cmd": 0.1,
+      "min": -1.57,
+      "max": 1.57
+    }
+  ],
+  "gripper": {
+    "pos": 0.04,
+    "cmd": 0.04
+  },
+  "imu": {
+    "roll": 0.01,
+    "pitch": -0.02,
+    "yaw": 0.78,
+    "ax": 0.1,
+    "ay": -0.05,
+    "az": 9.81
+  },
+  "battery": {
+    "v": 24.2,
+    "pct": 80,
+    "simulated": false
+  },
+  "nav": {
+    "state": "navigating",
+    "goal": {
+      "x": 2,
+      "y": 1,
+      "yaw": 0
+    },
+    "eta": 12.5
+  },
+  "policy": {
+    "name": "pick-place",
+    "state": "running",
+    "latency_ms": 8
+  },
+  "rec": {
+    "active": true,
+    "episode": "ep-12",
+    "frames": 340
+  },
+  "sys": {
+    "cpu": 37.5,
+    "temp": 54
+  }
+}

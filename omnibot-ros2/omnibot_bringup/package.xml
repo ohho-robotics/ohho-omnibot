@@ -33,14 +33,18 @@
   <test_depend>geometry_msgs</test_depend>
   <test_depend>nav_msgs</test_depend>
   <test_depend>sensor_msgs</test_depend>
+  <test_depend>std_msgs</test_depend>
+  <test_depend>rcl_interfaces</test_depend>
 
   <!-- Digital twin extras (simulation.launch.py) -->
   <!-- /scan from Astra Pro depth (no physical lidar on OmniBot) -->
   <exec_depend>depthimage_to_laserscan</exec_depend>
   <!-- Browser visualisation — ws://localhost:8765 -->
   <exec_depend>foxglove_bridge</exec_depend>
-  <!-- Android app / web WebSocket bridge — ws://localhost:9090 -->
+  <!-- Android app / web WebSocket bridge — ws://127.0.0.1:9090 -->
   <exec_depend>rosbridge_server</exec_depend>
+  <!-- Quest MJPEG. sim_vr.launch.py binds it to rosbridge_address. -->
+  <exec_depend>web_video_server</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>

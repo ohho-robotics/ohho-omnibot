@@ -1,0 +1,16 @@
+{
+  "v": "1.0.0",
+  "t": 1735689600.5,
+  "robot_id": "omnibot-sim",
+  "kind": "sim",
+  "mode": {
+    "base": "idle",
+    "arm": "not_present"
+  },
+  "estop": {
+    "active": false,
+    "latched": false,
+    "source": "none"
+  },
+  "deadman": false
+}

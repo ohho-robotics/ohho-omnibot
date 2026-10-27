@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ohho-robotics.com/schemas/ohho.telemetry.v1/heartbeat.json",
+  "title": "Heartbeat",
+  "description": "Client liveness ping. seq increases by one per send from 0. t_client is the client clock in seconds since the Unix epoch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "seq", "t_client"],
+  "properties": {
+    "v": { "$ref": "defs.json#/$defs/SchemaVersion" },
+    "seq": { "$ref": "defs.json#/$defs/HeartbeatSeq" },
+    "t_client": { "$ref": "defs.json#/$defs/ClientTimeSeconds" }
+  }
+}
