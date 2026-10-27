@@ -18,7 +18,7 @@
   "auth": {
     "provider": "supabase",
     "url": "https://ucnyuappgtcpolqdaovv.supabase.co",
-    "anonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjbnl1YXBwZ3RjcG9scWRhb3Z2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjU5NTEsImV4cCI6MjA5NzMwMTk1MX0.Cf3g2nxHtaeGU59UwtCdpuNwQV6cCZ4yvdBSqhAEtls",
+    "anonKey": "",
     "signIn": "email_otp",
     "garageTable": "user_robots"
   },

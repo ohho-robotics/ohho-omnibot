@@ -1,0 +1,42 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["node_exporter:9100"]
+        labels:
+          machine: "raspberry_pi"
+
+  - job_name: "omnibot_benchmarks"
+    # HTTP endpoint exposed by omnibot-ai-engines/learning_engine/benchmarks/reporters.py
+    # (PrometheusReporter on port 8890)
+    static_configs:
+      - targets: ["host.docker.internal:8890"]
+
+  - job_name: "omnibot_ros2_bridge"
+    # HTTP endpoint exposed by omnibot_metrics / metrics_bridge (metrics_port:=8888)
+    # in omnibot-ros2/omnibot_bringup/launch/robot.launch.py
+    static_configs:
+      - targets: ["host.docker.internal:8888"]
+        labels:
+          machine: "raspberry_pi"
+
+  # Note on vla_serve / Serve:
+  # The FastAPI server in omnibot-ai-engines/vla_engine/inference/server.py
+  # runs on port 8000 but only implements /health, /load_model, and /predict.
+  # Per OHH-64 scope ("find the existing metrics node / Serve /metrics;
+  # if one does not exist, document that and scrape only what exists;
+  # do not invent metrics"), vla_serve does not currently expose /metrics.
+  # When /metrics instrumentation is added to vla_serve, enable the job below:
+  # - job_name: "vla_serve"
+  #   static_configs:
+  #     - targets: ["host.docker.internal:8000"]
