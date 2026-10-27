@@ -123,7 +123,16 @@ ros2 launch omnibot_navigation sim_navigation.launch.py
 ros2 run omnibot_navigation go_to_waypoint.py kitchen desk door
 # The scenario test: fresh sim per run, fails if a waypoint is not reached in 60 s
 scripts/run_nav_scenarios.sh --repeat 5 kitchen desk door
+# Proof v0 scenario regression suite (10 start/goal/obstacle scenarios, OHH-62)
+scripts/run_nav_regression_suite.sh
 ```
+
+Nightly CI runs the full **scenario regression suite** in
+[`.github/workflows/nav-regression-nightly.yml`](../../.github/workflows/nav-regression-nightly.yml)
+(headless Gazebo in the navdev image stack). It uploads
+`nav-regression-results.json`, a Markdown report, and a workflow badge in the
+job summary. Scenario definitions live in
+[`config/nav_regression_scenarios.yaml`](config/nav_regression_scenarios.yaml).
 
 `autonomous_with_waypoints.launch.py` (and its `route:=kitchen,desk,door` argument)
 starts `autonomous_robot.launch.py`, which brings up the real Yahboom base driver.

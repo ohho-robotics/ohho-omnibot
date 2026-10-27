@@ -17,7 +17,7 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="varunvaidhiya",
-    maintainer_email="varunvaidhiya@todo.todo",
+    maintainer_email="varun@ohho-robotics.com",
     description="Hybrid Nav2 + VLA control for OmniBot",
     license="Apache-2.0",
     tests_require=["pytest"],
@@ -27,6 +27,7 @@ setup(
             "teleop_safety = omnibot_hybrid.teleop_safety:main",
             "mission_planner = omnibot_hybrid.mission_planner:main",
             "rosbag_recorder = omnibot_hybrid.rosbag_recorder:main",
+            "telemetry_aggregator = omnibot_hybrid.telemetry_aggregator:main",
         ],
     },
 )

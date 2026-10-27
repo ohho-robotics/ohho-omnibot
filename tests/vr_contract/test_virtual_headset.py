@@ -276,12 +276,21 @@ def test_bridge_yaml_feeds_gazebo_from_the_mux_output():
     launch = (
         ROOT / "omnibot-ros2/omnibot_bringup/launch/sim.launch.py"
     ).read_text(encoding="utf-8")
-    assert 'bridge_name = "sim_bridge_vr.yaml" if vr else "sim_bridge.yaml"' in launch
+    teleop = (
+        ROOT / "omnibot-ros2/omnibot_bringup/launch/sim_teleop.launch.py"
+    ).read_text(encoding="utf-8")
+    # sim.launch.py no longer switches the bridge on vr:=true. sim_teleop
+    # passes bridge_config:=sim_bridge_vr.yaml, and that file maps
+    # /cmd_vel/out onto gz /cmd_vel.
+    assert 'default_value="sim_bridge.yaml"' in launch
+    assert "sim_bridge_vr.yaml" in launch
+    assert '"bridge_config": "sim_bridge_vr.yaml"' in teleop
 
 
 def test_runner_and_mirror_stay_on_the_mux_path():
     runner = (ROOT / "tests/vr_contract/run_vr_contract.sh").read_text(encoding="utf-8")
-    assert "sim_vr.launch.py" in runner
+    assert "sim_teleop.launch.py" in runner
+    assert "arm_joint_state_mirror.py" in runner
     # set -u makes Jazzy setup.bash fail on unset AMENT_TRACE_SETUP_FILES.
     nounset_off = runner.index("set +u")
     ros_setup = runner.index("source /opt/ros/jazzy/setup.bash")

@@ -55,6 +55,11 @@ def generate_launch_description():
         default_value="",
         description="URL to OTA manifest.json — overrides deployment.env OTA_MANIFEST_URL",
     )
+    declare_descriptor = DeclareLaunchArgument(
+        "descriptor",
+        default_value="true",
+        description="Publish the latched RobotDescriptor JSON on /ohho/descriptor",
+    )
 
     use_rosbridge = LaunchConfiguration("use_rosbridge")
     use_foxglove = LaunchConfiguration("use_foxglove")
@@ -63,6 +68,7 @@ def generate_launch_description():
     metrics_port = LaunchConfiguration("metrics_port")
     use_ota = LaunchConfiguration("use_ota")
     ota_manifest_url = LaunchConfiguration("ota_manifest_url")
+    use_descriptor = LaunchConfiguration("descriptor")
 
     # ── Yahboom driver ────────────────────────────────────────────────────────
     # publish_tf is disabled when EKF is running — the EKF owns odom→base_link.
@@ -160,6 +166,22 @@ def generate_launch_description():
         condition=IfCondition(use_metrics),
     )
 
+    descriptor_node = Node(
+        package="omnibot_bringup",
+        executable="descriptor_node.py",
+        name="ohho_descriptor",
+        output="screen",
+        condition=IfCondition(use_descriptor),
+        parameters=[
+            {
+                "descriptor_yaml": os.path.join(
+                    pkg_bringup, "config", "robot_descriptor.yaml"
+                ),
+                "kind": "real",
+            }
+        ],
+    )
+
     # ── OTA update agent ──────────────────────────────────────────────────────
     # Polls manifest.json for updates; Android app calls /ota/* services.
     # Enable with: ros2 launch omnibot_bringup robot.launch.py use_ota:=true ota_manifest_url:=<URL>
@@ -181,6 +203,7 @@ def generate_launch_description():
             declare_metrics_port,
             declare_use_ota,
             declare_ota_manifest_url,
+            declare_descriptor,
             driver_with_ekf,
             driver_without_ekf,
             robot_state_publisher,
@@ -189,5 +212,6 @@ def generate_launch_description():
             foxglove_node,
             metrics_bridge_node,
             ota_agent_node,
+            descriptor_node,
         ]
     )

@@ -7,9 +7,10 @@ namespace OmniBot.VR.Core
     public static class RobotConfig
     {
         // ── Publish topic names ──────────────────────────────────────────────
-        public const string TOPIC_CMD_VEL         = "/cmd_vel/teleop";
+        public const string TOPIC_CMD_VEL         = "/cmd_vel/teleop_raw";
+        public const string TOPIC_HEARTBEAT       = "/ohho/heartbeat";
         public const string TOPIC_CONTROL_MODE    = "/control_mode";
-        public const string TOPIC_ARM_COMMANDS    = "/arm/joint_commands/teleop";
+        public const string TOPIC_ARM_COMMANDS    = "/arm/joint_commands/teleop_raw";
         public const string TOPIC_ARM_ENABLE      = "/arm/enable";
         public const string TOPIC_EMERGENCY_STOP  = "/emergency_stop";
         public const string TOPIC_MISSION_COMMAND = "/mission/command";
@@ -34,13 +35,19 @@ namespace OmniBot.VR.Core
         /// <summary>Maximum base angular velocity in rad/s.</summary>
         public const float MAX_ANGULAR_VEL = 1.0f;
 
-        /// <summary>Rate at which /cmd_vel/teleop is published (Hz).</summary>
+        /// <summary>Rate at which /cmd_vel/teleop_raw is published (Hz).</summary>
         public const float CMD_VEL_PUBLISH_HZ = 20f;
 
-        /// <summary>Rate at which /arm/joint_commands/teleop is published (Hz).</summary>
+        /// <summary>Rate at which /arm/joint_commands/teleop_raw is published (Hz).</summary>
         public const float ARM_PUBLISH_HZ = 20f;
 
-        // ── Arm joint names (must match omnibot_arm and smolvla_node) ────────
+        /// <summary>
+        /// Rate of /ohho/heartbeat (std_msgs/Empty). teleop_safety stays
+        /// disarmed, and zeros the base, when this stops for 300 ms.
+        /// </summary>
+        public const float HEARTBEAT_HZ = 10f;
+
+        // ── Arm joint names (must match omnibot_arm and policy_node) ────────
         public static readonly string[] ARM_JOINT_NAMES =
         {
             "arm_shoulder_pan",

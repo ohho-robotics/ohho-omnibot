@@ -4,9 +4,10 @@
 """Scripted Quest stand-in for the Gazebo VR contract.
 
 Connects to rosbridge and publishes the same topics OhhO-VR publishes.
-No headset and no robot. The Gazebo job launches sim_vr.launch.py and
-runs this file. Driving goes through /cmd_vel/teleop_raw, so the base
-moves only when the mux output /cmd_vel/out is what Gazebo consumes.
+No headset and no robot. The Gazebo job launches sim_teleop.launch.py
+(the safety gate and the /cmd_vel/out bridge) and runs this file.
+Driving goes through /cmd_vel/teleop_raw, so the base moves only when
+the mux output /cmd_vel/out is what Gazebo consumes.
 """
 
 from __future__ import annotations

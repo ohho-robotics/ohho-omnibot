@@ -6,7 +6,7 @@ using OmniBot.VR.Core.Platform;
 namespace OmniBot.VR.Tests
 {
     /// <summary>
-    /// OmniBot's headset arm commands must use the mux teleop input.
+    /// OmniBot headset commands must use the teleop_safety raw inputs.
     /// arm_cmd_mux holds /arm/joint_commands (the policy alias) in teleop.
     /// </summary>
     public class RobotProfileFactoryTests
@@ -39,7 +39,9 @@ namespace OmniBot.VR.Tests
             var profile = RobotProfileFactory.FromGarageRobot(OmniBot("omnibot"));
 
             Assert.IsNotNull(profile);
-            Assert.AreEqual("/arm/joint_commands/teleop", profile.Topics.ArmCommands);
+            Assert.AreEqual("/cmd_vel/teleop_raw", profile.Topics.CmdVel);
+            Assert.AreEqual("/arm/joint_commands/teleop_raw", profile.Topics.ArmCommands);
+            Assert.AreEqual(RobotConfig.TOPIC_CMD_VEL, profile.Topics.CmdVel);
             Assert.AreEqual(RobotConfig.TOPIC_ARM_COMMANDS, profile.Topics.ArmCommands);
         }
 
@@ -49,7 +51,8 @@ namespace OmniBot.VR.Tests
             var profile = RobotProfileFactory.FromGarageRobot(OmniBot("omnibot-pro"));
 
             Assert.IsNotNull(profile);
-            Assert.AreEqual("/arm/joint_commands/teleop", profile.Topics.ArmCommands);
+            Assert.AreEqual("/cmd_vel/teleop_raw", profile.Topics.CmdVel);
+            Assert.AreEqual("/arm/joint_commands/teleop_raw", profile.Topics.ArmCommands);
         }
     }
 }

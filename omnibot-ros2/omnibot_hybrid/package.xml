@@ -4,21 +4,27 @@
   <name>omnibot_hybrid</name>
   <version>1.0.0</version>
   <description>Hybrid Nav2 + VLA control with cmd_vel mux and mission planner for OmniBot</description>
-  <maintainer email="varunvaidhiya@todo.todo">varunvaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">varunvaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
+  <depend>rcl_interfaces</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
   <depend>nav2_msgs</depend>
   <depend>action_msgs</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>omnibot_lerobot</depend>
+  <exec_depend>python3-yaml</exec_depend>
 
   <!-- <test_depend>ament_copyright</test_depend> -->
   <!-- <test_depend>ament_flake8</test_depend> -->
   <!-- <test_depend>ament_pep257</test_depend> -->
   <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-jsonschema</test_depend>
 
   <export>
     <build_type>ament_python</build_type>

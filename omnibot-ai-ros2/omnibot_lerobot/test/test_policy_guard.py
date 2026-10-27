@@ -403,6 +403,34 @@ class TestTickDecisionWithFakeAdapter:
         # Action was dropped: last_arm_cmd must NOT be updated
         assert guard.last_arm_cmd is None
 
+    def test_tick_slow_preprocess_dropped_even_if_inference_fast(self):
+        guard = PolicyGuard(policy_period=0.10, max_joint_delta_rad=0.15)
+        adapter = FakePolicyAdapter(action=np.zeros(9))
+        camera_images = {
+            "observation.images.wrist": _make_valid_image(),
+            "observation.images.bev": _make_valid_image(),
+        }
+
+        def slow_obs_builder(_images):
+            # obs build + fast inference still exceeds 0.10 s tick budget
+            return {"observation.images.wrist": _images["observation.images.wrist"]}
+
+        clock_ticks = [0.0, 0.095, 0.095, 0.105]
+        t_iter = iter(clock_ticks)
+
+        res = guard.tick(
+            camera_images=camera_images,
+            adapter=adapter,
+            arm_positions=np.zeros(6),
+            obs_builder=slow_obs_builder,
+            now_fn=lambda: next(t_iter),
+        )
+
+        assert res.should_publish is False
+        assert res.dropped_reason == "stale_inference"
+        assert adapter.select_action_calls == 1
+        assert guard.last_arm_cmd is None
+
     def test_skipped_tick_publishes_zero_base_decision(self):
         guard = PolicyGuard(policy_period=0.10, max_joint_delta_rad=0.15)
         adapter = FakePolicyAdapter()
@@ -719,8 +747,8 @@ class TestPolicyNodeWithROSStubs:
         node.camera_images["observation.images.wrist"] = _make_valid_image()
         node.camera_images["observation.images.bev"] = _make_valid_image()
 
-        # Mock time.perf_counter so select_action takes 0.15s (> 0.10s period)
-        times = [100.0, 100.15]
+        # Mock time.perf_counter: tick_start, preprocess end, inference end (0.15s total)
+        times = [100.0, 100.05, 100.15]
         monkeypatch.setattr(time, "perf_counter", lambda: times.pop(0) if times else 200.0)
 
         node._inference_loop()

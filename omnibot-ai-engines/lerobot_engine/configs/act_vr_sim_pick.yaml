@@ -1,0 +1,65 @@
+# ACT train config for the OHH-237 VR sim pick dataset.
+#
+# One command (CPU smoke, synthetic chunks, no W&B, no GPU):
+#   python omnibot-ai-engines/lerobot_engine/train_act_vr.py --smoke
+#
+# Full LeRobot ACT (only when a local v2 root or a published HF dataset exists,
+# and torch + lerobot are installed). This file does not start that run:
+#   python omnibot-ai-engines/lerobot_engine/train_act_vr.py \
+#     --dataset-path /tmp/omnibot-sim-vr-pick
+#
+# Dataset ids are the ones OHH-237 committed. Episode parquet is not in git.
+# The HF dataset has not been created. Push steps are printed by the trainer
+# when the local root is missing; this config does not upload.
+
+model:
+  type: act
+  policy_id: act-vr-sim-pick
+  # No public ACT checkpoint is wired here. Smoke trains a tiny linear map
+  # from scratch. A full run uses lerobot_engine/train.py --model act.
+  pretrained: null
+  device: cpu
+  policy_hz: 20.0
+  chunk_size: 50
+
+robot:
+  config: lerobot_engine/configs/robot/omnibot_mobile_manip.yaml
+  action_dim: 9
+  state_dim: 9
+
+dataset:
+  repo_id: local/omnibot-sim-vr-pick
+  # OHH-237 smoke wrote episodes here inside omnibot-nav-dev. Not in git.
+  local_episode_root: /tmp/omnibot-sim-vr-pick
+  # Card path on branch ohh-237-sim-vr-pick (README, collection.json, OHH-99 report).
+  card_path: datasets/omnibot-sim-vr-pick
+  hf_id: ohho-robotics/omnibot-sim-vr-pick
+  hf_published: false
+  task: scripted-sim pick cube into bin
+
+training:
+  num_epochs: 100
+  batch_size: 8
+  lr: 1.0e-4
+  lr_scheduler: cosine
+  grad_clip_norm: 10.0
+  save_every: 10
+  num_workers: 0
+  output_dir: checkpoints/act_vr_sim_pick
+  # Smoke ignores epochs and takes two numpy steps. It does not log to W&B.
+  smoke_steps: 2
+  wandb_project: ""
+
+serve:
+  model_type: serve
+  checkpoint: checkpoints/act_vr_sim_pick/best
+  serve_url: http://127.0.0.1:8000
+  # Future hub id. Not created and not uploaded by this change.
+  hf_checkpoint_id: ohho-robotics/omnibot-act-vr-sim-pick
+  hf_checkpoint_published: false
+
+eval:
+  trials: 20
+  seed_start: 237
+  world: apartment
+  task: pick cube into bin

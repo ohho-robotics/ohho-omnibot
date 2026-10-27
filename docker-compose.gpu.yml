@@ -1,0 +1,62 @@
+# GPU VR profile for an RTX 5060 Ti (Blackwell, sm_120) on WSL2.
+#
+# From the repo root:
+#   docker compose -f docker-compose.gpu.yml up sim-vr
+#
+# sim-vr runs sim_vr.launch.py: apartment world, vr:=true, gui:=false.
+# gui:=false keeps Gazebo's `-s --headless-rendering` flag, which is Ogre2
+# EGL rather than a window. Ports 9090 (rosbridge) and 8080 (web_video_server)
+# are published on 127.0.0.1 only. This file does not use host networking,
+# because host mode would ignore that bind and expose the sockets on every
+# interface.
+#
+# Host requirements this image does not install:
+#   WSL2 with Docker, the NVIDIA Container Toolkit, and a driver that
+#   supports Blackwell plus CUDA 12.8+ user-mode. The toolkit mounts the
+#   driver libraries. Ogre2 talks to them through EGL.
+#
+# The image default stays llvmpipe. This file turns software rendering off
+# for sim-vr only. CPU fallback is still `docker compose up sim`.
+# Do not stack this file on docker-compose.yml: that starts a second sim.
+#
+# CI does not push this image. Intended tag, for a manual publish:
+#   ghcr.io/ohho-robotics/omnibot-sim:vr-<sha>
+
+name: omnibot-sim-vr
+
+services:
+  sim-vr:
+    image: ghcr.io/ohho-robotics/omnibot-sim:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.sim
+    container_name: omnibot_sim_vr
+    working_dir: /workspaces/OmniBot
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      ROS_DOMAIN_ID: "30"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: graphics,utility,compute
+      LIBGL_ALWAYS_SOFTWARE: "0"
+      GALLIUM_DRIVER: ""
+      MESA_GL_VERSION_OVERRIDE: ""
+      QT_QPA_PLATFORM: offscreen
+      __EGL_VENDOR_LIBRARY_FILENAMES: /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+      __GLX_VENDOR_LIBRARY_NAME: nvidia
+    ports:
+      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:8080:8080"
+    command:
+      - ros2
+      - launch
+      - omnibot_bringup
+      - sim_vr.launch.py
+      - world:=apartment
+      - video:=true
+      - rosbridge_address:=0.0.0.0
