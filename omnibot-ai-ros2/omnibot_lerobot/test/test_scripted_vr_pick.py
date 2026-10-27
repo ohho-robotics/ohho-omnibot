@@ -232,6 +232,25 @@ def test_repeated_clamp_audits_collapse_until_the_reason_changes(tmp_path):
     assert _audit_text(tmp_path).count('"reason": "estop_latched"') == 1
 
 
+def test_watchdog_trip_is_recorded_again_after_recovery(tmp_path):
+    gate = TeleopGate(clock=lambda: 0.0, audit_dir=tmp_path)
+    gate.heartbeat(0.0)
+    first = gate.tick(1.0)
+    assert first.twist == (0.0, 0.0, 0.0)
+    text = _audit_text(tmp_path)
+    assert text.count('"event": "watchdog_trip"') == 1
+    assert text.count('"command": "tick"') == 1
+    held = gate.tick(1.1)
+    assert held.twist is None
+    assert _audit_text(tmp_path).count('"event": "watchdog_trip"') == 1
+    gate.heartbeat(1.1)
+    second = gate.tick(2.0)
+    assert second.twist == (0.0, 0.0, 0.0)
+    text = _audit_text(tmp_path)
+    assert text.count('"event": "watchdog_trip"') == 2
+    assert text.count('"command": "tick"') == 2
+
+
 def test_audit_failure_zeros_velocity_once_on_the_next_tick(tmp_path):
     blocked = tmp_path / "not-a-directory"
     blocked.write_text("x", encoding="utf-8")

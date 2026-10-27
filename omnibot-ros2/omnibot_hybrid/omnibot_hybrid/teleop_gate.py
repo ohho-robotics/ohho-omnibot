@@ -604,7 +604,14 @@ class TeleopGate:
 
     def _audit(self, event: str, **fields: Any) -> bool:
         signature = self._audit_signature(event, fields)
-        if signature == self._last_audit_signature and not self._audit_blocked:
+        # Collapse only back-to-back clamp and reject records. A watchdog
+        # can trip, recover, and trip again with the same signature; each
+        # trip is its own record.
+        if (
+            event in ("clamp", "reject")
+            and signature == self._last_audit_signature
+            and not self._audit_blocked
+        ):
             return True
         ok = self._audit_log.write(
             event, robot="omnibot", protocol="ros2", **fields

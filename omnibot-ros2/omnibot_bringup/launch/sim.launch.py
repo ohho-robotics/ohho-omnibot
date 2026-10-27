@@ -41,7 +41,9 @@ This launch does not start foxglove, arm_cmd_mux, or the Feetech arm driver.
 
 `pick_place:=false` (the default) does not add a table, cube, or bin. The
 apartment SDF is unchanged. `pick_place:=true` spawns those three models
-after Gazebo is up. Cube and bin poses come from `pick_place_seed`.
+after Gazebo is up. The cube and bin start only when the table process
+exits 0. Any other table exit shuts this launch down and does not spawn
+them. Cube and bin poses come from `pick_place_seed`.
 `cmd_vel_from_mux:=false` (the default) still bridges ROS `/cmd_vel` into
 Gazebo. `cmd_vel_from_mux:=true` bridges `/cmd_vel/out` instead, so the
 base moves only through the velocity multiplexer.
@@ -68,8 +70,10 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    LogInfo,
     OpaqueFunction,
     RegisterEventHandler,
+    Shutdown,
     TimerAction,
 )
 from launch.event_handlers import OnProcessExit
@@ -295,15 +299,33 @@ def _launch_sim(context, *args, **kwargs):
             )
             for item in plan
         ]
-        # plan order is table, cube, bin. Objects wait for the table.
+        # plan order is table, cube, bin. Objects wait for a successful table.
         table_node, *objects = spawners
+
+        def _on_table_exit(event, _context):
+            # ROS launch emits this for a zero exit and for a failed create.
+            if event.returncode == 0:
+                return objects
+            return [
+                LogInfo(
+                    msg=(
+                        "pick-and-place table spawn failed with "
+                        f"returncode {event.returncode}; stopping the run"
+                    )
+                ),
+                Shutdown(reason="pick-and-place table spawn failed"),
+            ]
+
         actions.append(
             TimerAction(
                 period=6.0,
                 actions=[
                     table_node,
                     RegisterEventHandler(
-                        OnProcessExit(target_action=table_node, on_exit=objects)
+                        OnProcessExit(
+                            target_action=table_node,
+                            on_exit=_on_table_exit,
+                        )
                     ),
                 ],
             )
