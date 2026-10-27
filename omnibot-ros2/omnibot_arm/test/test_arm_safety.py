@@ -17,6 +17,15 @@ _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "script
 sys.path.insert(0, _SCRIPTS)
 
 import arm_safety  # noqa: E402 — scripts path must come first
+import servo_offsets  # noqa: E402
+
+@pytest.fixture(autouse=True)
+def _no_calibration_env(monkeypatch):
+    """Driver tests must not pick up a calibration path from the machine."""
+    monkeypatch.delenv("OMNIBOT_ARM_CALIBRATION", raising=False)
+    monkeypatch.delenv("OMNIBOT_ARM_ROBOT_ID", raising=False)
+    monkeypatch.delenv("OMNIBOT_ARM_CALIBRATION_DIR", raising=False)
+
 
 JOINT_MIN = [-3.14, -1.57, -1.57, -1.57, -3.14, -0.1]
 JOINT_MAX = [3.14, 1.57, 1.57, 1.57, 3.14, 0.8]
@@ -86,6 +95,11 @@ def _install_ros_stubs():
         def create_timer(self, *_args, **_kwargs):
             return MagicMock()
 
+        def set_parameters(self, params):
+            for param in params:
+                self._params[param.name] = param.value
+            return []
+
         def destroy_node(self):
             return None
 
@@ -116,6 +130,20 @@ def _install_ros_stubs():
     std_msgs_msg = _module("std_msgs.msg")
     std_msgs.msg = std_msgs_msg
     std_msgs_msg.Bool = Bool
+
+    parameter_mod = _module("rclpy.parameter")
+    rclpy.parameter = parameter_mod
+
+    class Parameter:
+        class Type:
+            INTEGER_ARRAY = 7
+
+        def __init__(self, name, type_, value):
+            self.name = name
+            self.type_ = type_
+            self.value = value
+
+    parameter_mod.Parameter = Parameter
 
     try:
         import arm_driver_node  # noqa: E402
@@ -562,3 +590,32 @@ class TestDriverWiring:
         assert bus.write.call_args[0][0] == "Torque_Enable"
         assert node._safety.last_command is None
         assert any("Cannot read present position" in msg for msg in node.get_logger().warnings)
+
+
+_FIXTURE_YAML = os.path.join(
+    os.path.dirname(__file__), "fixtures", "so101_ci_fixture.yaml"
+)
+_FIXTURE_TICKS = [100, 200, 300, 400, 500, 600]
+
+
+class TestHomeTickLoading:
+    def test_factory_default_warns(self):
+        node = _driver()
+        assert node.home_ticks == [2048, 2048, 2048, 2048, 2048, 2048]
+        assert node.home_ticks_source == "parameter"
+        assert any("NOT this robot" in message for message in node.get_logger().warnings)
+
+    def test_env_file_is_loaded(self, monkeypatch):
+        monkeypatch.setenv("OMNIBOT_ARM_CALIBRATION", _FIXTURE_YAML)
+        node = _driver()
+        assert node.home_ticks == _FIXTURE_TICKS
+        assert node.home_ticks_source == "OMNIBOT_ARM_CALIBRATION"
+        assert node.get_parameter("home_ticks").value == _FIXTURE_TICKS
+        assert not any(
+            "NOT this robot" in message for message in node.get_logger().warnings
+        )
+
+    def test_missing_robot_id_raises_before_the_node_returns(self, monkeypatch):
+        monkeypatch.setenv("OMNIBOT_ARM_ROBOT_ID", "ci_missing_robot")
+        with pytest.raises(servo_offsets.CalibrationError, match="not found"):
+            _driver()

@@ -89,7 +89,14 @@ def generate_launch_description():
         executable="arm_driver_node.py",
         name="arm_driver_node",
         output="screen",
-        parameters=[arm_params, {"publish_diagnostics": True}],
+        parameters=[
+            arm_params,
+            {
+                "publish_diagnostics": True,
+                "calibration_file": LaunchConfiguration("calibration_file"),
+                "robot_id": LaunchConfiguration("robot_id"),
+            },
+        ],
     )
     arm_driver_delayed = TimerAction(period=2.0, actions=[arm_driver_node])
 
@@ -253,6 +260,22 @@ def generate_launch_description():
                 "use_foxglove",
                 default_value="true",
                 description="Start Foxglove bridge on port 8765 for browser monitoring",
+            ),
+            DeclareLaunchArgument(
+                "calibration_file",
+                default_value="",
+                description=(
+                    "SO-101 so101_<id>.yaml. Empty uses OMNIBOT_ARM_CALIBRATION, "
+                    "then robot_id. See omnibot_arm/CALIBRATION.md."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "robot_id",
+                default_value="",
+                description=(
+                    "Load so101_<robot_id>.yaml for the arm. Empty uses "
+                    "OMNIBOT_ARM_ROBOT_ID."
+                ),
             ),
             # Base
             driver_node,

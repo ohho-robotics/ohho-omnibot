@@ -106,6 +106,22 @@ def generate_launch_description():
     declare_arm = DeclareLaunchArgument(
         "arm", default_value="true", description="Start SO-101 arm driver"
     )
+    declare_calibration_file = DeclareLaunchArgument(
+        "calibration_file",
+        default_value="",
+        description=(
+            "SO-101 so101_<id>.yaml. Empty uses OMNIBOT_ARM_CALIBRATION, "
+            "then robot_id. See omnibot_arm/CALIBRATION.md."
+        ),
+    )
+    declare_robot_id = DeclareLaunchArgument(
+        "robot_id",
+        default_value="",
+        description=(
+            "Load so101_<robot_id>.yaml for the arm. Empty uses "
+            "OMNIBOT_ARM_ROBOT_ID."
+        ),
+    )
     declare_foxglove = DeclareLaunchArgument(
         "foxglove",
         default_value="true",
@@ -188,6 +204,8 @@ def generate_launch_description():
                 "follower_port": "/dev/ttyACM0",
                 "baudrate": 1000000,
                 "publish_rate": 100.0,
+                "calibration_file": LaunchConfiguration("calibration_file"),
+                "robot_id": LaunchConfiguration("robot_id"),
             }
         ],
         remappings=[("joint_commands", "/arm/joint_commands/out")],
@@ -467,6 +485,8 @@ def generate_launch_description():
             declare_slam,
             declare_nav2,
             declare_arm,
+            declare_calibration_file,
+            declare_robot_id,
             declare_foxglove,
             declare_web_video,
             declare_rosbridge,

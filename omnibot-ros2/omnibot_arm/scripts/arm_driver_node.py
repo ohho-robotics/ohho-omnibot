@@ -19,7 +19,8 @@ Topics subscribed:
 Safety (limits, per-cycle delta, command-timeout hold, e-stop torque latch)
 lives in arm_safety.py so it can be tested without ROS. This node only
 reads parameters, calls that helper, and writes the bus. Position servos
-only — no force control. Untested on hardware.
+only — no force control. Home ticks are chosen by servo_offsets.py before
+the bus is opened. Untested on hardware.
 """
 
 import collections
@@ -33,9 +34,13 @@ from arm_math import ticks_to_radians as _ticks_to_radians
 from arm_safety import COMMAND_TIMEOUT_SEC
 from arm_safety import MAX_JOINT_DELTA_RAD
 from arm_safety import ArmSafety
+from servo_offsets import FACTORY_HOME_TICKS
+from servo_offsets import home_ticks_for_node
+from servo_offsets import package_config_dir
 
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool
 
@@ -77,7 +82,11 @@ class ArmDriverNode(Node):
             ],
         )
         self.declare_parameter("motor_ids", [1, 2, 3, 4, 5, 6])
-        self.declare_parameter("home_ticks", [2048, 2048, 2048, 2048, 2048, 2048])
+        self.declare_parameter("home_ticks", list(FACTORY_HOME_TICKS))
+        self.declare_parameter("calibration_file", "")
+        self.declare_parameter("robot_id", "")
+        # arm.launch.py sets this after it has already chosen home_ticks.
+        self.declare_parameter("home_ticks_resolved", False)
         self.declare_parameter("joint_min", [-3.14, -1.57, -1.57, -1.57, -3.14, -0.1])
         self.declare_parameter("joint_max", [3.14, 1.57, 1.57, 1.57, 3.14, 0.8])
         # Same limit OHH-100 reuses (arm_safety.MAX_JOINT_DELTA_RAD).
@@ -95,7 +104,26 @@ class ArmDriverNode(Node):
         self.ticks_per_rev = self.get_parameter("ticks_per_rev").value
         self.joint_names = list(self.get_parameter("joint_names").value)
         self.motor_ids = list(self.get_parameter("motor_ids").value)
-        self.home_ticks = list(self.get_parameter("home_ticks").value)
+        resolution = home_ticks_for_node(
+            home_ticks_param=self.get_parameter("home_ticks").value,
+            calibration_file=self.get_parameter("calibration_file").value,
+            robot_id=self.get_parameter("robot_id").value,
+            resolved_by_launch=self.get_parameter("home_ticks_resolved").value,
+            config_dir=package_config_dir(),
+        )
+        self.home_ticks = list(resolution.home_ticks)
+        self.home_ticks_source = resolution.source
+        self._home_ticks_warning = resolution.warning
+        self._home_ticks_detail = resolution.detail
+        self.set_parameters(
+            [
+                Parameter(
+                    "home_ticks",
+                    Parameter.Type.INTEGER_ARRAY,
+                    list(self.home_ticks),
+                )
+            ]
+        )
         self.joint_min = list(self.get_parameter("joint_min").value)
         self.joint_max = list(self.get_parameter("joint_max").value)
         self.max_joint_delta_rad = float(
@@ -150,6 +178,12 @@ class ArmDriverNode(Node):
             Bool, "/emergency_stop", self.emergency_stop_cb, 10
         )
 
+        # Log calibration before any bus open. Factory 2048s are not this robot.
+        if self._home_ticks_warning:
+            self.get_logger().warn(self._home_ticks_warning)
+        elif self._home_ticks_detail:
+            self.get_logger().info(self._home_ticks_detail)
+
         # ------------------------------------------------------------------
         # Connect hardware
         # ------------------------------------------------------------------
@@ -181,6 +215,7 @@ class ArmDriverNode(Node):
         self.get_logger().info(
             f"ArmDriverNode started | hardware={'real' if LEROBOT_AVAILABLE and self.follower_bus else 'sim'} "
             f"| teleop={self.teleop_mode} | joints={self.joint_names} "
+            f"| home_ticks={self.home_ticks} source={self.home_ticks_source} "
             f"| max_joint_delta_rad={self.max_joint_delta_rad} "
             f"| command_timeout_sec={self.command_timeout_sec}"
         )
