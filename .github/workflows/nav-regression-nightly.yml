@@ -46,8 +46,12 @@ jobs:
           sudo rosdep init || true
           rosdep update
           source /opt/ros/jazzy/setup.bash
+          # bringup exec-depends on omnibot_hybrid and omnibot_rl.
+          # hybrid's teleop gate imports omnibot_lerobot. Keep all three on
+          # --from-paths so rosdep --ignore-src does not look them up, and
+          # select them below so the workspace build can resolve them.
           rosdep install \
-            --from-paths src/omnibot_description src/omnibot_arm src/omnibot_bringup src/omnibot_navigation \
+            --from-paths src/omnibot_description src/omnibot_arm src/omnibot_bringup src/omnibot_navigation src/omnibot_hybrid src/omnibot_lerobot src/omnibot_rl \
             --ignore-src -y --rosdistro jazzy \
             --skip-keys "rtabmap_ros octomap_server pcl_ros octomap_msgs"
       - name: Build navigation sim stack
@@ -56,7 +60,7 @@ jobs:
           set -eo pipefail
           source /opt/ros/jazzy/setup.bash
           colcon build --symlink-install --base-paths src \
-            --packages-select omnibot_description omnibot_arm omnibot_bringup omnibot_navigation
+            --packages-select omnibot_description omnibot_arm omnibot_hybrid omnibot_lerobot omnibot_rl omnibot_bringup omnibot_navigation
       - name: ROS-free regression scenario checks
         shell: bash
         run: |

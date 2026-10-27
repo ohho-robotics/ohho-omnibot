@@ -10,7 +10,7 @@ Topic routing
   Inputs (one active at a time):
     /cmd_vel          ← Nav2 velocity_smoother (native Nav2 output)
     /cmd_vel/vla      ← VLA inference node
-    /cmd_vel/teleop   ← keyboard / joystick teleoperation
+    /cmd_vel/teleop   ← teleop_safety (clients publish /cmd_vel/teleop_raw)
     /cmd_vel/rl       ← Isaac Lab RL navigation policy (rl_nav_node)
 
   Mode control:

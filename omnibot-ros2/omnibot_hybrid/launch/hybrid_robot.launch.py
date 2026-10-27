@@ -11,7 +11,7 @@ Hybrid Robot Launch — Nav2 + VLA with cmd_vel mux and mission planner.
           │                     cmd_vel_mux                          │
           │  /cmd_vel       ← Nav2 (native output)                  │
           │  /cmd_vel/vla   ← VLA inference node                    │
-          │  /cmd_vel/teleop← keyboard / joystick                   │
+          │  /cmd_vel/teleop← teleop_safety (raw client input)      │
           │                     selects by /control_mode            │
           │                   → /cmd_vel/out                        │
           └────────────────────────────┬────────────────────────────┘
@@ -257,6 +257,18 @@ def generate_launch_description():
         ],
     )
 
+    # ── teleop_safety ─────────────────────────────────────────────────────────
+    # Raw client topics in, mux teleop topics out. Wall-clock watchdogs.
+    teleop_safety = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("omnibot_hybrid"),
+                "launch",
+                "teleop_safety.launch.py",
+            )
+        ),
+    )
+
     # ── cmd_vel Mux ───────────────────────────────────────────────────────────
     # Subscribes: /cmd_vel (nav2), /cmd_vel/vla, /cmd_vel/teleop
     # Publishes:  /cmd_vel/out  →  driver
@@ -435,6 +447,7 @@ def generate_launch_description():
             slam_toolbox,
             autonomous_navigation,
             vla_node,
+            teleop_safety,
             cmd_vel_mux_node,
             rosbag_recorder_node,
             mission_planner_node,

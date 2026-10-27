@@ -81,6 +81,7 @@ def test_headset_publishers_are_only_the_client_contract():
     assert 'declare_parameter("pick_place_seed", 0)' in text
     assert "joint_motion_rad" in text
     assert "MIN_JOINT_MOTION_RAD" in text
+    assert "/ohho/estop_reset" in text
 
 
 def test_launch_uses_safety_muxes_and_vr_recorder():
@@ -152,6 +153,7 @@ def test_commands_pass_through_teleop_gate_and_muxes(tmp_path):
         return now["t"]
 
     gate = TeleopGate(clock=clock, audit_dir=tmp_path)
+    assert gate.reset(0.0).ok
     gate.note_joint_state(JOINT_NAMES, [0.0] * 6)
     now["t"] = 0.1
     dropped = gate.command_joints(JOINT_NAMES, [0.2] * 6, now["t"])
@@ -214,6 +216,7 @@ def test_repeated_clamp_audits_collapse_until_the_reason_changes(tmp_path):
         return now["t"]
 
     gate = TeleopGate(clock=clock, audit_dir=tmp_path)
+    assert gate.reset(5.0).ok
     gate.heartbeat(5.0)
     gate.command_velocity(1.0, 0.0, 0.0, 5.0)
     gate.command_velocity(1.0, 0.0, 0.0, 5.0)
@@ -234,6 +237,7 @@ def test_repeated_clamp_audits_collapse_until_the_reason_changes(tmp_path):
 
 def test_watchdog_trip_is_recorded_again_after_recovery(tmp_path):
     gate = TeleopGate(clock=lambda: 0.0, audit_dir=tmp_path)
+    assert gate.reset(0.0).ok
     gate.heartbeat(0.0)
     first = gate.tick(1.0)
     assert first.twist == (0.0, 0.0, 0.0)

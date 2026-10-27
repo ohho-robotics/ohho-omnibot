@@ -49,9 +49,24 @@ def generate_launch_description():
     )
 
     # ------------------------------------------------------------------
-    # 2. cmd_vel Mux — selects among nav2 / vla / teleop / rl_nav sources.
+    # 2. teleop_safety — raw human teleop → /cmd_vel/teleop and
+    #    /arm/joint_commands/teleop. Caps are not launch parameters.
+    # ------------------------------------------------------------------
+    teleop_safety = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("omnibot_hybrid"),
+                "launch",
+                "teleop_safety.launch.py",
+            )
+        ),
+    )
+
+    # ------------------------------------------------------------------
+    # 3. cmd_vel Mux — selects among nav2 / vla / teleop / rl_nav sources.
     #    Bring-up starts in teleop. Nav2, VLA, and RL base commands are not
-    #    forwarded until a human sets /control_mode. /cmd_vel/teleop still works.
+    #    forwarded until a human sets /control_mode. /cmd_vel/teleop is the
+    #    gated output of teleop_safety.
     # ------------------------------------------------------------------
     cmd_vel_mux_node = Node(
         package="omnibot_hybrid",
@@ -281,6 +296,7 @@ def generate_launch_description():
             ),
             # Base
             driver_node,
+            teleop_safety,
             cmd_vel_mux_node,
             robot_state_publisher,
             ekf,

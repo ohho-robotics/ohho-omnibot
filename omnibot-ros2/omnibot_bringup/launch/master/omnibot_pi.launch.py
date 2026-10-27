@@ -25,8 +25,9 @@ What this starts (in order):
   │  Nav2 stack              controller, planner, behavior, bt_navigator      │
   │                          velocity_smoother, lifecycle_manager             │
   ├─ CONTROL ROUTING ───────────────────────────────────────────────────────┤
+  │  teleop_safety           raw teleop → caps, watchdog, latched e-stop    │
   │  cmd_vel_mux             routes nav2/vla/teleop/rl_nav → motors           │
-  │  arm_cmd_mux             routes policy/rl_arm → arm driver                │
+  │  arm_cmd_mux             routes teleop/policy/rl_arm → arm driver         │
   │  mission_planner         parses /mission/command → Nav2 + VLA goals       │
   ├─ CONNECTIVITY ──────────────────────────────────────────────────────────┤
   │  foxglove_bridge         ws://pi-ip:8765  (workstation Foxglove viewer)   │
@@ -403,7 +404,20 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("nav2")),
     )
 
-    # ── 13. cmd_vel mux ───────────────────────────────────────────────────────
+    # ── 13. teleop_safety ─────────────────────────────────────────────────────
+    # /cmd_vel/teleop_raw and /arm/joint_commands/teleop_raw → gated
+    # /cmd_vel/teleop and /arm/joint_commands/teleop. Caps are not parameters.
+    teleop_safety = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("omnibot_hybrid"),
+                "launch",
+                "teleop_safety.launch.py",
+            )
+        ),
+    )
+
+    # ── 14. cmd_vel mux ───────────────────────────────────────────────────────
     # Routes: nav2 | vla | teleop | rl_nav → /cmd_vel/out → yahboom_controller
     cmd_vel_mux = Node(
         package="omnibot_hybrid",
@@ -413,7 +427,7 @@ def generate_launch_description():
         parameters=[{"default_mode": "nav2"}],
     )
 
-    # ── 14. arm_cmd_mux ───────────────────────────────────────────────────────
+    # ── 15. arm_cmd_mux ───────────────────────────────────────────────────────
     # Routes: teleop | policy | rl_arm → /arm/joint_commands/out → arm_driver
     arm_cmd_mux = Node(
         package="omnibot_rl",
@@ -423,7 +437,7 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("arm")),
     )
 
-    # ── 15. Mission planner ───────────────────────────────────────────────────
+    # ── 16. Mission planner ───────────────────────────────────────────────────
     # Parses /mission/command → Nav2 + VLA + RL goals
     mission_planner = Node(
         package="omnibot_hybrid",
@@ -432,7 +446,7 @@ def generate_launch_description():
         output="screen",
     )
 
-    # ── 16. Foxglove bridge ───────────────────────────────────────────────────
+    # ── 17. Foxglove bridge ───────────────────────────────────────────────────
     foxglove_bridge = TimerAction(
         period=4.0,
         actions=[
@@ -447,7 +461,7 @@ def generate_launch_description():
         ],
     )
 
-    # ── 17. web_video_server ──────────────────────────────────────────────────
+    # ── 18. web_video_server ──────────────────────────────────────────────────
     web_video_server = TimerAction(
         period=4.0,
         actions=[
@@ -462,7 +476,7 @@ def generate_launch_description():
         ],
     )
 
-    # ── 18. ROSBridge WebSocket (Android app) ─────────────────────────────────
+    # ── 19. ROSBridge WebSocket (Android app) ─────────────────────────────────
     rosbridge = TimerAction(
         period=4.0,
         actions=[
@@ -519,6 +533,7 @@ def generate_launch_description():
             # Navigation
             nav2,
             # Control routing
+            teleop_safety,
             cmd_vel_mux,
             arm_cmd_mux,
             mission_planner,

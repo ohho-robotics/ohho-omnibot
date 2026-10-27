@@ -7,8 +7,9 @@ headset node publishes ``HEADSET_TOPICS`` only. ``teleop_safety`` is what
 republishes the gated arm and base commands. Episodes are labelled
 ``scripted-sim``. They are not human VR demonstrations.
 
-The deadman is ``/ohho/heartbeat`` (std_msgs/Empty at 10 Hz). The VR profile
-keeps teleop disarmed until that heartbeat is fresh.
+The deadman is ``/ohho/heartbeat`` (std_msgs/Empty at 10 Hz). teleop_safety
+starts latched, so the headset calls ``/ohho/estop_reset`` before commanding.
+A fresh heartbeat is still required after that reset.
 """
 
 from __future__ import annotations
