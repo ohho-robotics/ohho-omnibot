@@ -1,0 +1,80 @@
+#!/bin/bash
+# Copyright 2026 OhhO Robotics
+# SPDX-License-Identifier: Apache-2.0
+#
+# Start, stop or restart the OmniBot sim on the browser desktop.
+#
+#   omnibot-desktop-sim start     open a terminal window running
+#                                 sim_desktop.launch.py (Gazebo + RViz)
+#   omnibot-desktop-sim stop      stop it
+#   omnibot-desktop-sim restart   stop, then start
+#   omnibot-desktop-sim status    exit 0 when the launch is running
+#
+# World and windows come from OMNIBOT_WORLD, OMNIBOT_GUI and OMNIBOT_RVIZ;
+# extra arguments after the command are passed to ros2 launch, e.g.
+#   omnibot-desktop-sim restart world:=apartment
+set -uo pipefail
+
+log_dir="${OMNIBOT_LOG_DIR:-/tmp/omnibot-desktop}"
+mkdir -p "${log_dir}"
+stop_marker="${log_dir}/stop-requested"
+pattern="ros2 launch omnibot_bringup sim_desktop.launch.py"
+cmd="${1:-start}"
+[ "$#" -gt 0 ] && shift
+
+running() { pgrep -f "${pattern}" >/dev/null 2>&1; }
+
+stop_sim() {
+    running || return 0
+    touch "${stop_marker}"
+    pkill -INT -f "${pattern}" 2>/dev/null || true
+    for _ in $(seq 1 60); do running || break; sleep 0.25; done
+    pkill -KILL -f "${pattern}" 2>/dev/null || true
+    # Leftover Gazebo or RViz processes of that launch.
+    pkill -f "gz sim" 2>/dev/null || true
+    pkill -x rviz2 2>/dev/null || true
+}
+
+start_sim() {
+    if running; then
+        echo "The sim is already running (omnibot-desktop-sim restart restarts it)."
+        return 0
+    fi
+    rm -f "${stop_marker}"
+    # The terminal window shows the launch log.
+    setsid xterm -T "OmniBot sim" -geometry 110x24+0-0 -fa Monospace -fs 9 \
+        -e /usr/local/bin/omnibot-desktop-sim _run "$@" \
+        >"${log_dir}/xterm.log" 2>&1 < /dev/null &
+}
+
+# Runs inside the terminal window.
+run_sim() {
+    set +u
+    # shellcheck disable=SC1091
+    source /opt/ros/jazzy/setup.bash
+    # shellcheck disable=SC1091
+    source /opt/omnibot/install/setup.bash
+    set -u
+    local args=(
+        "world:=${OMNIBOT_WORLD:-flat}"
+        "gui:=${OMNIBOT_GUI:-true}"
+        "rviz:=${OMNIBOT_RVIZ:-true}"
+        "$@"
+    )
+    echo "\$ ros2 launch omnibot_bringup sim_desktop.launch.py ${args[*]}"
+    ros2 launch omnibot_bringup sim_desktop.launch.py "${args[@]}" 2>&1 | tee "${log_dir}/sim.log"
+    [ -e "${stop_marker}" ] && exit 0
+    echo
+    echo "The sim exited. Press Enter for a shell, or close this window."
+    read -r _
+    exec bash
+}
+
+case "${cmd}" in
+    start) start_sim "$@" ;;
+    stop) stop_sim ;;
+    restart) stop_sim; start_sim "$@" ;;
+    status) if running; then echo running; else echo stopped; exit 1; fi ;;
+    _run) run_sim "$@" ;;
+    *) echo "usage: omnibot-desktop-sim start|stop|restart|status [launch args]" >&2; exit 2 ;;
+esac

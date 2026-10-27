@@ -1,0 +1,106 @@
+name: nav-regression-nightly
+
+# OHH-62 Proof v0: 10-scenario Gazebo Nav2 scenario regression suite (nightly).
+# Headless simulation only — no robot hardware.
+on:
+  schedule:
+    - cron: "42 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nav-regression-nightly
+  cancel-in-progress: false
+
+jobs:
+  scenario-regression-suite:
+    name: scenario regression suite (10 scenarios)
+    runs-on: ubuntu-24.04
+    # navdev image: Jazzy base + Mesa software rendering for headless Gazebo.
+    container:
+      image: ros:jazzy-ros-base-noble
+    timeout-minutes: 240
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
+      QT_QPA_PLATFORM: offscreen
+      MESA_GL_VERSION_OVERRIDE: "3.3"
+    steps:
+      - name: Install git and sudo
+        run: apt-get update && apt-get install -y git sudo ca-certificates
+      - uses: actions/checkout@v4
+      - name: Install Gazebo Harmonic, Nav2, slam_toolbox (navdev stack)
+        shell: bash
+        run: |
+          set -eo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            python3-colcon-common-extensions \
+            python3-rosdep \
+            python3-pytest \
+            libgl1-mesa-dri \
+            libegl1 \
+            libegl-mesa0 \
+            libglx-mesa0 \
+            libglu1-mesa \
+            xvfb
+          sudo rosdep init || true
+          rosdep update
+          source /opt/ros/jazzy/setup.bash
+          rosdep install \
+            --from-paths src/omnibot_description src/omnibot_arm src/omnibot_bringup src/omnibot_navigation \
+            --ignore-src -y --rosdistro jazzy \
+            --skip-keys "rtabmap_ros octomap_server pcl_ros octomap_msgs"
+      - name: Build navigation sim stack
+        shell: bash
+        run: |
+          set -eo pipefail
+          source /opt/ros/jazzy/setup.bash
+          colcon build --symlink-install --base-paths src \
+            --packages-select omnibot_description omnibot_arm omnibot_bringup omnibot_navigation
+      - name: ROS-free regression scenario checks
+        shell: bash
+        run: |
+          set -eo pipefail
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          colcon test --base-paths src --packages-select omnibot_navigation \
+            --event-handlers console_direct+ --return-code-on-test-failure
+          colcon test-result --verbose
+      - name: Headless Gazebo scenario regression suite
+        id: regression
+        shell: bash
+        run: |
+          set -eo pipefail
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          mkdir -p nav-regression-out
+          set +e
+          bash omnibot-ros2/omnibot_navigation/scripts/run_nav_regression_suite.sh \
+            --results nav-regression-out/nav-regression-results.jsonl \
+            2>&1 | tee nav-regression-out/run.log
+          status=${PIPESTATUS[0]}
+          python3 omnibot-ros2/omnibot_navigation/scripts/aggregate_nav_results.py \
+            nav-regression-out/nav-regression-results.jsonl \
+            -o nav-regression-out/nav-regression-results.json
+          BADGE="https://img.shields.io/badge/scenario%20regression%20suite-$(
+            if [[ ${status} -eq 0 ]]; then echo passing-brightgreen; else echo failing-red; fi
+          )"
+          python3 omnibot-ros2/omnibot_navigation/scripts/write_nav_regression_report.py \
+            nav-regression-out/nav-regression-results.jsonl \
+            -o nav-regression-out/nav-regression-report.md \
+            --badge-url "${BADGE}" \
+            --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          cat nav-regression-out/nav-regression-report.md >> "$GITHUB_STEP_SUMMARY"
+          exit "${status}"
+      - name: Upload Proof v0 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nav-regression-proof-v0
+          path: |
+            nav-regression-out/nav-regression-results.json
+            nav-regression-out/nav-regression-results.jsonl
+            nav-regression-out/nav-regression-report.md
+            nav-regression-out/run.log
+            nav-regression-out/nav-regression-logs/
+          if-no-files-found: warn

@@ -33,3 +33,13 @@ teleop_recorder_node:
     episode_timeout_s: 60.0
     joy_record_button: 7
     joy_discard_button: 6
+    action_source: "leader"   # leader | vr
+    operator: ""
+    robot_kind: "sim"         # sim | real
+    sim_world: ""
+    vr_action_prefer: "teleop"
+    vr_arm_command_topic: "/arm/joint_commands/teleop"
+    vr_arm_mux_topic: "/arm/joint_commands/out"
+    vr_base_command_topic: "/cmd_vel/teleop"
+    vr_base_mux_topic: "/cmd_vel/out"
+    control_mode_topic: "/control_mode"

@@ -38,15 +38,17 @@ def _fmt(value, spec="{:.1f}"):
 
 def render(rows) -> str:
     out = [
-        "| Run | Scenario | Result | Time to goal (sim s) | Wall s | Final xy error (m) "
-        "| Final yaw error (rad) |",
-        "|---|---|---|---|---|---|---|",
+        "| Run | Scenario | Result | Time to goal (sim s) | Wall s | Collisions (scan) "
+        "| Final xy error (m) | Final yaw error (rad) |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for index, row in enumerate(rows, 1):
+        collisions = row.get("collision_proximity_hits")
         out.append(
             f"| {index} | {_name(row)} | "
             f"{'PASS' if row.get('success') else 'FAIL: ' + str(row.get('reason'))} | "
             f"{_fmt(row.get('time_to_goal_s'))} | {_fmt(row.get('wall_time_s'))} | "
+            f"{collisions if collisions is not None else '-'} | "
             f"{_fmt(row.get('final_error_xy_m'), '{:.2f}')} | "
             f"{_fmt(row.get('final_error_yaw_rad'), '{:.2f}')} |"
         )
