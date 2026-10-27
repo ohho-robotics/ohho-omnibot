@@ -1,0 +1,12 @@
+newmtl tag36h11_id1
+Ka 1.000 1.000 1.000
+Kd 1.000 1.000 1.000
+Ks 0.000 0.000 0.000
+illum 1
+map_Kd tag36h11_id1.png
+
+newmtl apriltag_backing
+Ka 0.050 0.050 0.050
+Kd 0.050 0.050 0.050
+Ks 0.000 0.000 0.000
+illum 1

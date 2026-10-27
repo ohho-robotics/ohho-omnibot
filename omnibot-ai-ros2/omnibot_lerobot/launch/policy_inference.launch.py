@@ -12,6 +12,7 @@ Usage
 ros2 launch omnibot_lerobot policy_inference.launch.py
 ros2 launch omnibot_lerobot policy_inference.launch.py model_type:=act checkpoint:=lerobot/act_base
 ros2 launch omnibot_lerobot policy_inference.launch.py model_type:=smolvla checkpoint:=~/checkpoints/smolvla_run1/best
+ros2 launch omnibot_lerobot policy_inference.launch.py model_type:=serve checkpoint:=checkpoints/act_vr_sim_pick/best serve_url:=http://127.0.0.1:8000
 ros2 launch omnibot_lerobot policy_inference.launch.py include_arm_mux:=false
 """
 
@@ -34,6 +35,7 @@ def generate_launch_description():
     model_type = LaunchConfiguration("model_type")
     checkpoint = LaunchConfiguration("checkpoint")
     device = LaunchConfiguration("device")
+    serve_url = LaunchConfiguration("serve_url")
     include_arm_mux = LaunchConfiguration("include_arm_mux")
 
     policy_node = Node(
@@ -47,6 +49,7 @@ def generate_launch_description():
                 "model_type": model_type,
                 "checkpoint_path": checkpoint,
                 "device": device,
+                "serve_url": serve_url,
             },
         ],
         remappings=[
@@ -69,7 +72,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "model_type",
                 default_value="smolvla",
-                description="Policy model type: smolvla | act | diffusion | openvla",
+                description="Policy model type: smolvla | act | diffusion | openvla | serve",
             ),
             DeclareLaunchArgument(
                 "checkpoint",
@@ -80,6 +83,11 @@ def generate_launch_description():
                 "device",
                 default_value="cuda",
                 description="Inference device: cuda | cpu",
+            ),
+            DeclareLaunchArgument(
+                "serve_url",
+                default_value="http://127.0.0.1:8000",
+                description="OhhO Serve base URL used when model_type is serve",
             ),
             DeclareLaunchArgument(
                 "include_arm_mux",

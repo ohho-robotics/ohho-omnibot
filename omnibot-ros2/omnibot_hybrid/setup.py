@@ -17,7 +17,7 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="varunvaidhiya",
-    maintainer_email="varunvaidhiya@todo.todo",
+    maintainer_email="varun@ohho-robotics.com",
     description="Hybrid Nav2 + VLA control for OmniBot",
     license="Apache-2.0",
     tests_require=["pytest"],

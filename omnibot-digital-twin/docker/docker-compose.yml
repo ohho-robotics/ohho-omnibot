@@ -1,47 +1,52 @@
-version: "3.8"
 
 # OmniBot headless simulation stack
 #
 # Services:
-#   sim       — Gazebo Harmonic (headless) + ROS 2 bridge
+#   sim       — Gazebo Harmonic (headless) + Nav2 apartment navigation demo
 #   foxglove  — Foxglove bridge (ws://localhost:8765)
 #
 # Usage (from the repo root):
-#   docker compose -f omnibot-digital-twin/docker/docker-compose.yml up
-# Then open:
-#   https://app.foxglove.dev → Connect → ws://localhost:8765
+#   docker compose -f omnibot-digital-twin/docker/docker-compose.yml up sim
+# Or simply:
+#   docker compose up sim
 #
-# GPU variant (NVIDIA host):
-#   docker compose -f omnibot-digital-twin/docker/docker-compose.yml \
-#     -f omnibot-digital-twin/docker/docker-compose.gpu.yml up
+# Visualise:
+#   Open https://app.foxglove.dev -> Connect to ws://localhost:8765
+#   Import layout: omnibot-digital-twin/configs/foxglove/omnibot_layout.json
 
 x-ros-base: &ros-base
+  image: ghcr.io/ohho-robotics/omnibot-sim:latest
   build:
     context: ../..
-    dockerfile: omnibot-digital-twin/docker/Dockerfile.sim
+    dockerfile: Dockerfile.sim
   network_mode: host
   environment:
     - ROS_DOMAIN_ID=30
-    - DISPLAY=
+    - LIBGL_ALWAYS_SOFTWARE=1
+    - GALLIUM_DRIVER=llvmpipe
+    - MESA_GL_VERSION_OVERRIDE=3.3
+    - QT_QPA_PLATFORM=offscreen
   volumes:
     - ../..:/workspaces/OmniBot:cached
   working_dir: /workspaces/OmniBot
 
 services:
 
-  # ── Gazebo simulation + ROS bridge ─────────────────────────────────────────
+  # ── Gazebo simulation + Nav2 navigation demo ──────────────────────────────
   sim:
     <<: *ros-base
     container_name: omnibot_sim
+    depends_on:
+      - foxglove
     command: >
       bash -c "
         source /opt/ros/jazzy/setup.bash &&
-        source install/setup.bash 2>/dev/null || true &&
-        ros2 launch omnibot_bringup simulation.launch.py
-          rviz:=false
-          foxglove:=false
+        if [ -f /opt/omnibot/install/setup.bash ]; then source /opt/omnibot/install/setup.bash; fi &&
+        if [ -f install/setup.bash ] && [ ! install/setup.bash -ef /opt/omnibot/install/setup.bash ]; then source install/setup.bash; fi &&
+        ros2 launch omnibot_navigation sim_navigation.launch.py
+          autonavigate:=true
+          route:=kitchen
       "
-    # Expose ROSBridge for Android app / external tooling
     ports:
       - "9090:9090"
 
@@ -49,13 +54,12 @@ services:
   foxglove:
     <<: *ros-base
     container_name: omnibot_foxglove
-    depends_on:
-      - sim
     command: >
       bash -c "
         source /opt/ros/jazzy/setup.bash &&
-        source install/setup.bash 2>/dev/null || true &&
-        sleep 6 &&
+        if [ -f /opt/omnibot/install/setup.bash ]; then source /opt/omnibot/install/setup.bash; fi &&
+        if [ -f install/setup.bash ] && [ ! install/setup.bash -ef /opt/omnibot/install/setup.bash ]; then source install/setup.bash; fi &&
+        sleep 4 &&
         ros2 run foxglove_bridge foxglove_bridge
           --ros-args -p port:=8765 -p address:=0.0.0.0
       "
