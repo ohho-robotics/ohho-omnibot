@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Robot-side SafetyGate between human teleop and the muxes.
 
-Clients (Quest, Android, browser Connect) publish:
+Clients (Quest and Android) publish:
 
     /cmd_vel/teleop_raw
     /arm/joint_commands/teleop_raw
