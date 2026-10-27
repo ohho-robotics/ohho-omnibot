@@ -4,7 +4,7 @@
   <name>omnibot_description</name>
   <version>0.0.1</version>
   <description>URDF description for OmniBot mecanum wheel robot</description>
-  <maintainer email="varunvaidhiya@todo.todo">varunvaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">varunvaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

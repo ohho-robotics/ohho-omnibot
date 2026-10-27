@@ -121,6 +121,9 @@ class ServeClient:
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/health")
 
+    def models(self) -> dict[str, Any]:
+        return self._request("GET", "/models")
+
     def metrics_text(self) -> str:
         url = f"{self.base_url}/metrics"
         req = urllib.request.Request(url, method="GET", headers=self._headers())

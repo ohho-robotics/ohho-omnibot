@@ -36,6 +36,7 @@ Topics subscribed
 /odom                       (nav_msgs/Odometry)
 /policy/task                (std_msgs/String)   — update task description
 /policy/enable              (std_msgs/Bool)     — enable/disable inference
+/policy/load                (std_msgs/String)   — checkpoint path; does not enable inference
 
 Topics published
 ----------------
@@ -66,6 +67,11 @@ except ImportError:
         PolicyGuard,
         is_black_frame,
     )
+
+try:
+    from omnibot_lerobot.policy_load import requested_checkpoint
+except ImportError:
+    from policy_load import requested_checkpoint
 
 try:
     from cv_bridge import CvBridge
@@ -229,17 +235,21 @@ class PolicyNode(Node):
         else:
             self.device = None
 
-        # Load policy
-        serve_url = self.get_parameter("serve_url").value
-        serve_timeout = float(self.get_parameter("serve_timeout_sec").value)
-        serve_api_key = self.get_parameter("serve_api_key").value
+        # Load policy. /policy/load may replace the checkpoint later.
+        # A failed reload keeps this adapter. Load never enables inference.
+        self._model_type = model_type
+        self._checkpoint = checkpoint
+        self._device_str = device_str
+        self._serve_url = self.get_parameter("serve_url").value
+        self._serve_timeout_sec = float(self.get_parameter("serve_timeout_sec").value)
+        self._serve_api_key = self.get_parameter("serve_api_key").value
         self.adapter = self._load_adapter(
-            model_type,
-            checkpoint,
-            device_str,
-            serve_url=serve_url,
-            serve_timeout_sec=serve_timeout,
-            serve_api_key=serve_api_key,
+            self._model_type,
+            self._checkpoint,
+            self._device_str,
+            serve_url=self._serve_url,
+            serve_timeout_sec=self._serve_timeout_sec,
+            serve_api_key=self._serve_api_key,
         )
 
         # Safety guard for camera frame validation, inference latency, and arm clamping
@@ -281,6 +291,7 @@ class PolicyNode(Node):
         self.create_subscription(Odometry, "/odom", self._odom_cb, 10)
         self.create_subscription(String, "/policy/task", self._task_cb, 10)
         self.create_subscription(Bool, "/policy/enable", self._enable_cb, 10)
+        self.create_subscription(String, "/policy/load", self._policy_load_cb, 10)
 
         # Inference timer
         self.create_timer(1.0 / self.policy_hz, self._inference_loop)
@@ -448,6 +459,38 @@ class PolicyNode(Node):
             self.adapter.reset()
             if hasattr(self, "guard"):
                 self.guard.reset()
+
+    def _policy_load_cb(self, msg: String) -> None:
+        """Reload a checkpoint from the headset. Does not enable inference."""
+        requested = requested_checkpoint(getattr(self, "_checkpoint", ""), msg.data)
+        if requested is None:
+            return
+        previous = self.adapter
+        previous_ckpt = self._checkpoint
+        self._checkpoint = requested
+        loaded = self._load_adapter(
+            self._model_type,
+            requested,
+            self._device_str,
+            serve_url=self._serve_url,
+            serve_timeout_sec=self._serve_timeout_sec,
+            serve_api_key=self._serve_api_key,
+        )
+        if isinstance(loaded, _DummyAdapter) and not isinstance(previous, _DummyAdapter):
+            self.adapter = previous
+            self._checkpoint = previous_ckpt
+            self.get_logger().error(
+                f'policy/load "{requested}" failed; keeping the previous adapter.'
+            )
+            return
+        self.adapter = loaded
+        if hasattr(self, "guard"):
+            self.guard.required_keys = list(self.adapter.image_keys)
+            self.guard.reset()
+        self.get_logger().info(
+            f'policy/load applied checkpoint "{requested}". '
+            f"Inference stays {'on' if self.enabled else 'off'}."
+        )
 
     # ------------------------------------------------------------------
     # Inference loop

@@ -74,6 +74,14 @@ class MockServeServer:
                         },
                     )
                     return
+                if path == "/models":
+                    from lerobot_engine.act_vr_sim import models_payload
+
+                    checkpoint = server.model_path or models_payload()["models"][0][
+                        "checkpoint"
+                    ]
+                    self._json(200, models_payload(checkpoint))
+                    return
                 if path == "/metrics":
                     avg = (
                         server._latency_ms_total / server._predict_count

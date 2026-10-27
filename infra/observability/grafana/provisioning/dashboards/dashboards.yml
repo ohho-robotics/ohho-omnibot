@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: "OmniBot Observability"
+    orgId: 1
+    folder: "OmniBot"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

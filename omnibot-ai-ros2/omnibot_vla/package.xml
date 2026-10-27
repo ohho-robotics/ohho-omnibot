@@ -4,7 +4,7 @@
   <name>omnibot_vla</name>
   <version>0.0.1</version>
   <description>OpenVLA integration for OmniBot control</description>
-  <maintainer email="varunvaidhiya@todo.todo">varunvaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">varunvaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
