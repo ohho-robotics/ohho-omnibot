@@ -342,6 +342,46 @@ def test_repeated_clamp_and_latched_reject_audits_are_throttled(tmp_path):
     assert any(event["event"] == "estop_release" for event in _audit_events(tmp_path))
 
 
+def _reject_count(tmp_path, reason, command):
+    return sum(
+        1
+        for event in _audit_events(tmp_path)
+        if event["event"] == "reject"
+        and event.get("reason") == reason
+        and event.get("command") == command
+    )
+
+
+def test_streaming_reject_audits_are_throttled(tmp_path):
+    gate, clock = make_gate(tmp_path)
+
+    def burst(at):
+        clock.t = at
+        gate.heartbeat(at)
+        gate.command_velocity(float("nan"), 0.0, 0.0, now=at)
+        gate.command_velocity(float("inf"), 0.0, 0.0, now=at)
+        gate.command_joints([], [], now=at)
+        gate.command_joints(["arm_elbow_flex"], [float("nan")], now=at)
+        gate.command_joints(["not_a_joint"], [0.1], now=at)
+        dropped = gate.command_joints(["arm_elbow_flex"], [0.2], now=at)
+        assert dropped.joints is None
+
+    for step in range(6):
+        burst(1.0 + step * 0.04)
+    assert _reject_count(tmp_path, "non_finite", "velocity") == 1
+    assert _reject_count(tmp_path, "bad_joints", "joints") == 1
+    assert _reject_count(tmp_path, "non_finite", "joints") == 1
+    assert _reject_count(tmp_path, "unknown_joint", "joints") == 1
+    assert _reject_count(tmp_path, "no_joint_reference", "joints") == 1
+
+    burst(1.0 + AUDIT_REPEAT_S + 0.05)
+    assert _reject_count(tmp_path, "non_finite", "velocity") == 2
+    assert _reject_count(tmp_path, "bad_joints", "joints") == 2
+    assert _reject_count(tmp_path, "non_finite", "joints") == 2
+    assert _reject_count(tmp_path, "unknown_joint", "joints") == 2
+    assert _reject_count(tmp_path, "no_joint_reference", "joints") == 2
+
+
 def test_startup_latch_blocks_until_reset_and_returns_on_restart(tmp_path):
     gate, _clock = make_gate(tmp_path, release_startup=False)
     assert gate.latched is True

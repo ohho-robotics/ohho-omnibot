@@ -126,7 +126,7 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
             pos = self.odom[-1].pose.pose.position
             dist = math.hypot(pos.x - start.x, pos.y - start.y)
             gated = _planar(self.teleop[-1][1]) if self.teleop else 0.0
-            if dist >= 0.05 or (_speed(self.odom[-1]) > 0.02 and gated > 0.02):
+            if dist >= 0.05 and _speed(self.odom[-1]) > 0.02 and gated > 0.02:
                 moving = True
                 break
         _log(
@@ -141,6 +141,7 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
         )
 
         t_kill = last_command_at
+        odom_count_at_kill = len(self.odom)
         cmd_zero_at = None
         odom_stop_at = None
         deadline = t_kill + 1.0
@@ -153,7 +154,11 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
                     if _planar(msg) <= 1e-6:
                         cmd_zero_at = stamp
                         break
-            if odom_stop_at is None and self.odom and _speed(self.odom[-1]) < 0.02:
+            if (
+                odom_stop_at is None
+                and len(self.odom) > odom_count_at_kill
+                and _speed(self.odom[-1]) < 0.02
+            ):
                 odom_stop_at = time.monotonic()
             if cmd_zero_at is not None and odom_stop_at is not None:
                 break

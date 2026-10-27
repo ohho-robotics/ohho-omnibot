@@ -42,7 +42,7 @@ HARD_MAX_ACCEL_Y = 0.5  # m/s^2
 HARD_MAX_ACCEL_WZ = 2.0  # rad/s^2
 CMD_TIMEOUT_S = 0.3
 HEARTBEAT_TIMEOUT_S = CMD_TIMEOUT_S
-# Repeated clamp and latched-reject lines. State transitions are not throttled.
+# Repeated clamp and reject lines. State transitions are not throttled.
 AUDIT_REPEAT_S = 1.0
 # arm_safety.MAX_JOINT_DELTA_RAD. Stricter than SafetyProfile.max_joint_step.
 HARD_MAX_JOINT_DELTA_RAD = 0.15
@@ -399,8 +399,9 @@ class TeleopGate:
             )
             if any(item is None for item in parsed):
                 self._stop_motion()
-                self._audit(
+                self._audit_throttled(
                     "reject",
+                    stamp,
                     command="velocity",
                     reason="non_finite",
                     requested=[vx, vy, wz],
@@ -483,7 +484,12 @@ class TeleopGate:
             stamp = self._now(now)
             self._sync(stamp)
             if len(names) != len(positions) or not names:
-                self._audit("reject", command="joints", reason="bad_joints")
+                self._audit_throttled(
+                    "reject",
+                    stamp,
+                    command="joints",
+                    reason="bad_joints",
+                )
                 return Outcome()
             if self._latched or self._audit_blocked:
                 self._audit_throttled(
@@ -507,12 +513,18 @@ class TeleopGate:
             for name, position in zip(names, positions):
                 number = _finite_number(position)
                 if not isinstance(name, str) or number is None:
-                    self._audit("reject", command="joints", reason="non_finite")
+                    self._audit_throttled(
+                        "reject",
+                        stamp,
+                        command="joints",
+                        reason="non_finite",
+                    )
                     return Outcome()
                 bounds = JOINT_LIMITS.get(name)
                 if bounds is None:
-                    self._audit(
+                    self._audit_throttled(
                         "reject",
+                        stamp,
                         command="joints",
                         reason="unknown_joint",
                         joint=name,
@@ -520,8 +532,9 @@ class TeleopGate:
                     return Outcome()
                 ref = self._joint_reference(name)
                 if ref is None:
-                    self._audit(
+                    self._audit_throttled(
                         "reject",
+                        stamp,
                         command="joints",
                         reason="no_joint_reference",
                         joint=name,
@@ -538,7 +551,12 @@ class TeleopGate:
                 limited, reference, self.max_joint_delta_rad
             )
             if len(applied) != len(limited):
-                self._audit("reject", command="joints", reason="bad_joints")
+                self._audit_throttled(
+                    "reject",
+                    stamp,
+                    command="joints",
+                    reason="bad_joints",
+                )
                 return Outcome()
             applied_list = [float(item) for item in applied]
             reasons = []
