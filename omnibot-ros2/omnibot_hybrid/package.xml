@@ -4,7 +4,7 @@
   <name>omnibot_hybrid</name>
   <version>1.0.0</version>
   <description>Hybrid Nav2 + VLA control with cmd_vel mux and mission planner for OmniBot</description>
-  <maintainer email="varunvaidhiya@todo.todo">varunvaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">varunvaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
