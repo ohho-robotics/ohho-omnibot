@@ -1,4 +1,5 @@
 .venv/
+eval_runs/
 build/
 install/
 log/
