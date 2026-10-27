@@ -1,9 +1,13 @@
 policy_node:
   ros__parameters:
     # Model selection — change model_type to swap backends without editing code.
-    # Registered types: smolvla | act | diffusion | openvla
+    # Registered types: smolvla | act | diffusion | openvla | serve
     model_type: "smolvla"
     checkpoint_path: "lerobot/smolvla_base"
+    # OhhO Serve (model_type: serve). The ACT VR loop uses act_vr_sim_pick.launch.py.
+    serve_url: "http://127.0.0.1:8000"
+    serve_timeout_sec: 0.5
+    serve_api_key: ""
     device: "cuda"
     policy_hz: 10.0
     state_dim: 9
@@ -33,3 +37,15 @@ teleop_recorder_node:
     episode_timeout_s: 60.0
     joy_record_button: 7   # Xbox RB
     joy_discard_button: 6  # Xbox LB
+    task_name: "mobile manipulation task"
+    episode_index: -1      # -1 = next index; >= 0 pins that index on every start
+    action_source: "leader"   # leader | vr. leader keeps the joystick + leader arm.
+    operator: ""              # empty + action_source vr stores operator=vr
+    robot_kind: "sim"         # sim | real
+    sim_world: ""             # simulator world name; empty when unused
+    vr_action_prefer: "teleop"  # teleop topic first, or mux output while mode is teleop
+    vr_arm_command_topic: "/arm/joint_commands/teleop"
+    vr_arm_mux_topic: "/arm/joint_commands/out"
+    vr_base_command_topic: "/cmd_vel/teleop"
+    vr_base_mux_topic: "/cmd_vel/out"
+    control_mode_topic: "/control_mode"

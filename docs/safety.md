@@ -21,3 +21,5 @@ The base node on the robot is [`yahboom_controller_node.py`](../omnibot-ros2/omn
 [`YahboomDriverNode`](../yahboom-python-driver/yahboom_ros2/driver_node.py) in `yahboom-python-driver` stores `/cmd_vel` and resends it at `update_hz` (default 20 Hz). The `timeout=1.0` passed to `serial.Serial` is the pyserial read timeout. Clamps there are `max_linear_vel` (default 0.5 m/s) and `max_angular_vel` (default 2.0 rad/s).
 
 These driver facts are from the source. They were not checked on the physical base.
+
+`arm_sim_driver_node` is the Gazebo path. It calls the same `ArmSafety` object rather than a second copy of the limits, the 0.15 rad cap, the 0.2 s timeout, or the e-stop latch. On `/emergency_stop` true it rejects new `/arm/joint_commands/out` targets and publishes the measured joint pose once so the Gazebo position controllers hold that pose. Clearing the stop leaves commands rejected until `/arm/enable` true while the stop is clear. The URDF revolute stops stay the SO-101 calibration values; they are not widened to the software limits in `arm_params.yaml`.

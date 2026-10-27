@@ -1,0 +1,11 @@
+# generic-api-key at omnibot-vr/Assets/Resources/DevAgentSettings.asset:24
+# in commit 187dec2cf0daa2145ef771bf696a0e5bed6dd865.
+#
+# Not a credential. The Meta XR Immersive Debugger DevAgent asset stores a
+# 32-hex GUID as the local AgentBridge / MCP bridge token (RuntimeSettings
+# tooltip: "Access token for connecting to the Remote Agent Server"). It is
+# only used to authenticate to the editor's own bridge on a private LAN
+# address and local ports. It is not a cloud or third-party API key.
+# generic-api-key matched the hex. This is that one fingerprint, not a
+# path-wide or rule-wide allowlist.
+187dec2cf0daa2145ef771bf696a0e5bed6dd865:omnibot-vr/Assets/Resources/DevAgentSettings.asset:generic-api-key:24

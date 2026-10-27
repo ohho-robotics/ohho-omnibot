@@ -5,3 +5,8 @@ log/
 **/__pycache__/
 *.egg-info/
 *.pyc
+*.mcap
+rosbag2_*/
+
+# Browser desktop shared folder (docker compose up desktop)
+omnibot-shared/
