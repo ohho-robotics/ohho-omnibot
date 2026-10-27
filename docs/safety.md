@@ -10,4 +10,18 @@ In `policy_node`, inference guards enforce that missing or black camera frames (
 
 The decisions above are unit-tested without ROS and without the arm (`pytest omnibot-ros2/omnibot_arm/test omnibot-ai-ros2/omnibot_lerobot/test omnibot-ros2/omnibot_bringup/test/test_teleop_default.py`). Feetech bus writes, `ros2 launch`, and real model inference on hardware were not run for this behavior. Position servos only; there is no force control.
 
+## cmd_vel source staleness (OHH-195)
+
+`StreamGate` in [`omnibot-ros2/omnibot_hybrid/omnibot_hybrid/stream_gate.py`](../omnibot-ros2/omnibot_hybrid/omnibot_hybrid/stream_gate.py) is the base-velocity gate behind `cmd_vel_mux`. It forwards only the active source (`teleop`, `nav2`, `vla`, `rl_nav`) and publishes one zero Twist on a mode change or a rising `/emergency_stop`. Parameter `source_timeout_s` defaults to 0.3 s. A smaller positive value is kept. A value above 0.3 s is clamped to 0.3 s and a warning is logged. Zero, negative, and non-numeric values keep 0.3 s and log a warning, so the watchdog stays armed. The clock is `time.monotonic`, so a stalled ROS sim clock cannot freeze it.
+
+After the mux forwards a command from the active source, a 0.05 s timer (`SOURCE_STALE_TICK_S` in [`cmd_vel_mux.py`](../omnibot-ros2/omnibot_hybrid/omnibot_hybrid/cmd_vel_mux.py)) checks that source. The first check at or after the timeout publishes one zero Twist on `/cmd_vel/out` and logs that once. Later checks in the same silence do not publish again. A new forwarded command starts the window over. Silence before the first forwarded command does not publish. A command on an inactive source does not refresh the active source. The zero therefore goes out no later than `source_timeout_s` plus one timer tick after the last forwarded command.
+
+### Yahboom driver command timeout
+
+The base node on the robot is [`yahboom_controller_node.py`](../omnibot-ros2/omnibot_driver/scripts/yahboom_controller_node.py). `cmd_vel_callback` stores the latest Twist, and `send_motion_command` sends that stored Twist on every control tick (update timer 0.05 s). The stored Twist keeps going out until a later Twist, `/emergency_stop`, or the joystick watchdog replaces it. That watchdog is `_JOY_TIMEOUT_S = 0.5`. It zeros velocity after `/joy` has arrived at least once and then stays silent for 0.5 s. With no `/joy` ever (VR over rosbridge), the watchdog stays disarmed and the stored Twist keeps being sent. Speed clamps in this node are 0.12 m/s and 0.5 rad/s.
+
+[`YahboomDriverNode`](../yahboom-python-driver/yahboom_ros2/driver_node.py) in `yahboom-python-driver` stores `/cmd_vel` and resends it at `update_hz` (default 20 Hz). The `timeout=1.0` passed to `serial.Serial` is the pyserial read timeout. Clamps there are `max_linear_vel` (default 0.5 m/s) and `max_angular_vel` (default 2.0 rad/s).
+
+These driver facts are from the source. They were not checked on the physical base.
+
 `arm_sim_driver_node` is the Gazebo path. It calls the same `ArmSafety` object rather than a second copy of the limits, the 0.15 rad cap, the 0.2 s timeout, or the e-stop latch. On `/emergency_stop` true it rejects new `/arm/joint_commands/out` targets and publishes the measured joint pose once so the Gazebo position controllers hold that pose. Clearing the stop leaves commands rejected until `/arm/enable` true while the stop is clear. The URDF revolute stops stay the SO-101 calibration values; they are not widened to the software limits in `arm_params.yaml`.

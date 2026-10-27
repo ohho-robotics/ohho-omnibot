@@ -64,7 +64,7 @@ class VlaServePolicy(Policy):
 @POLICIES.register("smolvla")
 class SmolVLAPolicy(Policy):
     """In-process SmolVLA (lerobot) — the unified 9-DOF mobile-manipulation
-    policy. Mirrors smolvla_node.py's observation mapping so a policy
+    policy. Mirrors policy_node's observation mapping so a policy
     evaluated here behaves identically when deployed via ROS."""
 
     def __init__(
