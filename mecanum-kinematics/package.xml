@@ -10,7 +10,7 @@
     Works with any mecanum robot regardless of motor board.
   </description>
 
-  <maintainer email="varunvaidhiya@example.com">Varun Vaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">Varun Vaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <url type="website">https://github.com/varunvaidhiya/Mecanum-Wheel-Robot</url>
@@ -23,6 +23,8 @@
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>tf2_ros</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

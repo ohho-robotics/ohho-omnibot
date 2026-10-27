@@ -17,7 +17,7 @@ setup(
     install_requires=["setuptools", "numpy", "opencv-python"],
     zip_safe=True,
     maintainer="Varun Vaidhiya",
-    maintainer_email="varunvaidhiya@example.com",
+    maintainer_email="varun@ohho-robotics.com",
     description="Multi-camera Bird's Eye View compositor for ROS 2",
     license="Apache-2.0",
     tests_require=["pytest"],

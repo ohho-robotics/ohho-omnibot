@@ -32,11 +32,20 @@ def main() -> int:
         "mecanum-kinematics/tests",
         "yahboom-python-driver/tests",
         "ros2-bev-stitcher/tests",
+        "ohho-webrtc/tests",
         "omnibot-ros2/omnibot_arm/test",
         "omnibot-ai-ros2/omnibot_lerobot/test",
         "omnibot-ros2/omnibot_bringup/test/test_unbuilt_launch.py",
         "omnibot-ros2/omnibot_bringup/test/test_teleop_default.py",
+        "omnibot-ros2/omnibot_bringup/test/test_descriptor.py",
+        "omnibot-ros2/omnibot_bringup/test/test_sim_cameras.py",
+        "omnibot-ros2/omnibot_bringup/test/test_sim_vr_launch.py",
+        "omnibot-ros2/omnibot_bringup/test/test_docker_sim.py",
+        "omnibot-ros2/omnibot_bringup/test/test_frame_launch_docs.py",
         "omnibot-ros2/omnibot_navigation/test",
+        "omnibot-ros2/omnibot_description/test",
+        "infra/observability/tests",
+        "scripts/test_architecture_launch_table.py",
     ]
     if (
         _run(

@@ -9,15 +9,27 @@
     <xacro:arg name="drive" default="mecanum"/>
     <xacro:arg name="lidar" default="false"/>
     <xacro:arg name="minimal_sensors" default="false"/>
+    <!-- sim.launch.py vr:=true. Quest streams are 960x540 at 30 Hz. -->
+    <xacro:arg name="vr_cameras" default="false"/>
     <xacro:property name="enable_extra_cameras" value="true"/>
     <xacro:property name="front_cam_width" value="640"/>
     <xacro:property name="front_cam_height" value="480"/>
     <xacro:property name="front_cam_rate" value="30"/>
+    <xacro:property name="vr_cam_width" value="960"/>
+    <xacro:property name="vr_cam_height" value="540"/>
+    <xacro:property name="vr_cam_rate" value="30"/>
     <xacro:if value="$(arg minimal_sensors)">
         <xacro:property name="enable_extra_cameras" value="false"/>
         <xacro:property name="front_cam_width" value="160"/>
         <xacro:property name="front_cam_height" value="120"/>
         <xacro:property name="front_cam_rate" value="5"/>
+    </xacro:if>
+    <!-- Later than minimal_sensors, so vr:=true raises the front camera
+         without turning the depth camera or the four fisheyes back on. -->
+    <xacro:if value="$(arg vr_cameras)">
+        <xacro:property name="front_cam_width" value="${vr_cam_width}"/>
+        <xacro:property name="front_cam_height" value="${vr_cam_height}"/>
+        <xacro:property name="front_cam_rate" value="${vr_cam_rate}"/>
     </xacro:if>
 
     <!-- ================================================================
@@ -934,7 +946,9 @@
     </transmission>
 
     <!-- ================================================================
-         Wrist camera — OV9732 on the gripper body, facing along gripper
+         Wrist camera — OV9732 on the SO-101 gripper body (arm_gripper_link).
+         The link is always in the model. The Gazebo sensor is added only
+         when vr_cameras:=true, below, and looks along this link's +X.
          ================================================================ -->
     <link name="wrist_camera_link">
         <visual>
@@ -957,6 +971,113 @@
         <child link="wrist_camera_link"/>
         <origin xyz="0.030 0 0.025" rpy="0 ${PI/6} 0"/>
     </joint>
+
+    <!-- Quest camera sensor. 960x540 @ 30 Hz from vr_cam_* above.
+         The four base fisheyes stay behind enable_extra_cameras. VR uses
+         one downward camera for /camera/base/bev/image_raw so the Quest
+         screen does not need the stitcher. The chase camera is a fixed
+         offset from base_link: it translates and yaws with the robot.
+         Gazebo's camera-tracking control is a GUI plugin and does not
+         publish an image topic. -->
+    <xacro:macro name="quest_camera_sensor" params="link_name sensor_name topic hfov clip_near clip_far">
+        <gazebo reference="${link_name}">
+            <sensor name="${sensor_name}" type="camera">
+                <always_on>1</always_on>
+                <update_rate>${vr_cam_rate}</update_rate>
+                <visualize>false</visualize>
+                <topic>${topic}</topic>
+                <gz_frame_id>${link_name}</gz_frame_id>
+                <camera>
+                    <horizontal_fov>${hfov}</horizontal_fov>
+                    <image>
+                        <width>${vr_cam_width}</width>
+                        <height>${vr_cam_height}</height>
+                        <format>R8G8B8</format>
+                    </image>
+                    <clip>
+                        <near>${clip_near}</near>
+                        <far>${clip_far}</far>
+                    </clip>
+                </camera>
+            </sensor>
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:if value="$(arg vr_cameras)">
+        <xacro:quest_camera_sensor
+            link_name="wrist_camera_link"
+            sensor_name="wrist_camera_sensor"
+            topic="/camera/wrist/image_raw"
+            hfov="1.745"
+            clip_near="0.02"
+            clip_far="3.0"/>
+
+        <!-- Synthetic nadir view. Pitch +90 deg points camera +X down.
+             Camera +Z (image up) stays along the robot +X. No collision:
+             the link sits above the chassis and must not snag walls. -->
+        <link name="bev_camera_link">
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry><box size="0.02 0.02 0.02"/></geometry>
+                <material name="dark_grey"><color rgba="0.15 0.15 0.15 1"/></material>
+            </visual>
+            <inertial>
+                <mass value="0.001"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+            </inertial>
+        </link>
+        <joint name="bev_camera_joint" type="fixed">
+            <parent link="base_link"/>
+            <child link="bev_camera_link"/>
+            <origin xyz="0 0 2.2" rpy="0 ${PI/2} 0"/>
+        </joint>
+        <xacro:quest_camera_sensor
+            link_name="bev_camera_link"
+            sensor_name="bev_camera_sensor"
+            topic="/camera/base/bev/image_raw"
+            hfov="2.094"
+            clip_near="0.05"
+            clip_far="8.0"/>
+
+        <!-- Third-person view from behind and above base_link, pitched
+             down so the chassis sits in frame and the apartment ahead
+             is still visible. Fixed joint, so it follows the base. -->
+        <link name="chase_camera_link">
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry><box size="0.03 0.02 0.02"/></geometry>
+                <material name="dark_grey"><color rgba="0.15 0.15 0.15 1"/></material>
+            </visual>
+            <inertial>
+                <mass value="0.001"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+            </inertial>
+        </link>
+        <joint name="chase_camera_joint" type="fixed">
+            <parent link="base_link"/>
+            <child link="chase_camera_link"/>
+            <origin xyz="-0.85 0 0.55" rpy="0 0.45 0"/>
+        </joint>
+        <xacro:quest_camera_sensor
+            link_name="chase_camera_link"
+            sensor_name="chase_camera_sensor"
+            topic="/sim/chase_cam/image_raw"
+            hfov="1.2"
+            clip_near="0.05"
+            clip_far="20.0"/>
+    </xacro:if>
+
+    <!-- Gripper contact friction so the jaw can hold the apartment grasp cube. -->
+    <gazebo reference="arm_gripper_link">
+        <mu1>2.0</mu1>
+        <mu2>2.0</mu2>
+    </gazebo>
+    <gazebo reference="arm_moving_jaw_link">
+        <mu1>2.0</mu1>
+        <mu2>2.0</mu2>
+    </gazebo>
 
     <!-- ================================================================
          Gazebo IMU Sensor
@@ -982,6 +1103,23 @@
             </imu>
         </sensor>
     </gazebo>
+
+    <!-- Per-joint position hold for the SO-101. cmd_max is the sim
+         tracking speed (rad/s), below the URDF velocity limit of 10.
+         initial_position 0 holds the arm at the URDF zero before ROS
+         sends a target. use_velocity_commands tracks that target without
+         relying on a gravity-fighting force PID. -->
+    <xacro:macro name="arm_joint_position_controller" params="joint">
+        <plugin filename="gz-sim-joint-position-controller-system"
+                name="gz::sim::systems::JointPositionController">
+            <joint_name>${joint}</joint_name>
+            <topic>/arm/sim/${joint}/cmd_pos</topic>
+            <initial_position>0</initial_position>
+            <use_velocity_commands>true</use_velocity_commands>
+            <cmd_max>1.5</cmd_max>
+            <cmd_min>-1.5</cmd_min>
+        </plugin>
+    </xacro:macro>
 
     <!-- ================================================================
          Gazebo Harmonic Mecanum Drive Plugin
@@ -1029,13 +1167,38 @@
 
         <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
             <!-- Absolute topic so ros_gz_bridge can bridge it directly to /joint_states in ROS.
-                 Only wheel joints here — arm joints come from arm_driver_node (sim passthrough)
-                 remapped onto /joint_states so robot_state_publisher gets both. -->
+                 Wheel joints only. Arm joints are a second publisher below so the
+                 two messages are not merged on one gz topic. -->
             <topic>/joint_states</topic>
             <joint_name>front_left_wheel_joint</joint_name>
             <joint_name>front_right_wheel_joint</joint_name>
             <joint_name>rear_left_wheel_joint</joint_name>
             <joint_name>rear_right_wheel_joint</joint_name>
+        </plugin>
+
+        <!-- SO-101 in Gazebo Harmonic. One JointPositionController per joint
+             (gz-sim-8), speed-capped, plus a JointStatePublisher for the arm.
+             gz_ros2_control is not used: sim.launch.py already runs on the
+             gz-sim systems shipped with ros_gz_sim. Software limits, the
+             0.15 rad step, the 0.2 s hold, and the e-stop latch are applied
+             by arm_sim_driver from arm_params.yaml via arm_safety.py.
+             URDF lower/upper values stay the SO-101 calib stops. -->
+        <xacro:arm_joint_position_controller joint="arm_shoulder_pan"/>
+        <xacro:arm_joint_position_controller joint="arm_shoulder_lift"/>
+        <xacro:arm_joint_position_controller joint="arm_elbow_flex"/>
+        <xacro:arm_joint_position_controller joint="arm_wrist_flex"/>
+        <xacro:arm_joint_position_controller joint="arm_wrist_roll"/>
+        <xacro:arm_joint_position_controller joint="arm_gripper"/>
+
+        <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+            <topic>/arm/sim/joint_states</topic>
+            <update_rate>50</update_rate>
+            <joint_name>arm_shoulder_pan</joint_name>
+            <joint_name>arm_shoulder_lift</joint_name>
+            <joint_name>arm_elbow_flex</joint_name>
+            <joint_name>arm_wrist_flex</joint_name>
+            <joint_name>arm_wrist_roll</joint_name>
+            <joint_name>arm_gripper</joint_name>
         </plugin>
 
         <!-- NOTE: gz-sim-sensors-system and gz-sim-imu-system are world-level
@@ -1096,5 +1259,7 @@
             </sensor>
         </gazebo>
     </xacro:if>
+
+  <xacro:include filename="apriltags.urdf.xacro"/>
 
 </robot>
