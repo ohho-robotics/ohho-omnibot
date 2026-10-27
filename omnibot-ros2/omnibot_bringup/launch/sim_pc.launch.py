@@ -8,7 +8,7 @@ What this starts
 ----------------
   bev_stitcher_node  Stitches 4 base-mounted camera feeds into
                      /camera/base/bev/image_raw at 30 Hz.
-                     Required by smolvla_node running on PC1.
+                     Required by policy_node running on PC1.
   RViz               Optional visualisation (disable with rviz:=false).
 
 What this does NOT start
@@ -60,7 +60,7 @@ def generate_launch_description():
     # ── BEV stitcher ─────────────────────────────────────────────────────────
     # Subscribes to /camera/{front,rear,left,right}/image_raw published by
     # Isaac Sim or Gazebo on this machine and stitches them into a single
-    # 800×800 bird's-eye-view image.  smolvla_node on PC1 subscribes to the
+    # 800×800 bird's-eye-view image.  policy_node on PC1 subscribes to the
     # output topic /camera/base/bev/image_raw over DDS.
     bev_stitcher = Node(
         package="omnibot_lerobot",

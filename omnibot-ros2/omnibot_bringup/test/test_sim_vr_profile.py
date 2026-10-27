@@ -68,15 +68,22 @@ def test_defaults_stay_on_the_real_robot_contract():
     assert 'executable="cmd_vel_mux"' not in text
     assert 'executable="arm_cmd_mux"' not in text
     assert "teleop_safety.launch.py" not in text
-    assert 'default_value="0.0.0.0"' not in text
+    # GPU container bind. Docker publishes 127.0.0.1. The support module
+    # default stays loopback, and gateway:=true does not widen it.
+    assert 'default_value="0.0.0.0"' in text
     assert "web_video_server" in text
     assert "arm_sim_driver" in text
     assert "does not bind 0.0.0.0" in text
 
-    assert "teleop_safety.launch.py" in sim
-    assert "cmd_vel_mux" in sim
-    assert "arm_cmd_mux" in sim
+    # The gate moved out of sim.launch.py into sim_teleop.launch.py so the
+    # camera tests can keep forbidding that token in sim.launch.py.
+    assert "teleop_safety.launch.py" not in sim
     assert "sim_bridge_vr.yaml" in sim
+    sim_teleop = (LAUNCH / "sim_teleop.launch.py").read_text(encoding="utf-8")
+    assert "teleop_safety.launch.py" in sim_teleop
+    assert "cmd_vel_mux" in sim_teleop
+    assert "arm_cmd_mux" in sim_teleop
+    assert "sim_bridge_vr.yaml" in sim_teleop
     assert 'ros_topic_name: "/cmd_vel/out"' in bridge
     assert 'gz_topic_name: "/cmd_vel"' in bridge
     assert 'ros_topic_name: "/cmd_vel"' not in bridge

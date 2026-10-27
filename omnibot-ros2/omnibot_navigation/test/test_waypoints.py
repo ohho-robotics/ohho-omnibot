@@ -57,7 +57,8 @@ def test_yaw_deg_matches_quaternion():
 def test_initial_pose_matches_sim_spawn():
     x, y, yaw = wl.load_initial_pose(WAYPOINTS_YAML)
     spawn = SIM_LAUNCH.read_text(encoding="utf-8")
-    assert re.search(r'"-x",\s*"0",\s*"-y",\s*"0"', spawn), "sim.launch.py spawn moved"
+    assert 'DeclareLaunchArgument("spawn_x", default_value="0")' in spawn
+    assert 'DeclareLaunchArgument("spawn_y", default_value="0")' in spawn
     assert (x, y, yaw) == (0.0, 0.0, 0.0)
     launch = NAV_SIM_LAUNCH.read_text(encoding="utf-8")
     assert re.search(r'DEFAULT_INITIAL_POSE\s*=\s*\{"x": 0\.0, "y": 0\.0, "yaw": 0\.0\}', launch)

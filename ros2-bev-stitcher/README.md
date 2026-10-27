@@ -26,6 +26,23 @@ training, navigation, or operator display.
 - Optional stitch-timing diagnostics on `/diagnostics`
 - All parameters exposed as ROS 2 params — no code changes needed
 
+## Real robot demo (OHH-56)
+
+<!-- TODO(OHH-56): Varun — replace this block with a ~20 s GIF from the physical robot.
+     Record while running bev_real_cameras.launch.py with live USB cameras.
+     Save as docs/assets/bev_real_robot.gif and embed below. Do not commit a placeholder image. -->
+
+**GIF pending:** live BEV from the real OmniBot will be added here after recording.
+
+Step-by-step calibration and launch instructions:
+[`docs/CALIBRATION.md`](docs/CALIBRATION.md).
+
+```bash
+# On the Pi (cameras + TF already running via perception.launch.py):
+ros2 launch ros2_bev_stitcher bev_real_cameras.launch.py
+# View: /camera/base/bev/image_raw
+```
+
 ## Quick Start
 
 ```bash
@@ -62,6 +79,16 @@ ros2 run rqt_image_view rqt_image_view
 ```
 
 ## Calibration Workflow
+
+Full real-robot procedure (USB cameras, `.npz` generation, launch file):
+[`docs/CALIBRATION.md`](docs/CALIBRATION.md).
+
+Headless IPM calibration (no ROS, suitable for CI and workstations):
+
+```bash
+python -m ros2_bev_stitcher.calibrate_bev_ipm --output ~/bev_calibration.npz
+# or: ros2 run ros2_bev_stitcher calibrate_bev_ipm --output ~/bev_calibration.npz
+```
 
 ### Recommended: Geometric IPM + Interactive Tuning
 
@@ -156,6 +183,9 @@ ros2 launch ros2_bev_stitcher bev_stitcher.launch.py \
 ros2 launch ros2_bev_stitcher bev_stitcher.launch.py \
     calibration_mode:=checkerboard \
     calibration_file:=/path/to/my_calibration.npz
+
+# Real USB base cameras on the robot (publishes /camera/base/bev/image_raw)
+ros2 launch ros2_bev_stitcher bev_real_cameras.launch.py
 ```
 
 ## Tools
@@ -166,6 +196,7 @@ ros2 launch ros2_bev_stitcher bev_stitcher.launch.py \
 | `bev_ipm` | One-shot IPM calibrator — computes homographies from camera poses |
 | `bev_cal_ui` | Interactive calibration UI — live BEV + trackbars per camera |
 | `bev_calibrate` | Legacy checkerboard calibration — detects corners, computes RANSAC homographies |
+| `calibrate_bev_ipm` | Headless IPM `.npz` writer (no ROS) — see `docs/CALIBRATION.md` |
 
 ### bev_ipm
 

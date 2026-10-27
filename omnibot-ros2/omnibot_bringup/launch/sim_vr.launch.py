@@ -1,28 +1,36 @@
 # Copyright 2026 OhhO Robotics
 # SPDX-License-Identifier: Apache-2.0
-"""Gazebo VR profile with the same topic contract as the real robot.
+"""VR Gazebo profile for the GPU sim container, plus headset include points.
 
     ros2 launch omnibot_bringup sim_vr.launch.py
     ros2 launch omnibot_bringup sim_vr.launch.py nav:=true
-    ros2 launch omnibot_bringup sim_vr.launch.py world:=flat
 
-Includes sim.launch.py with world:=apartment and vr:=true. That starts
-Gazebo, robot_state_publisher, ros_gz_bridge (/cmd_vel/out -> gz /cmd_vel),
-teleop_safety, cmd_vel_mux, and arm_cmd_mux. This file does not start a
-second copy of those nodes.
+`docker compose -f docker-compose.gpu.yml up sim-vr` runs this file.
+It includes sim.launch.py once, with:
 
-Also starts web_video_server on port 8080 for MJPEG of /camera/front/image_raw.
-rosbridge_websocket stays on port 9090. Both bind rosbridge_address, which
-defaults to 127.0.0.1. gateway:=true includes ohho_gateway.launch.py when
-that file is installed and passes rosbridge:=false into sim.launch.py so
-the snippet is the only process on port 9090. The snippet keeps the
-upstreams on 127.0.0.1. A missing snippet does not bind 0.0.0.0.
+    world:=apartment
+    vr:=true
+    gui:=false
+    arm:=true
+    video:=true
+    rosbridge:=true
+    rosbridge_address:=0.0.0.0
 
-nav:=true starts the apartment Nav2 stack from omnibot_navigation without
-a second Gazebo. arm:=true, cameras:=extra, and telemetry:=true are include
-points for OHH-199 (sim_arm.launch.py / arm_sim_driver), OHH-200
-(sim_cameras.launch.py), and telemetry_aggregator.launch.py. Those files
-are not in this tree; asking for them logs that and the profile still starts.
+gui:=false keeps `-s --headless-rendering` in sim.launch.py. On the GPU
+compose file that path is Ogre2 EGL (the NVIDIA vendor library), not a
+window and not llvmpipe. vr:=true is the wrist, BEV, and chase cameras
+at 960x540 and 30 Hz, plus web_video_server on port 8080.
+arm:=true starts arm_sim_driver inside sim.launch.py.
+
+rosbridge and web_video_server bind 0.0.0.0 inside the container so
+Docker can forward 9090 and 8080. Those sockets are not authenticated.
+The compose file publishes them on 127.0.0.1 only. sim.launch.py itself
+still defaults rosbridge_address to 127.0.0.1.
+
+This file does not start teleop_safety, the cmd_vel mux, or the Feetech
+driver. The gate and the /cmd_vel/out bridge live in sim_teleop.launch.py.
+Extra camera, arm, Nav2, and telemetry include points stay off unless
+those arguments are set. gateway:=true does not bind 0.0.0.0.
 """
 
 import os
@@ -69,16 +77,6 @@ def _include_if(enabled, path, label):
     return []
 
 
-def _video_node(address):
-    return Node(
-        package="web_video_server",
-        executable="web_video_server",
-        name="web_video_server",
-        output="screen",
-        parameters=[{"port": _support.VIDEO_PORT, "address": address}],
-    )
-
-
 def _navigation():
     """Nav2 on the apartment map. Does not start Gazebo."""
     from ament_index_python.packages import PackageNotFoundError
@@ -94,8 +92,6 @@ def _navigation():
 
     map_yaml = os.path.join(nav, "maps", "apartment.yaml")
     params_file = os.path.join(nav, "config", "nav2_params.yaml")
-    # Same headless overrides as sim_navigation.launch.py. bond_timeout 0.0
-    # is the Nav2 lifecycle bond, not the teleop or mux watchdog.
     sim_params = RewrittenYaml(
         source_file=params_file,
         param_rewrites={
@@ -158,12 +154,11 @@ def _launch_vr(context, *args, **kwargs):
     bringup = FindPackageShare("omnibot_bringup").perform(context)
 
     gateway = LaunchConfiguration("gateway").perform(context)
-    rosbridge = LaunchConfiguration("rosbridge").perform(context)
     video = LaunchConfiguration("video").perform(context)
     requested_address = LaunchConfiguration("rosbridge_address").perform(context)
     gateway_path = os.path.join(bringup, "launch", _support.GATEWAY_LAUNCH_NAME)
     gateway_exists = os.path.isfile(gateway_path)
-    plan = _support.connectivity(gateway, gateway_exists, rosbridge, video)
+    plan = _support.connectivity(gateway, gateway_exists, "true", video)
     address = _support.upstream_address(gateway, gateway_exists, requested_address)
 
     actions = []
@@ -171,7 +166,7 @@ def _launch_vr(context, *args, **kwargs):
         actions.append(
             LogInfo(
                 msg=(
-                    "gateway:=true includes ohho_gateway.launch.py. "
+                    "gateway:=true includes the gateway launch. "
                     "rosbridge and web_video_server stay on 127.0.0.1. "
                     "This does not bind 0.0.0.0."
                 )
@@ -182,38 +177,44 @@ def _launch_vr(context, *args, **kwargs):
                 PythonLaunchDescriptionSource(gateway_path),
                 launch_arguments={
                     "gateway": "true",
-                    "start_rosbridge": "true" if _support.truthy(rosbridge) else "false",
+                    "start_rosbridge": "true",
                     "start_web_video": "true" if _support.truthy(video) else "false",
                     "start_foxglove": "true",
                 }.items(),
             )
         )
-        # The snippet owns rosbridge. sim_starts_rosbridge is false here.
-        sim_rosbridge = "false"
-    else:
-        if plan["gateway_missing"]:
-            actions.append(
-                LogInfo(
-                    msg=(
-                        "gateway:=true but ohho_gateway.launch.py is not "
-                        f"installed. rosbridge stays on {address}. "
-                        "This does not bind 0.0.0.0."
-                    )
+    elif plan["gateway_missing"]:
+        actions.append(
+            LogInfo(
+                msg=(
+                    f"gateway:=true but {_support.GATEWAY_LAUNCH_NAME} is not "
+                    f"installed. Upstreams stay on {address}. "
+                    "This does not bind 0.0.0.0."
                 )
             )
-        elif address != _support.LOOPBACK_ADDRESS:
-            actions.append(
-                LogInfo(
-                    msg=(
-                        f"rosbridge_address {address} is not loopback. "
-                        "That exposes rosbridge without authentication."
-                    )
+        )
+    elif address != _support.DEFAULT_BIND:
+        actions.append(
+            LogInfo(
+                msg=(
+                    f"rosbridge_address {address} is not {_support.DEFAULT_BIND}. "
+                    f"web_video_server port {_support.VIDEO_PORT}. "
+                    "That exposes rosbridge without authentication."
                 )
             )
-        sim_rosbridge = "true" if plan["sim_starts_rosbridge"] else "false"
-        if plan["sim_starts_video"]:
-            actions.append(_video_node(address))
+        )
 
+    forced = {
+        "vr": "true",
+        "gui": "false",
+        "arm": "true",
+        "rosbridge": "true",
+    }
+    if not (
+        _support.truthy(_support.DEFAULT_ROSBRIDGE) and plan["sim_starts_rosbridge"]
+    ):
+        forced["rosbridge"] = "false"
+    video_value = video if plan["sim_starts_video"] else "false"
     actions.append(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -221,11 +222,9 @@ def _launch_vr(context, *args, **kwargs):
             ),
             launch_arguments={
                 "world": LaunchConfiguration("world").perform(context),
-                "drive": LaunchConfiguration("drive").perform(context),
-                "gui": LaunchConfiguration("gui").perform(context),
-                "rosbridge": sim_rosbridge,
+                "video": video_value,
                 "rosbridge_address": address,
-                "vr": "true",
+                **forced,
             }.items(),
         )
     )
@@ -236,7 +235,7 @@ def _launch_vr(context, *args, **kwargs):
             _include_if(
                 True,
                 os.path.join(arm_share, "launch", _support.ARM_LAUNCH_NAME),
-                "OHH-199 arm_sim_driver",
+                "OHH-199 arm",
             )
         )
     cameras = LaunchConfiguration("cameras").perform(context)
@@ -262,7 +261,7 @@ def _launch_vr(context, *args, **kwargs):
         _include_if(
             LaunchConfiguration("telemetry").perform(context),
             os.path.join(bringup, "launch", _support.TELEMETRY_LAUNCH_NAME),
-            "telemetry_aggregator",
+            "telemetry aggregator",
         )
     )
     if _support.truthy(LaunchConfiguration("nav").perform(context)):
@@ -275,50 +274,36 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "world",
-                default_value=_support.DEFAULT_WORLD,
-                description="flat, apartment, or a path to an SDF world.",
+                default_value="apartment"
+                if _support.DEFAULT_WORLD == "apartment"
+                else _support.DEFAULT_WORLD,
+                description="World passed to sim.launch.py. Default is apartment.",
             ),
             DeclareLaunchArgument(
-                "drive",
-                default_value=_support.DEFAULT_DRIVE,
-                description="planar (velocity control) or mecanum (MecanumDrive).",
-            ),
-            DeclareLaunchArgument(
-                "gui",
-                default_value=_support.DEFAULT_GUI,
-                description="Open the Gazebo GUI. Default is headless.",
-            ),
-            DeclareLaunchArgument(
-                "rosbridge",
-                default_value=_support.DEFAULT_ROSBRIDGE,
-                description=(
-                    "Start rosbridge_websocket on port 9090 when this profile "
-                    "owns that port. Ignored when ohho_gateway.launch.py owns it."
-                ),
+                "video",
+                default_value="true"
+                if _support.DEFAULT_VIDEO == "true"
+                else _support.DEFAULT_VIDEO,
+                description="Start web_video_server on port 8080.",
             ),
             DeclareLaunchArgument(
                 "rosbridge_address",
-                default_value=_support.DEFAULT_BIND,
+                default_value="0.0.0.0",
                 description=(
-                    "Bind address for rosbridge_websocket and web_video_server. "
-                    "Default 127.0.0.1. gateway:=true with ohho_gateway.launch.py "
-                    "keeps the upstreams on 127.0.0.1 and does not bind 0.0.0.0."
+                    "Bind address for rosbridge and web_video_server inside "
+                    "the container. 0.0.0.0 lets Docker publish 9090 and 8080. "
+                    "The compose file publishes those ports on 127.0.0.1 only. "
+                    "There is no authentication on this socket. "
+                    f"The support-module default is {_support.DEFAULT_BIND}. "
+                    "gateway:=true forces loopback and does not bind 0.0.0.0."
                 ),
             ),
             DeclareLaunchArgument(
                 "gateway",
                 default_value=_support.DEFAULT_GATEWAY,
                 description=(
-                    "Include ohho_gateway.launch.py when that file is installed. "
+                    "Include the gateway launch when that file is installed. "
                     "Default false. True does not bind rosbridge to 0.0.0.0."
-                ),
-            ),
-            DeclareLaunchArgument(
-                "video",
-                default_value=_support.DEFAULT_VIDEO,
-                description=(
-                    "Start web_video_server on port 8080. "
-                    "MJPEG: /stream?topic=/camera/front/image_raw."
                 ),
             ),
             DeclareLaunchArgument(
@@ -333,9 +318,9 @@ def generate_launch_description():
                 "arm",
                 default_value=_support.DEFAULT_ARM,
                 description=(
-                    "OHH-199 include point. When true, include "
-                    "omnibot_arm/launch/sim_arm.launch.py if it is installed. "
-                    "This profile does not start arm_sim_driver itself."
+                    "OHH-199 include point. When true, include the arm launch "
+                    "named by the support module if it is installed. "
+                    "sim.launch.py still starts arm_sim_driver."
                 ),
             ),
             DeclareLaunchArgument(
@@ -343,16 +328,16 @@ def generate_launch_description():
                 default_value=_support.DEFAULT_CAMERAS,
                 description=(
                     "OHH-200 include point. front keeps the camera from "
-                    "sim.launch.py. extra includes sim_cameras.launch.py "
-                    "when that file is installed."
+                    "sim.launch.py. extra includes the camera launch named "
+                    "by the support module when that file is installed."
                 ),
             ),
             DeclareLaunchArgument(
                 "telemetry",
                 default_value=_support.DEFAULT_TELEMETRY,
                 description=(
-                    "Include telemetry_aggregator.launch.py when that file "
-                    "is installed. Default false."
+                    "Include the telemetry launch named by the support module "
+                    "when that file is installed. Default false."
                 ),
             ),
             OpaqueFunction(function=_launch_vr),

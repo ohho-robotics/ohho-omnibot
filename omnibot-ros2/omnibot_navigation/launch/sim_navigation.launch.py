@@ -24,6 +24,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, Opaq
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.descriptions import ParameterValue
 from nav2_common.launch import RewrittenYaml
 
 # Spawn pose used by omnibot_bringup sim.launch.py (-x 0 -y 0, yaw 0).
@@ -58,6 +59,9 @@ def _launch(context, *args, **kwargs):
             # startup timeout, so it is not offered here.
             "drive": "planar",
             "rosbridge": "false",
+            "spawn_x": LaunchConfiguration("initial_x"),
+            "spawn_y": LaunchConfiguration("initial_y"),
+            "spawn_yaw": LaunchConfiguration("initial_yaw"),
         }.items(),
     )
 
@@ -115,7 +119,48 @@ def _launch(context, *args, **kwargs):
         }.items(),
     )
 
-    return [sim, map_server, amcl, lifecycle_localization, navigation]
+    nodes = [sim, map_server, amcl, lifecycle_localization, navigation]
+
+    autonavigate = LaunchConfiguration("autonavigate").perform(context).lower() in ("1", "true", "yes")
+    foxglove = LaunchConfiguration("foxglove").perform(context).lower() in ("1", "true", "yes")
+    route = LaunchConfiguration("route").perform(context)
+    waypoint_file = LaunchConfiguration("waypoint_file").perform(context)
+    loop_waypoints = LaunchConfiguration("loop_waypoints").perform(context).lower() in ("1", "true", "yes")
+
+    if foxglove:
+        foxglove_node = Node(
+            package="foxglove_bridge",
+            executable="foxglove_bridge",
+            name="foxglove_bridge",
+            output="screen",
+            parameters=[
+                {
+                    "port": 8765,
+                    "address": "0.0.0.0",
+                    "use_sim_time": True,
+                }
+            ],
+        )
+        nodes.append(foxglove_node)
+
+    if autonavigate:
+        waypoint_navigator = Node(
+            package="omnibot_navigation",
+            executable="waypoint_navigator.py",
+            name="waypoint_navigator",
+            output="screen",
+            parameters=[
+                {
+                    "use_sim_time": True,
+                    "waypoint_file": waypoint_file,
+                    "loop_waypoints": loop_waypoints,
+                    "route": ParameterValue(LaunchConfiguration("route"), value_type=str),
+                }
+            ],
+        )
+        nodes.append(waypoint_navigator)
+
+    return nodes
 
 
 def generate_launch_description():
@@ -136,6 +181,31 @@ def generate_launch_description():
             DeclareLaunchArgument("initial_x", default_value=str(DEFAULT_INITIAL_POSE["x"])),
             DeclareLaunchArgument("initial_y", default_value=str(DEFAULT_INITIAL_POSE["y"])),
             DeclareLaunchArgument("initial_yaw", default_value=str(DEFAULT_INITIAL_POSE["yaw"])),
+            DeclareLaunchArgument(
+                "autonavigate",
+                default_value="false",
+                description="Automatically navigate to waypoints after bringup",
+            ),
+            DeclareLaunchArgument(
+                "foxglove",
+                default_value="false",
+                description="Launch Foxglove bridge on port 8765",
+            ),
+            DeclareLaunchArgument(
+                "route",
+                default_value="kitchen",
+                description="Comma-separated waypoint route, e.g. 'kitchen' or 'kitchen,desk,door'",
+            ),
+            DeclareLaunchArgument(
+                "waypoint_file",
+                default_value="waypoints.yaml",
+                description="Waypoint YAML filename",
+            ),
+            DeclareLaunchArgument(
+                "loop_waypoints",
+                default_value="false",
+                description="Continuously loop through waypoints",
+            ),
             OpaqueFunction(function=_launch),
         ]
     )

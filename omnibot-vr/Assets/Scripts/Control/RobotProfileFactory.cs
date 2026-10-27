@@ -127,7 +127,7 @@ namespace OmniBot.VR.Control
         {
             var topics = new RobotTopics
             {
-                CmdVel        = baseDof > 0 ? "/cmd_vel/teleop" : "",
+                CmdVel        = baseDof > 0 ? "/cmd_vel/teleop_raw" : "",
                 ControlMode   = "/control_mode",
                 ArmCommands   = hasArm ? "/arm/joint_commands" : "",
                 ArmEnable     = hasArm ? "/arm/enable" : "",
@@ -163,8 +163,9 @@ namespace OmniBot.VR.Control
                     p.ArmMaxReach = So101Link1 + So101Link2 + So101Link3;
                     p.ArmLinkLengths = (float[])So101LinkLengths.Clone();
                     p.IsDualArm = false;
-                    // OmniBot publishes arm commands + enables on the arm_ topics.
-                    p.Topics.ArmCommands = "/arm/joint_commands/teleop";
+                    // OmniBot base and arm commands go to teleop_safety raw inputs.
+                    p.Topics.CmdVel = "/cmd_vel/teleop_raw";
+                    p.Topics.ArmCommands = "/arm/joint_commands/teleop_raw";
                     p.Topics.ArmEnable = "/arm/enable";
                     p.Topics.JointStates = "/arm/joint_states";
                     break;

@@ -13,10 +13,13 @@ object Constants {
     const val CMD_VEL_PUBLISH_RATE_HZ  = 20
 
     // ── ROS Topics: publish ───────────────────────────────────────────────────
-    // Joystick velocity goes to the cmd_vel_mux teleop slot so it is only
-    // forwarded when /control_mode == "teleop". Set the mode explicitly before
-    // driving manually (repository.sendControlMode("teleop")).
-    const val TOPIC_CMD_VEL            = "/cmd_vel/teleop"
+    // Joystick velocity goes to teleop_safety. The gate publishes
+    // /cmd_vel/teleop for cmd_vel_mux only while /ohho/heartbeat is fresh.
+    // Set /control_mode to "teleop" before driving manually
+    // (repository.sendControlMode("teleop")).
+    const val TOPIC_CMD_VEL            = "/cmd_vel/teleop_raw"
+    const val TOPIC_HEARTBEAT          = "/ohho/heartbeat"  // std_msgs/Empty
+    const val HEARTBEAT_PERIOD_MS      = 100L               // 10 Hz
     const val TOPIC_EMERGENCY_STOP     = "/emergency_stop"
     const val TOPIC_ROBOT_MODE         = "/robot_mode"        // monitoring only
 
@@ -36,9 +39,10 @@ object Constants {
     const val TOPIC_RECORD_START       = "/rosbag_recorder/start"  // std_msgs/String (bag name)
     const val TOPIC_RECORD_STOP        = "/rosbag_recorder/stop"   // std_msgs/Empty
 
-    // Arm joint teleop. arm_cmd_mux forwards this only while /control_mode
-    // is "teleop" and /emergency_stop is false.
-    const val TOPIC_ARM_JOINT_COMMANDS = "/arm/joint_commands/teleop"
+    // Arm joint teleop input to teleop_safety. The gate publishes
+    // /arm/joint_commands/teleop. arm_cmd_mux forwards that only while
+    // /control_mode is "teleop" and /emergency_stop is false.
+    const val TOPIC_ARM_JOINT_COMMANDS = "/arm/joint_commands/teleop_raw"
     const val TOPIC_ARM_ENABLE         = "/arm/enable"
 
     // ── ROS Topics: subscribe ─────────────────────────────────────────────────

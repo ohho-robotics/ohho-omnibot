@@ -1,0 +1,26 @@
+<?xml version="1.0" ?>
+<!--
+  Copyright 2026 OhhO Robotics
+  SPDX-License-Identifier: Apache-2.0
+
+  Static table spawned only by sim.launch.py pick_place:=true.
+  Size matches pick_place_spawn.TABLE_SIZE_X/Y and TABLE_HEIGHT.
+  The launch pose puts the centre at TABLE_CENTER_Z so the top is TABLE_TOP_Z.
+-->
+<sdf version="1.8">
+  <model name="pick_place_table">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <geometry><box><size>0.90 0.55 0.72</size></box></geometry>
+      </collision>
+      <visual name="visual">
+        <geometry><box><size>0.90 0.55 0.72</size></box></geometry>
+        <material>
+          <ambient>0.62 0.45 0.28 1</ambient>
+          <diffuse>0.62 0.45 0.28 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

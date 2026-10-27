@@ -374,6 +374,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
             def __init__(self, name):
                 self._params = {}
                 self.subscriptions = []
+                self.callbacks = {}
                 self.warnings = []
             def declare_parameter(self, name, default):
                 self._params[name] = default
@@ -381,6 +382,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
                 return SimpleNamespace(value=self._params[name])
             def create_subscription(self, msg_type, topic, callback, qos):
                 self.subscriptions.append(topic)
+                self.callbacks[topic] = callback
                 return None
             def create_publisher(self, *a, **k):
                 return Pub()
@@ -434,9 +436,10 @@ def test_arm_cmd_mux_wrapper_without_ros():
         assert TOPIC_JOINT_COMMANDS_POLICY in node.subscriptions
         assert TOPIC_JOINT_COMMANDS_POLICY_ALIAS in node.subscriptions
         assert TOPIC_JOINT_COMMANDS_RL in node.subscriptions
+        teleop_cb = node.callbacks[TOPIC_JOINT_COMMANDS_TELEOP]
         cmd = JointState()
         cmd.position = [0.1]
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs[-1].position == [0.1]
         node._out_pub.msgs.clear()
         node._policy_cb(cmd)
@@ -448,7 +451,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
         mode = StringMsg()
         mode.data = "vla"
         node._control_mode_cb(mode)
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
         node._policy_cb(cmd)
         assert len(node._out_pub.msgs) == 1
@@ -462,7 +465,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
         nav.data = "nav2"
         node._control_mode_cb(nav)
         node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
         node._policy_cb(cmd)
         assert len(node._out_pub.msgs) == 1
@@ -475,13 +478,13 @@ def test_arm_cmd_mux_wrapper_without_ros():
         node._policy_alias_cb(cmd)
         node._rl_arm_cb(cmd)
         assert node._out_pub.msgs == []
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert len(node._out_pub.msgs) == 1
 
         mode.data = "rl_nav"
         node._control_mode_cb(mode)
         node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
         node._rl_arm_cb(cmd)
         assert len(node._out_pub.msgs) == 1
@@ -491,7 +494,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
         node._out_pub.msgs.clear()
         node._rl_arm_cb(cmd)
         node._policy_cb(cmd)
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
 
         clear = BoolMsg()
@@ -499,12 +502,12 @@ def test_arm_cmd_mux_wrapper_without_ros():
         node._estop_cb(clear)
         node._control_mode_cb(back)
         node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert len(node._out_pub.msgs) == 1
         stop.data = True
         node._estop_cb(stop)
         node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
         """
     )
@@ -627,6 +630,28 @@ def test_cmd_vel_mux_mode_switch_zeros_output_without_ros():
         assert node._active_mode == "teleop"
         """
     )
+
+
+def test_teleop_joint_source_forwards_only_in_teleop_and_estop_blocks_it():
+    arm = ArmStreamGate.from_default_mode("policy")
+    assert arm.allows("teleop") is True
+    assert arm.allows("policy") is False
+    assert arm.allows("rl_arm") is False
+    assert arm.set_control_mode("vla") is True
+    assert arm.allows("teleop") is False
+    assert arm.allows("policy") is True
+    assert arm.set_control_mode("nav2") is True
+    assert arm.allows("teleop") is False
+    assert arm.set_control_mode("rl_nav") is True
+    assert arm.allows("teleop") is False
+    assert arm.allows("rl_arm") is True
+    arm.set_emergency_stop(True)
+    assert arm.allows("teleop") is False
+    assert arm.allows("rl_arm") is False
+    arm.set_emergency_stop(False)
+    assert arm.set_control_mode("teleop") is True
+    assert arm.allows("teleop") is True
+    assert arm.allows("policy") is False
 
 
 def test_source_timeout_defaults_to_0_3_and_cannot_be_raised_or_disabled():
