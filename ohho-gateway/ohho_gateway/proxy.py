@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
+
+from multidict import CIMultiDict
 
 TOKEN_QUERY_PARAM = "token"
 
@@ -32,6 +34,7 @@ _DROP_RESPONSE_HEADERS = {
     "trailer",
     "trailers",
     "upgrade",
+    "proxy-authenticate",
     "proxy-connection",
 }
 
@@ -65,7 +68,9 @@ def upstream_query(items: list[tuple[str, str]]) -> list[tuple[str, str]]:
 
 
 def build_upstream_url(base: str, path: str, query: list[tuple[str, str]]) -> str:
-    url = base.rstrip("/") + path
+    # ``path`` is already percent-decoded. Encode it again so ``?``, ``#``,
+    # and ``%`` stay in the path instead of becoming a query or fragment.
+    url = base.rstrip("/") + quote(path, safe="/")
     if query:
         url = url + "?" + urlencode(query, safe="/")
     return url
@@ -87,21 +92,40 @@ def ws_base_to_http(base: str) -> str:
     return base
 
 
-def forward_request_headers(headers) -> dict[str, str]:
-    forwarded = {}
+def _connection_nominated(headers) -> set[str]:
+    """Header names listed by ``Connection``, which a proxy must not forward."""
+    names: set[str] = set()
+    getall = getattr(headers, "getall", None)
+    if getall is not None:
+        values = getall("Connection", ())
+    else:
+        values = [
+            value for key, value in headers.items() if key.lower() == "connection"
+        ]
+    for value in values:
+        names.update(
+            part.strip().lower() for part in str(value).split(",") if part.strip()
+        )
+    return names
+
+
+def _forward_headers(headers, drop: set[str]) -> CIMultiDict[str]:
+    forwarded: CIMultiDict[str] = CIMultiDict()
+    nominated = _connection_nominated(headers)
     for key, value in headers.items():
-        if key.lower() in _DROP_REQUEST_HEADERS:
+        lowered = key.lower()
+        if lowered in drop or lowered in nominated:
             continue
-        forwarded[key] = value
+        forwarded.add(key, value)
     return forwarded
 
 
-def forward_response_headers(headers) -> dict[str, str]:
-    forwarded = {}
-    for key, value in headers.items():
-        if key.lower() in _DROP_RESPONSE_HEADERS:
-            continue
-        forwarded[key] = value
+def forward_request_headers(headers) -> CIMultiDict[str]:
+    return _forward_headers(headers, _DROP_REQUEST_HEADERS)
+
+
+def forward_response_headers(headers) -> CIMultiDict[str]:
+    forwarded = _forward_headers(headers, _DROP_RESPONSE_HEADERS)
     forwarded["Cache-Control"] = "no-store"
     forwarded["Referrer-Policy"] = "no-referrer"
     return forwarded

@@ -132,7 +132,7 @@ For a robot or a cloud sim:
 - Rosbridge: `wss://<host>:8443/rosbridge?token=<TOKEN>`
 - Camera: `https://<host>:8443/video/stream?topic=/camera/front/image_raw&token=<TOKEN>`
 - If the page is cloud, or the operator selected cloud, refuse a `ws://` or `http://` robot URL.
-- For the self-signed LAN cert, the operator trusts the fingerprint out of band (install `cert.pem`, or replace the state-dir pair with a certificate the browser already trusts). Do not instruct the page to ignore certificate errors.
+- For the self-signed LAN cert, installing `cert.pem` does not make `https://<robot-ip>:8443` succeed in a browser. The generated certificate's SAN is only `localhost`, `ohho-gateway`, and `127.0.0.1`, so a LAN IP or other hostname fails the name check even when the file is installed. The browser path needs a certificate that lists that robot host name or IP in its SAN. Replacing the state-dir pair with that certificate changes the pin, so clients must be re-paired. Unity and Android should pin the fingerprint instead of trusting the name. Do not instruct the page to ignore certificate errors.
 
 ## Install on the robot
 
@@ -142,4 +142,4 @@ The launch file runs `python3 -m ohho_gateway`. On the Pi or the sim host:
 pip install -e ohho-gateway
 ```
 
-The pairing code and both pins are printed in the launch log on first start. They are not ROS parameters.
+When the gateway uses its generated or remembered pairing code, the pairing code and both pins are printed in the launch log on every start. They are not ROS parameters.

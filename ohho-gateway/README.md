@@ -9,9 +9,9 @@ pip install -e ohho-gateway
 ohho-gateway --help
 ```
 
-On first start the process writes a self-signed certificate under `~/.ohho/gateway/` and prints:
+On first start the process writes a self-signed certificate under `~/.ohho/gateway/`. On every start it prints:
 
-- a pairing code, when no `OHHO_GATEWAY_TOKEN` or `--token-file` was set
+- a pairing code, when the token is a generated or remembered pairing code (not when `OHHO_GATEWAY_TOKEN` or `--token-file` supplied the token)
 - the certificate SHA-256 fingerprint (Unity pin)
 - the SPKI pin `sha256/...` (Android OkHttp)
 

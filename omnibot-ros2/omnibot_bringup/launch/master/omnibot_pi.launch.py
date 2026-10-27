@@ -129,17 +129,17 @@ def generate_launch_description():
     declare_foxglove = DeclareLaunchArgument(
         "foxglove",
         default_value="true",
-        description="foxglove on 127.0.0.1:8765. LAN clients use ohho-gateway.",
+        description="foxglove on port 8765. Loopback only when gateway:=true; LAN clients use ohho-gateway.",
     )
     declare_web_video = DeclareLaunchArgument(
         "web_video",
         default_value="true",
-        description="web_video_server on 127.0.0.1:8080. LAN clients use ohho-gateway.",
+        description="web_video_server on port 8080. Loopback only when gateway:=true; LAN clients use ohho-gateway.",
     )
     declare_rosbridge = DeclareLaunchArgument(
         "rosbridge",
         default_value="true",
-        description="rosbridge on 127.0.0.1:9090. LAN clients use ohho-gateway.",
+        description="rosbridge on port 9090. Loopback only when gateway:=true; LAN clients use ohho-gateway.",
     )
     # OHH-196: authenticated gateway is the default. gateway:=false is insecure.
     declare_gateway = DeclareLaunchArgument(

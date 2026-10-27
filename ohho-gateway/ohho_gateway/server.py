@@ -84,7 +84,13 @@ async def access_middleware(request: web.Request, handler):
 
 async def _startup(app: web.Application) -> None:
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=None)
-    app[CLIENT_KEY] = aiohttp.ClientSession(timeout=timeout, trust_env=False)
+    # Leave Content-Encoding and the body bytes untouched. Decompressing here
+    # would forward a plain body with the upstream Content-Encoding still set.
+    app[CLIENT_KEY] = aiohttp.ClientSession(
+        timeout=timeout,
+        trust_env=False,
+        auto_decompress=False,
+    )
 
 
 async def _cleanup(app: web.Application) -> None:
@@ -95,6 +101,56 @@ async def _cleanup(app: web.Application) -> None:
 
 def _client(request: web.Request) -> aiohttp.ClientSession:
     return request.app[CLIENT_KEY]
+
+
+def _abort_started_response(request: web.Request) -> None:
+    """Drop the client socket so a partial body is not ended with a chunk terminator."""
+    transport = request.transport
+    if transport is not None and not transport.is_closing():
+        transport.close()
+
+
+async def _write_upstream_body(
+    request: web.Request,
+    response: web.StreamResponse,
+    upstream: aiohttp.ClientResponse,
+) -> None:
+    """Copy the upstream body. Failures here must not send a second status line.
+
+    aiohttp finishes a returned ``StreamResponse`` with ``write_eof()``, which
+    emits a chunked terminator. Closing the transport first makes that write
+    fail, so a truncated body does not look complete. A client disconnect
+    during ``write`` is ``ConnectionError`` (``ClientConnectionResetError`` on
+    aiohttp 3.10+, plain ``ConnectionResetError`` on 3.9).
+    """
+    try:
+        async for chunk in upstream.content.iter_chunked(16384):
+            try:
+                await response.write(chunk)
+            except asyncio.CancelledError:
+                raise
+            except ConnectionError as exc:
+                ERROR_LOG.debug(
+                    "client disconnected during HTTP proxy (%s)",
+                    type(exc).__name__,
+                )
+                _abort_started_response(request)
+                return
+        await response.write_eof()
+    except asyncio.CancelledError:
+        raise
+    except ConnectionError as exc:
+        ERROR_LOG.debug(
+            "client disconnected during HTTP proxy (%s)",
+            type(exc).__name__,
+        )
+        _abort_started_response(request)
+    except aiohttp.ClientError as exc:
+        ERROR_LOG.warning(
+            "upstream HTTP payload failed (%s)",
+            type(exc).__name__,
+        )
+        _abort_started_response(request)
 
 
 async def _proxy_http(request: web.Request, base: str, prefix: str) -> web.StreamResponse:
@@ -117,10 +173,20 @@ async def _proxy_http(request: web.Request, base: str, prefix: str) -> web.Strea
                 status=upstream.status,
                 headers=forward_response_headers(upstream.headers),
             )
-            await response.prepare(request)
-            async for chunk in upstream.content.iter_chunked(16384):
-                await response.write(chunk)
-            await response.write_eof()
+            try:
+                await response.prepare(request)
+            except asyncio.CancelledError:
+                raise
+            except (aiohttp.ClientError, ConnectionError) as exc:
+                if response.prepared:
+                    ERROR_LOG.debug(
+                        "client disconnected before HTTP proxy body (%s)",
+                        type(exc).__name__,
+                    )
+                    _abort_started_response(request)
+                    return response
+                raise
+            await _write_upstream_body(request, response, upstream)
             return response
     except aiohttp.ClientError as exc:
         ERROR_LOG.warning("upstream HTTP request failed (%s)", type(exc).__name__)

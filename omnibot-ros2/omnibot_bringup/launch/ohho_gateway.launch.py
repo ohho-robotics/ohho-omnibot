@@ -35,9 +35,25 @@ from launch_ros.actions import Node
 OPT_OUT_WARNING = "OHHO-GATEWAY WARNING: gateway:=false exposes rosbridge (9090), foxglove (8765), and web_video_server (8080) on 0.0.0.0 WITHOUT authentication. Anyone on the network can drive the robot. Prefer the default gateway (bearer token + TLS)."
 
 
+def _parse_enabled(value: str, name: str) -> bool:
+    """Accept the same strings as Jazzy ``IfCondition``.
+
+    ``evaluate_condition_expression`` allows only ``true``/``1`` and
+    ``false``/``0``. Anything else is an error so a typo such as
+    ``gateway:=flase`` cannot publish rosbridge with no authentication.
+    """
+    normalized = value.strip().lower()
+    if normalized in ("true", "1"):
+        return True
+    if normalized in ("false", "0"):
+        return False
+    raise RuntimeError(
+        f"Launch argument '{name}' must be true or false, got {value!r}."
+    )
+
+
 def _enabled(context, name: str) -> bool:
-    value = LaunchConfiguration(name).perform(context).strip().lower()
-    return value in ("true", "1", "yes")
+    return _parse_enabled(LaunchConfiguration(name).perform(context), name)
 
 
 def _port(context, name: str) -> int:

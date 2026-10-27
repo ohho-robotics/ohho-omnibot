@@ -8,6 +8,7 @@ import base64
 import datetime as dt
 import hashlib
 import ipaddress
+import logging
 import os
 import ssl
 from dataclasses import dataclass
@@ -24,6 +25,14 @@ CERT_NAME = "cert.pem"
 KEY_NAME = "key.pem"
 FINGERPRINT_NAME = "fingerprint.txt"
 _CERT_LIFETIME = dt.timedelta(days=825)
+# Warn before expiry so an operator can re-pair. Do not regenerate: a new
+# cert would change the pins clients already stored.
+_CERT_EXPIRY_WARNING = dt.timedelta(days=30)
+_LOG = logging.getLogger("ohho_gateway")
+_REPAIR_HINT = (
+    "Delete the state directory and re-pair clients. "
+    "The certificate was not regenerated, so existing pins stay unchanged."
+)
 
 
 @dataclass(frozen=True)
@@ -61,6 +70,37 @@ def spki_pin(cert: x509.Certificate) -> str:
     )
     encoded = base64.b64encode(hashlib.sha256(spki).digest()).decode("ascii")
     return "sha256/" + encoded
+
+
+def _not_valid_after(cert: x509.Certificate) -> dt.datetime:
+    expiry = getattr(cert, "not_valid_after_utc", None)
+    if expiry is not None:
+        return expiry
+    expiry = cert.not_valid_after
+    if expiry.tzinfo is None:
+        return expiry.replace(tzinfo=dt.timezone.utc)
+    return expiry
+
+
+def _warn_if_certificate_expiring(cert: x509.Certificate, state_dir: Path) -> None:
+    expiry = _not_valid_after(cert)
+    remaining = expiry - dt.datetime.now(dt.timezone.utc)
+    if remaining <= dt.timedelta(0):
+        _LOG.warning(
+            "ohho-gateway TLS certificate in %s expired at %s. %s",
+            state_dir,
+            expiry.isoformat(),
+            _REPAIR_HINT,
+        )
+        return
+    if remaining <= _CERT_EXPIRY_WARNING:
+        _LOG.warning(
+            "ohho-gateway TLS certificate in %s expires at %s, within %s days. %s",
+            state_dir,
+            expiry.isoformat(),
+            _CERT_EXPIRY_WARNING.days,
+            _REPAIR_HINT,
+        )
 
 
 def _load_cert(path: Path) -> x509.Certificate:
@@ -130,6 +170,7 @@ def ensure_certificate(state_dir: Path) -> TlsMaterial:
         )
     if cert_path.exists():
         cert = _load_cert(cert_path)
+        _warn_if_certificate_expiring(cert, state_dir)
     else:
         cert = _generate(cert_path, key_path)
     material = TlsMaterial(

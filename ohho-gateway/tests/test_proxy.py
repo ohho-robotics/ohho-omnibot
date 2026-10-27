@@ -9,11 +9,14 @@ from contextlib import asynccontextmanager
 import aiohttp
 import pytest
 from aiohttp import web
+from multidict import CIMultiDict
 
 from ohho_gateway.cli import open_sites, prepare
 from ohho_gateway.server import CLIENT_KEY
 from ohho_gateway.proxy import (
     build_upstream_url,
+    forward_request_headers,
+    forward_response_headers,
     safe_upstream_path,
     strip_prefix,
     upstream_query,
@@ -31,6 +34,49 @@ def test_upstream_query_drops_the_token():
     url = build_upstream_url("http://127.0.0.1:8080", "/stream", query)
     assert TOKEN not in url
     assert "topic=/camera/front/image_raw" in url
+
+
+def test_build_upstream_url_reencodes_a_decoded_path():
+    assert (
+        build_upstream_url("http://127.0.0.1:8080", "/a?b", [])
+        == "http://127.0.0.1:8080/a%3Fb"
+    )
+    assert (
+        build_upstream_url("http://127.0.0.1:8080", "/a#b", [])
+        == "http://127.0.0.1:8080/a%23b"
+    )
+    assert (
+        build_upstream_url("http://127.0.0.1:8080", "/a%b", [])
+        == "http://127.0.0.1:8080/a%25b"
+    )
+    assert (
+        build_upstream_url("http://127.0.0.1:8080", "/a b", [("topic", "x")])
+        == "http://127.0.0.1:8080/a%20b?topic=x"
+    )
+
+
+def test_connection_nominated_headers_are_dropped_and_duplicates_kept():
+    request_headers = CIMultiDict()
+    request_headers.add("Connection", "close, X-Foo")
+    request_headers.add("X-Foo", "secret")
+    request_headers.add("X-Keep", "one")
+    request_headers.add("X-Keep", "two")
+    forwarded = forward_request_headers(request_headers)
+    assert "x-foo" not in {key.lower() for key in forwarded}
+    assert forwarded.getall("X-Keep") == ["one", "two"]
+
+    response_headers = CIMultiDict()
+    response_headers.add("Connection", "X-Bar")
+    response_headers.add("X-Bar", "drop-me")
+    response_headers.add("Set-Cookie", "a=1")
+    response_headers.add("Set-Cookie", "b=2")
+    response_headers.add("Proxy-Authenticate", "Basic realm=upstream")
+    forwarded_response = forward_response_headers(response_headers)
+    lowered = {key.lower() for key in forwarded_response}
+    assert "x-bar" not in lowered
+    assert "proxy-authenticate" not in lowered
+    assert forwarded_response.getall("Set-Cookie") == ["a=1", "b=2"]
+    assert forwarded_response["Cache-Control"] == "no-store"
 
 
 def test_safe_path_rejects_parent_segments():
@@ -90,6 +136,25 @@ def _http_app(name: str, seen: list):
             await response.write(b"frame-b")
             await response.write_eof()
             return response
+        if request.path == "/cut":
+            response = web.StreamResponse(
+                status=200,
+                headers={"Content-Type": "application/octet-stream"},
+            )
+            await response.prepare(request)
+            await response.write(b"partial-body")
+            transport = request.transport
+            if transport is not None:
+                transport.close()
+            return response
+        if request.path == "/gzip-raw":
+            return web.Response(
+                body=b"not-gzip-body",
+                headers={
+                    "Content-Encoding": "gzip",
+                    "Content-Type": "application/octet-stream",
+                },
+            )
         return web.Response(text=f"{name}-ok")
 
     app.router.add_route("*", "/", handler)
@@ -331,6 +396,7 @@ def test_valid_token_proxies_http_and_websocket_without_forwarding_the_token(tmp
             await not_ws.release()
 
             assert gateway["listening"].runner.app[CLIENT_KEY]._trust_env is False
+            assert gateway["listening"].runner.app[CLIENT_KEY].auto_decompress is False
             assert gateway["listening"].plain_address[0] == "127.0.0.1"
 
     _run(body())
@@ -377,6 +443,67 @@ def test_tls_only_has_no_plain_listener_and_default_trust_is_rejected(tmp_path):
             )
             assert authed.status == 200
             await authed.release()
+
+    _run(body())
+
+
+def test_encoded_question_mark_stays_in_the_upstream_path(tmp_path):
+    async def body():
+        async with _stack(tmp_path) as gateway:
+            session = gateway["session"]
+            question = await session.get(
+                f"{gateway['tls']}/video/a%3Fb?token={TOKEN}",
+                ssl=gateway["ssl"],
+            )
+            assert question.status == 200
+            await question.release()
+            question_hit = gateway["seen"][-1]
+            assert question_hit["path"] == "/a?b"
+            assert question_hit["query"] == {}
+
+            fragment = await session.get(
+                f"{gateway['tls']}/video/a%23b?token={TOKEN}",
+                ssl=gateway["ssl"],
+            )
+            assert fragment.status == 200
+            await fragment.release()
+            assert gateway["seen"][-1]["path"] == "/a#b"
+            assert gateway["seen"][-1]["query"] == {}
+
+    _run(body())
+
+
+def test_truncated_upstream_is_not_a_completed_body(tmp_path, caplog):
+    caplog.set_level(logging.DEBUG)
+
+    async def body():
+        async with _stack(tmp_path) as gateway:
+            session = gateway["session"]
+            response = await session.get(
+                f"{gateway['tls']}/video/cut?token={TOKEN}",
+                ssl=gateway["ssl"],
+            )
+            assert response.status == 200
+            with pytest.raises(aiohttp.ClientError):
+                await response.read()
+
+    _run(body())
+    assert "upstream HTTP payload failed" in caplog.text
+    assert "upstream unavailable" not in caplog.text
+
+
+def test_compressed_upstream_bytes_are_forwarded_unchanged(tmp_path):
+    async def body():
+        async with _stack(tmp_path) as gateway:
+            response = await gateway["session"].get(
+                f"{gateway['tls']}/video/gzip-raw?token={TOKEN}",
+                ssl=gateway["ssl"],
+                auto_decompress=False,
+            )
+            payload = await response.read()
+            assert response.status == 200
+            assert response.headers["Content-Encoding"] == "gzip"
+            assert payload == b"not-gzip-body"
 
     _run(body())
 

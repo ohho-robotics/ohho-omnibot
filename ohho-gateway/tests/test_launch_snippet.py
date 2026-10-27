@@ -4,6 +4,8 @@
 
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[2]
 LAUNCH = REPO / "omnibot-ros2" / "omnibot_bringup" / "launch"
 GATEWAY = LAUNCH / "ohho_gateway.launch.py"
@@ -41,6 +43,24 @@ def test_robot_and_pi_include_the_gateway_by_default():
         assert 'executable="foxglove_bridge"' not in text
         assert 'executable="web_video_server"' not in text
         assert "0.0.0.0" not in text
+
+
+def test_unknown_gateway_value_is_rejected():
+    source = GATEWAY.read_text(encoding="utf-8")
+    start = source.index("def _parse_enabled")
+    end = source.index("def _enabled")
+    namespace: dict = {}
+    exec(source[start:end], namespace)
+    parse = namespace["_parse_enabled"]
+    assert parse("true", "gateway") is True
+    assert parse("1", "gateway") is True
+    assert parse(" TRUE ", "gateway") is True
+    assert parse("false", "gateway") is False
+    assert parse("0", "gateway") is False
+    assert parse(" False ", "gateway") is False
+    for value in ("flase", "on", "enabled", "yes", "no", ""):
+        with pytest.raises(RuntimeError, match="gateway"):
+            parse(value, "gateway")
 
 
 def test_sim_launch_stays_on_loopback():
