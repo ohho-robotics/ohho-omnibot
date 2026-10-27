@@ -435,7 +435,7 @@ def test_sim_profile_opts_in_to_the_recorder():
     assert "record_vr_session" in _declared_launch_args(SIM_LAUNCH)
     assert 'default_value="false"' in text
     record_at = text.index("\n        if record_vr_session:")
-    vr_at = text.rindex("\n    if vr:", 0, record_at)
+    vr_at = text.rindex("\n    if vr_on:", 0, record_at)
     include_at = text.index("vr_session_recorder.launch.py", record_at)
     elif_at = text.index("\n    elif record_vr_session:", record_at)
     assert vr_at < record_at < include_at < elif_at

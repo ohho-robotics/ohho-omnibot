@@ -157,13 +157,13 @@ def generate_launch_description():
     )
 
     # ── 8. BEV stitcher — composites 4 base cameras into /camera/base/bev ────
-    # Required by smolvla_node; safe to disable with bev:=false for quick tests.
+    # Required by policy_node; safe to disable with bev:=false for quick tests.
     bev_stitcher = TimerAction(
         period=5.0,
         actions=[
             Node(
                 # omnibot_lerobot stitcher: geometric-IPM fused BEV, publishes
-                # /camera/base/bev/image_raw (required by smolvla_node).
+                # /camera/base/bev/image_raw (required by policy_node).
                 # (ros2_bev_stitcher defaulted to /camera/bev/image_raw,
                 # which nothing subscribes to.)
                 package="omnibot_lerobot",

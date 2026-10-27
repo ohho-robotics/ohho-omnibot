@@ -15,6 +15,6 @@ from .base import PolicyAdapter
 from .registry import register, make_policy, list_models
 
 # Import adapters so they self-register via @register(...)
-from . import smolvla, act, diffusion, openvla  # noqa: F401
+from . import smolvla, act, diffusion, openvla, serve  # noqa: F401
 
 __all__ = ["PolicyAdapter", "register", "make_policy", "list_models"]

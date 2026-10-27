@@ -10,7 +10,7 @@
     Compatible with any robot using the Yahboom board (X3, R2, etc.).
   </description>
 
-  <maintainer email="varunvaidhiya@example.com">Varun Vaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">Varun Vaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <url type="website">https://github.com/varunvaidhiya/Mecanum-Wheel-Robot</url>

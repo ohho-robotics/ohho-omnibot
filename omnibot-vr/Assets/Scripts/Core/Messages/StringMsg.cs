@@ -33,4 +33,11 @@ namespace OmniBot.VR.Core
             this.data = data;
         }
     }
+
+    /// <summary>
+    /// std_msgs/Empty. No fields. Used for /ohho/heartbeat.
+    /// </summary>
+    public class EmptyMsg
+    {
+    }
 }

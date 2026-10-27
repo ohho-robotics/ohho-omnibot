@@ -38,3 +38,7 @@ _PackageBackup_v68/
 *.zip
 vr_app/Packages/com.meta.xr.sdk.core/
 vr_app/LocalPackages/
+
+# Supabase anon key for in-headset sign-in (README section 4). Never commit.
+Assets/Resources/vr_manifest_local.json
+Assets/Resources/vr_manifest_local.json.meta

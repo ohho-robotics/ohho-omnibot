@@ -27,7 +27,7 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="varunvaidhiya",
-    maintainer_email="varunvaidhiya@todo.todo",
+    maintainer_email="varun@ohho-robotics.com",
     description="Model-agnostic visuomotor policy node for OmniBot mobile manipulation",
     license="Apache-2.0",
     tests_require=["pytest"],
@@ -35,6 +35,7 @@ setup(
         "console_scripts": [
             "policy_node = omnibot_lerobot.policy_node:main",
             "teleop_recorder_node = omnibot_lerobot.teleop_recorder_node:main",
+            "scripted_vr_headset = omnibot_lerobot.scripted_vr_headset:main",
             "bev_stitcher_node = omnibot_lerobot.bev_stitcher_node:main",
         ],
     },
