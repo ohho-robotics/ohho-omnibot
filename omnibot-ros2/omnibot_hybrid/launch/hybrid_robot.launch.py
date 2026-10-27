@@ -133,10 +133,10 @@ def generate_launch_description():
     )
 
     # ── Arm Command Mux (always required) ────────────────────────────────────
-    # Bridges /arm/joint_commands (SmolVLA / Android) → /arm/joint_commands/out
-    # → arm_driver_node. Also routes /arm/joint_commands/rl from rl_arm_node
-    # when use_rl:=true. Started unconditionally. Arm commands stay idle until
-    # /control_mode is vla, nav2, or rl_nav.
+    # Routes /arm/joint_commands/teleop in teleop, and
+    # /arm/joint_commands/policy (alias /arm/joint_commands) or
+    # /arm/joint_commands/rl once /control_mode is autonomous, to
+    # /arm/joint_commands/out → arm_driver_node. Started unconditionally.
     arm_cmd_mux_node = Node(
         package="omnibot_rl",
         executable="arm_cmd_mux",
@@ -165,7 +165,7 @@ def generate_launch_description():
 
     # ── Visuomotor policy (optional, use_policy:=true) ────────────────────────
     # Model selected via policy_model_type. Requires BEV stitcher and wrist camera.
-    # arm_cmd_mux above routes /arm/joint_commands to the arm driver.
+    # arm_cmd_mux above routes the selected arm source to the arm driver.
     policy_inference = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_lerobot, "launch", "policy_inference.launch.py")

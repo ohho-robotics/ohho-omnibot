@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ohho_webrtc</title>
+  <style>
+    body { font-family: sans-serif; margin: 1.5rem; background: #111; color: #eee; }
+    video { width: min(100%, 960px); background: #000; }
+    button, select { font: inherit; margin-right: 0.5rem; }
+    #status { margin: 0.75rem 0; }
+    p.note { max-width: 42rem; color: #ccc; }
+  </style>
+</head>
+<body>
+  <h1>ohho_webrtc</h1>
+  <p class="note">
+    One video track from the robot. The frame overlay is
+    <code>track unix-milliseconds</code> at capture time.
+    Glass-to-glass: put a millisecond clock in the camera view, photograph
+    that clock and this video in one exposure, and subtract the two readings.
+    Under 120 ms is the OHH-210 target. This page does not compute it.
+  </p>
+  <label>Track
+    <select id="track">
+      <option value="chase">chase</option>
+      <option value="front">front</option>
+      <option value="wrist">wrist</option>
+    </select>
+  </label>
+  <button id="connect" type="button">Connect</button>
+  <p id="status">idle</p>
+  <video id="video" autoplay playsinline muted></video>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const trackSelect = document.getElementById("track");
+    trackSelect.value = params.get("track") || "chase";
+    const status = document.getElementById("status");
+    const video = document.getElementById("video");
+
+    function signalingUrl() {
+      const secure = location.protocol === "https:";
+      const proto = secure ? "wss:" : "ws:";
+      const path = location.pathname.startsWith("/webrtc")
+        ? "/webrtc/signaling"
+        : "/signaling";
+      const url = new URL(proto + "//" + location.host + path);
+      const token = params.get("token");
+      if (token) url.searchParams.set("token", token);
+      return url.toString();
+    }
+
+    function setStatus(text) { status.textContent = text; }
+
+    document.getElementById("connect").addEventListener("click", function () {
+      const track = trackSelect.value;
+      const pc = new RTCPeerConnection();
+      const ws = new WebSocket(signalingUrl());
+      setStatus("connecting");
+      pc.onconnectionstatechange = function () {
+        setStatus(pc.connectionState);
+      };
+      pc.ontrack = function (event) {
+        video.srcObject = event.streams[0];
+      };
+      pc.onicecandidate = function (event) {
+        if (!event.candidate) return;
+        ws.send(JSON.stringify({
+          type: "ice",
+          track: track,
+          candidate: event.candidate.candidate,
+          sdpMid: event.candidate.sdpMid,
+          sdpMLineIndex: event.candidate.sdpMLineIndex
+        }));
+      };
+      ws.onerror = function () { setStatus("signaling error"); };
+      ws.onclose = function () {
+        if (pc.connectionState !== "connected") setStatus("signaling closed");
+      };
+      ws.onmessage = async function (event) {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "welcome") {
+          const servers = msg.iceServers || [];
+          if (servers.length) pc.setConfiguration({ iceServers: servers });
+          const transceiver = pc.addTransceiver("video", { direction: "recvonly" });
+          const caps = RTCRtpSender.getCapabilities("video");
+          if (caps && transceiver.setCodecPreferences) {
+            const h264 = caps.codecs.filter(function (codec) {
+              return codec.mimeType.toLowerCase() === "video/h264";
+            });
+            if (h264.length) transceiver.setCodecPreferences(h264);
+          }
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          ws.send(JSON.stringify({ type: "offer", sdp: offer.sdp, track: track }));
+          return;
+        }
+        if (msg.type === "answer") {
+          await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+          return;
+        }
+        if (msg.type === "ice" && msg.candidate) {
+          await pc.addIceCandidate({
+            candidate: msg.candidate,
+            sdpMid: msg.sdpMid,
+            sdpMLineIndex: msg.sdpMLineIndex
+          });
+          return;
+        }
+        if (msg.type === "error") setStatus(msg.error);
+      };
+      ws.onopen = function () {
+        ws.send(JSON.stringify({ type: "join", role: "viewer", tracks: [track] }));
+      };
+    });
+  </script>
+</body>
+</html>

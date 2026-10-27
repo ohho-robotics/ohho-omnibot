@@ -4,7 +4,7 @@
   <name>omnibot_navigation</name>
   <version>1.0.0</version>
   <description>Navigation configuration and launch files for OmniBot autonomous operation</description>
-  <maintainer email="varun@example.com">Varun</maintainer>
+  <maintainer email="varun@ohho-robotics.com">Varun</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

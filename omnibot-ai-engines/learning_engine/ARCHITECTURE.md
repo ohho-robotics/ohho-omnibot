@@ -148,9 +148,10 @@ edges:
    `/mission/status`. Segments episodes on `/learning/episode/start|stop`
    (String) or automatically on mission-status transitions; writes
    ReplayDataset-format episodes that `ExecutionLogCollector` ingests.
-2. **Policy deployment** is unchanged: trainers emit ONNX (consumed by the
-   existing `omnibot_rl` nodes) or SmolVLA checkpoints (consumed by
-   `policy_node`), so the deployment path is the one already in production.
+2. **Policy deployment** publishes arm joints on `/arm/joint_commands/policy`
+   (`policy_node`), which `arm_cmd_mux` forwards only in `vla` or `nav2`.
+   Trainers emit ONNX (consumed by the existing `omnibot_rl` nodes) or
+   SmolVLA checkpoints (consumed by `policy_node`).
 3. **`VlaServePolicy`** evaluates whatever model the `vla_serve` FastAPI
    server is serving, keeping eval and deployment on the same weights.
 4. New topics are namespaced under `/learning/*` (see `ros2/topics.py`);

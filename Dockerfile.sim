@@ -1,0 +1,245 @@
+# OmniBot simulation image (headless Gazebo Harmonic + Nav2 + workspace)
+# Base: ROS 2 Jazzy on Ubuntu 24.04 (Noble)
+# Published to GHCR: ghcr.io/ohho-robotics/omnibot-sim
+#
+# Build targets:
+#   sim      (default, last stage)  headless sim image, unchanged behaviour
+#   desktop  browser desktop: TigerVNC + openbox + noVNC on port 6080, which
+#            starts Gazebo (GUI) and RViz. Published as
+#            ghcr.io/ohho-robotics/omnibot-desktop. See docker/README.md.
+#
+# The image default is CPU software rendering (llvmpipe). CI and
+# docker-compose.yml rely on that. docker-compose.gpu.yml overrides it at
+# runtime for Ogre2 EGL on an NVIDIA GPU. Do not flip LIBGL_ALWAYS_SOFTWARE
+# here.
+
+FROM ros:jazzy-ros-base-noble AS base
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    ROS_DISTRO=jazzy \
+    ROS_DOMAIN_ID=30 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    GALLIUM_DRIVER=llvmpipe \
+    MESA_GL_VERSION_OVERRIDE=3.3 \
+    QT_QPA_PLATFORM=offscreen
+
+# ── 1. System packages & dependencies ──────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    locales \
+    # Headless software rendering (Mesa + llvmpipe + xvfb).
+    # libglvnd0 is the dispatcher the NVIDIA Container Toolkit uses to
+    # hand EGL to the host driver when the GPU compose file selects it.
+    libgl1-mesa-dri \
+    libegl1 \
+    libegl-mesa0 \
+    libglx-mesa0 \
+    libglu1-mesa \
+    libglvnd0 \
+    libgl1 \
+    libgles2 \
+    xvfb \
+    # ROS 2 desktop (includes RViz2, rqt)
+    ros-jazzy-desktop \
+    # Gazebo Harmonic + ROS bridge
+    ros-jazzy-ros-gz \
+    ros-jazzy-ros-gz-bridge \
+    ros-jazzy-ros-gz-sim \
+    # Navigation stack & localization
+    ros-jazzy-nav2-bringup \
+    ros-jazzy-nav2-costmap-2d \
+    ros-jazzy-slam-toolbox \
+    ros-jazzy-robot-localization \
+    # Visualization & telemetry bridges
+    ros-jazzy-foxglove-bridge \
+    ros-jazzy-rosbridge-suite \
+    ros-jazzy-web-video-server \
+    ros-jazzy-depthimage-to-laserscan \
+    ros-jazzy-teleop-twist-keyboard \
+    ros-jazzy-topic-tools \
+    # Build tools & utilities
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    python3-pip \
+    python3-pytest \
+    python3-vcstool \
+    git \
+    wget \
+    curl \
+    sudo \
+    # OpenCV (for BEV stitcher) & serial driver
+    python3-opencv \
+    libopencv-dev \
+    python3-serial \
+    && locale-gen en_US.UTF-8 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── 2. Python core dependencies ───────────────────────────────────────────────
+RUN pip3 install --no-cache-dir --break-system-packages \
+    "numpy<2.0" \
+    pyyaml \
+    pyserial \
+    fastapi \
+    uvicorn \
+    httpx
+
+# ── 3. Non-root user setup ────────────────────────────────────────────────────
+ARG USERNAME=user
+ARG USER_UID=1000
+ARG USER_GID=1000
+RUN if getent group $USER_GID >/dev/null 2>&1; then \
+      existing_group=$(getent group $USER_GID | cut -d: -f1); \
+    else \
+      existing_group=$USERNAME; \
+      groupadd --gid $USER_GID $USERNAME; \
+    fi && \
+    if id -u $USER_UID >/dev/null 2>&1; then \
+      existing_user=$(id -nu $USER_UID); \
+      if [ "$existing_user" != "$USERNAME" ]; then \
+        usermod -l $USERNAME -d /home/$USERNAME -m $existing_user 2>/dev/null || true; \
+      fi; \
+    else \
+      useradd --uid $USER_UID --gid $USER_GID -m -s /bin/bash $USERNAME; \
+    fi && \
+    echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# ── 4. Rosdep initialization ──────────────────────────────────────────────────
+RUN rosdep init 2>/dev/null || true && rosdep update
+
+# ── 5. Copy workspace sources and build ────────────────────────────────────────
+WORKDIR /workspaces/OmniBot
+COPY . /workspaces/OmniBot
+
+# Fix symlinks if checked out on a filesystem without symlink support
+RUN for link in src/*; do \
+      if [ -f "$link" ] && [ ! -L "$link" ]; then \
+        target=$(cat "$link"); \
+        rm "$link"; \
+        ln -s "$target" "$link"; \
+      fi; \
+    done
+
+# Install editable packages
+RUN pip3 install --no-cache-dir --break-system-packages \
+    -e mecanum-kinematics \
+    -e yahboom-python-driver \
+    -e omnibot-ai-engines/learning_engine \
+    -e omnibot-ai-engines/agent_engine
+
+# Install rosdep dependencies (skip unneeded 3D mapping and GUI stacks)
+RUN apt-get update && \
+    rosdep install --from-paths src --ignore-src -y --rosdistro jazzy \
+      --dependency-types=build \
+      --dependency-types=buildtool \
+      --dependency-types=build_export \
+      --dependency-types=buildtool_export \
+      --dependency-types=exec \
+      --skip-keys "rtabmap_ros octomap_server pcl_ros octomap_msgs joint_state_publisher_gui" && \
+    rm -rf /var/lib/apt/lists/*
+
+# Build colcon workspace into /opt/omnibot/install
+RUN . /opt/ros/jazzy/setup.sh && \
+    colcon build --symlink-install --install-base /opt/omnibot/install --base-paths src && \
+    rm -rf /workspaces/OmniBot/install && \
+    ln -s /opt/omnibot/install /workspaces/OmniBot/install
+
+# Fix permissions for the non-root user
+RUN chown -R $USER_UID:$USER_GID /workspaces/OmniBot /opt/omnibot
+
+# ── 6. Environment & entrypoint setup ─────────────────────────────────────────
+RUN echo "source /opt/ros/jazzy/setup.bash" >> /etc/bash.bashrc \
+    && echo "if [ -f /opt/omnibot/install/setup.bash ]; then source /opt/omnibot/install/setup.bash; fi" >> /etc/bash.bashrc \
+    && echo "export ROS_DOMAIN_ID=30" >> /etc/bash.bashrc
+
+# Entrypoint script that ensures environment is sourced for any command
+RUN printf '#!/bin/bash\nset -e\nsource /opt/ros/jazzy/setup.bash\nif [ -f /opt/omnibot/install/setup.bash ]; then source /opt/omnibot/install/setup.bash; fi\nif [ -f /workspaces/OmniBot/install/setup.bash ] && [ ! /workspaces/OmniBot/install/setup.bash -ef /opt/omnibot/install/setup.bash ]; then source /workspaces/OmniBot/install/setup.bash; fi\nexec "$@"\n' > /omnibot_entrypoint.sh \
+    && chmod +x /omnibot_entrypoint.sh
+
+USER $USERNAME
+WORKDIR /workspaces/OmniBot
+
+ENTRYPOINT ["/omnibot_entrypoint.sh"]
+CMD ["/bin/bash"]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Browser desktop (docker build --target desktop)
+#
+# A virtual X display (TigerVNC's Xtigervnc), the openbox window manager and
+# noVNC served by websockify on port 6080. On start the container opens the
+# Gazebo Harmonic client and RViz on that display (software OpenGL, llvmpipe).
+# The VNC server listens on the container's loopback only; the browser reaches
+# it through websockify.
+# ══════════════════════════════════════════════════════════════════════════════
+FROM base AS desktop
+
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG NOVNC_VERSION=1.7.0
+ARG NOVNC_SHA256=b1003a11b6e6e8d8f7f5e5586daae7f8ca651d8aee0aa155ff9ac841c48f52c6
+
+USER root
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tigervnc-standalone-server \
+        tigervnc-tools \
+        websockify \
+        openbox \
+        xterm \
+        x11-utils \
+        x11-xserver-utils \
+        dbus-x11 \
+        fonts-dejavu-core \
+        procps \
+        tini \
+        ca-certificates \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# noVNC from the release tag (pinned by checksum): the Ubuntu package is older
+# than the defaults.json used to auto-connect.
+RUN curl -fsSL -o /tmp/novnc.tgz \
+        "https://github.com/novnc/noVNC/archive/refs/tags/v${NOVNC_VERSION}.tar.gz" \
+    && echo "${NOVNC_SHA256}  /tmp/novnc.tgz" | sha256sum -c - \
+    && mkdir -p /opt/novnc \
+    && tar -xzf /tmp/novnc.tgz -C /opt/novnc --strip-components=1 \
+    && rm /tmp/novnc.tgz \
+    && cd /opt/novnc \
+    && sed -i 's|window.addEventListener("beforeunload", UI.handleBeforeUnload);|/* no leave-page prompt: the session keeps running */|' app/ui.js \
+    && sed -i 's|^const PAGE_TITLE = "noVNC";|const PAGE_TITLE = "OmniBot Sim";|' app/ui.js \
+    && sed -i 's|<title>noVNC</title>|<title>OmniBot Sim</title>|' vnc.html \
+    && rm -rf docs tests snap utils po .github karma.conf.cjs eslint.config.mjs vnc_lite.html \
+    && printf '{"version": "%s"}\n' "${NOVNC_VERSION}" > package.json
+
+COPY docker/desktop/rootfs/ /
+RUN chmod 0755 /usr/local/bin/omnibot-desktop \
+        /usr/local/bin/omnibot-desktop-sim \
+        /usr/local/bin/omnibot-desktop-healthcheck \
+    && install -d -o ${USER_UID} -g ${USER_GID} /home/user/shared /tmp/.X11-unix \
+    && chmod 1777 /tmp/.X11-unix
+
+ENV DISPLAY=:1 \
+    QT_QPA_PLATFORM=xcb \
+    NOVNC_PORT=6080 \
+    OMNIBOT_WORLD=flat \
+    OMNIBOT_GUI=true \
+    OMNIBOT_RVIZ=true \
+    OMNIBOT_AUTOSTART=true \
+    OMNIBOT_RESOLUTION=1600x900
+
+USER user
+WORKDIR /home/user
+EXPOSE 6080
+
+HEALTHCHECK --interval=15s --timeout=6s --start-period=60s --retries=4 \
+    CMD ["/usr/local/bin/omnibot-desktop-healthcheck"]
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/omnibot-desktop"]
+CMD []
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Default target: the headless sim image (same as before the desktop stage was
+# added). Kept last so `docker build -f Dockerfile.sim .` still builds it.
+# ══════════════════════════════════════════════════════════════════════════════
+FROM base AS sim

@@ -89,16 +89,25 @@ def generate_launch_description():
         executable="arm_driver_node.py",
         name="arm_driver_node",
         output="screen",
-        parameters=[arm_params, {"publish_diagnostics": True}],
+        parameters=[
+            arm_params,
+            {
+                "publish_diagnostics": True,
+                "calibration_file": LaunchConfiguration("calibration_file"),
+                "robot_id": LaunchConfiguration("robot_id"),
+            },
+        ],
     )
     arm_driver_delayed = TimerAction(period=2.0, actions=[arm_driver_node])
 
     # ------------------------------------------------------------------
-    # 6. Arm Command Mux — bridges /arm/joint_commands (SmolVLA / Android)
-    #    and /arm/joint_commands/rl → /arm/joint_commands/out → arm_driver.
-    #    default_mode teleop holds both arm sources until /control_mode is
-    #    vla, nav2, or rl_nav. The yaml file still names the arm source used
-    #    after that switch; this dict overrides its startup mode.
+    # 6. Arm Command Mux — /arm/joint_commands/teleop (VR / Android) forwards
+    #    in teleop. /arm/joint_commands/policy (alias /arm/joint_commands) and
+    #    /arm/joint_commands/rl stay held until /control_mode is vla, nav2,
+    #    or rl_nav. Output is /arm/joint_commands/out → arm_driver.
+    #    default_mode teleop is the startup control mode. The yaml file still
+    #    names the arm source used after an autonomous switch; this dict
+    #    overrides its startup mode.
     # ------------------------------------------------------------------
     arm_cmd_mux_node = Node(
         package="omnibot_rl",
@@ -199,7 +208,7 @@ def generate_launch_description():
 
     # ------------------------------------------------------------------
     # 10. BEV stitcher — combines 4 base cameras → /camera/base/bev/image_raw
-    #     Required by smolvla_node and teleop_recorder_node.
+    #     Required by policy_node and teleop_recorder_node.
     # ------------------------------------------------------------------
     bev_stitcher_node = Node(
         package="omnibot_lerobot",
@@ -253,6 +262,22 @@ def generate_launch_description():
                 "use_foxglove",
                 default_value="true",
                 description="Start Foxglove bridge on port 8765 for browser monitoring",
+            ),
+            DeclareLaunchArgument(
+                "calibration_file",
+                default_value="",
+                description=(
+                    "SO-101 so101_<id>.yaml. Empty uses OMNIBOT_ARM_CALIBRATION, "
+                    "then robot_id. See omnibot_arm/CALIBRATION.md."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "robot_id",
+                default_value="",
+                description=(
+                    "Load so101_<robot_id>.yaml for the arm. Empty uses "
+                    "OMNIBOT_ARM_ROBOT_ID."
+                ),
             ),
             # Base
             driver_node,
