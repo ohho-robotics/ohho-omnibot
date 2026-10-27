@@ -1,6 +1,7 @@
 .venv/
 coverage/
 .coverage
+eval_runs/
 build/
 install/
 log/

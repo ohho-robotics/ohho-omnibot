@@ -46,6 +46,7 @@ def main() -> int:
         "omnibot-ros2/omnibot_description/test",
         "infra/observability/tests",
         "scripts/test_architecture_launch_table.py",
+        "scripts/tests",
     ]
     if (
         _run(

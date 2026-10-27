@@ -25,5 +25,7 @@ arm_driver_node:
     max_joint_delta_rad: 0.15
     # Hold the last /arm/joint_commands/out target after this silence.
     command_timeout_sec: 0.2
-    # Home position ticks (calibrated via lerobot-calibrate)
+    # Factory STS3215 half-turn. NOT this robot. arm.launch.py replaces
+    # these when a calibration file is loaded. Do not paste measured ticks
+    # here. See CALIBRATION.md.
     home_ticks: [2048, 2048, 2048, 2048, 2048, 2048]
