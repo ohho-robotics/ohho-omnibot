@@ -54,6 +54,8 @@ namespace OmniBot.VR.Core
         private float _reconnectTimer = 0f;
         private bool _reconnecting = false;
         private float _reconnectDelay = 0f;
+        private float _heartbeatTimer = 0f;
+        private static readonly EmptyMsg HeartbeatMessage = new EmptyMsg();
 
         // ── Unity lifecycle ──────────────────────────────────────────────────
         private void Awake()
@@ -80,6 +82,23 @@ namespace OmniBot.VR.Core
             while (_incomingQueue.TryDequeue(out var item))
             {
                 DispatchIncoming(item.topic, item.json);
+            }
+
+            // teleop_safety stays disarmed without /ohho/heartbeat. Stop
+            // publishing as soon as the socket drops so the base zeros.
+            if (IsConnected)
+            {
+                _heartbeatTimer += Time.deltaTime;
+                float period = 1f / RobotConfig.HEARTBEAT_HZ;
+                if (_heartbeatTimer >= period)
+                {
+                    _heartbeatTimer = 0f;
+                    Publish(RobotConfig.TOPIC_HEARTBEAT, HeartbeatMessage);
+                }
+            }
+            else
+            {
+                _heartbeatTimer = 0f;
             }
 
             // Auto-reconnect logic
@@ -265,6 +284,8 @@ namespace OmniBot.VR.Core
             {
                 // Re-subscribe to all known topics after reconnect
                 ResubscribeAll();
+                Advertise(RobotConfig.TOPIC_HEARTBEAT, "std_msgs/Empty");
+                _heartbeatTimer = 1f / RobotConfig.HEARTBEAT_HZ;
                 OnConnected?.Invoke();
                 return;
             }

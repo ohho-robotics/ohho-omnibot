@@ -25,6 +25,8 @@ SAFETY_LAUNCH = HYBRID_ROOT / "launch" / "teleop_safety.launch.py"
 sys.path.insert(0, str(HYBRID_ROOT))
 
 from omnibot_hybrid.teleop_gate import (  # noqa: E402
+    AUDIT_DIR_ENV,
+    AUDIT_REPEAT_S,
     CMD_TIMEOUT_S,
     HARD_MAX_ACCEL_X,
     HARD_MAX_VX,
@@ -32,6 +34,7 @@ from omnibot_hybrid.teleop_gate import (  # noqa: E402
     HEARTBEAT_TIMEOUT_S,
     MAX_JOINT_DELTA_RAD,
     TeleopGate,
+    default_audit_dir,
     parameter_change_allowed,
 )
 
@@ -44,9 +47,13 @@ class Clock:
         return self.t
 
 
-def make_gate(tmp_path, clock=None, **kwargs):
+def make_gate(tmp_path, clock=None, *, release_startup=True, **kwargs):
     clock = clock or Clock()
     gate = TeleopGate(clock=clock, audit_dir=tmp_path, **kwargs)
+    if release_startup:
+        released = gate.reset(clock())
+        assert released.ok is True, released.message
+        assert gate.latched is False
     return gate, clock
 
 
@@ -54,6 +61,15 @@ def _audit_text(tmp_path):
     return "\n".join(
         path.read_text(encoding="utf-8") for path in tmp_path.glob("*.jsonl")
     )
+
+
+def _audit_events(tmp_path):
+    events = []
+    for path in sorted(tmp_path.glob("*.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                events.append(json.loads(line))
+    return events
 
 
 def test_ceilings_match_omnibot_profile_and_stop_budget():
@@ -273,6 +289,189 @@ def test_joint_limits_and_policy_guard_step(tmp_path):
     assert "joint_step" in _audit_text(tmp_path)
 
 
+def _velocity_cap_clamps(tmp_path):
+    return [
+        event
+        for event in _audit_events(tmp_path)
+        if event["event"] == "clamp" and event.get("reasons") == ["velocity_cap"]
+    ]
+
+
+def test_repeated_clamp_and_latched_reject_audits_are_throttled(tmp_path):
+    gate, _clock = make_gate(tmp_path)
+    gate.heartbeat(0.0)
+    gate.heartbeat(0.5)
+    gate.command_velocity(0.2, 0.0, 0.0, now=0.5)
+    gate.heartbeat(0.8)
+    at_cap = gate.command_velocity(0.2, 0.0, 0.0, now=0.8)
+    assert at_cap.twist[0] == pytest.approx(0.2)
+
+    first_stamp = 1.2
+    gate.heartbeat(first_stamp)
+    first = gate.command_velocity(5.0, 0.0, 0.0, now=first_stamp)
+    assert first.twist[0] == pytest.approx(0.2)
+    stamp = first_stamp
+    while stamp < first_stamp + AUDIT_REPEAT_S - 0.05:
+        stamp += 0.05
+        gate.heartbeat(stamp)
+        out = gate.command_velocity(5.0, 0.0, 0.0, now=stamp)
+        assert out.twist[0] == pytest.approx(0.2)
+    assert len(_velocity_cap_clamps(tmp_path)) == 1
+
+    later = first_stamp + AUDIT_REPEAT_S + 0.05
+    gate.heartbeat(later)
+    again = gate.command_velocity(5.0, 0.0, 0.0, now=later)
+    assert again.twist[0] == pytest.approx(0.2)
+    assert len(_velocity_cap_clamps(tmp_path)) == 2
+
+    gate.set_emergency_stop(True, later)
+    for step in range(15):
+        held = gate.command_velocity(0.2, 0.0, 0.0, now=later + step * 0.01)
+        assert held.twist == (0.0, 0.0, 0.0)
+    rejects = [
+        event
+        for event in _audit_events(tmp_path)
+        if event["event"] == "reject" and event.get("reason") == "estop_latched"
+    ]
+    assert len(rejects) == 1
+    assert any(event["event"] == "estop" for event in _audit_events(tmp_path))
+
+    gate.set_emergency_stop(False, later + 0.2)
+    released = gate.reset(later + 0.2)
+    assert released.ok is True
+    assert any(event["event"] == "estop_release" for event in _audit_events(tmp_path))
+
+
+def _reject_count(tmp_path, reason, command):
+    return sum(
+        1
+        for event in _audit_events(tmp_path)
+        if event["event"] == "reject"
+        and event.get("reason") == reason
+        and event.get("command") == command
+    )
+
+
+def test_streaming_reject_audits_are_throttled(tmp_path):
+    gate, clock = make_gate(tmp_path)
+
+    def burst(at):
+        clock.t = at
+        gate.heartbeat(at)
+        gate.command_velocity(float("nan"), 0.0, 0.0, now=at)
+        gate.command_velocity(float("inf"), 0.0, 0.0, now=at)
+        gate.command_joints([], [], now=at)
+        gate.command_joints(["arm_elbow_flex"], [float("nan")], now=at)
+        gate.command_joints(["not_a_joint"], [0.1], now=at)
+        dropped = gate.command_joints(["arm_elbow_flex"], [0.2], now=at)
+        assert dropped.joints is None
+
+    for step in range(6):
+        burst(1.0 + step * 0.04)
+    assert _reject_count(tmp_path, "non_finite", "velocity") == 1
+    assert _reject_count(tmp_path, "bad_joints", "joints") == 1
+    assert _reject_count(tmp_path, "non_finite", "joints") == 1
+    assert _reject_count(tmp_path, "unknown_joint", "joints") == 1
+    assert _reject_count(tmp_path, "no_joint_reference", "joints") == 1
+
+    burst(1.0 + AUDIT_REPEAT_S + 0.05)
+    assert _reject_count(tmp_path, "non_finite", "velocity") == 2
+    assert _reject_count(tmp_path, "bad_joints", "joints") == 2
+    assert _reject_count(tmp_path, "non_finite", "joints") == 2
+    assert _reject_count(tmp_path, "unknown_joint", "joints") == 2
+    assert _reject_count(tmp_path, "no_joint_reference", "joints") == 2
+
+
+def test_startup_latch_blocks_until_reset_and_returns_on_restart(tmp_path):
+    gate, _clock = make_gate(tmp_path, release_startup=False)
+    assert gate.latched is True
+    assert gate.armed is False
+    assert gate.reason == "startup"
+    assert json.loads(gate.state_json(0.0)) == {
+        "armed": False,
+        "latched": True,
+        "reason": "startup",
+    }
+    gate.heartbeat(0.0)
+    assert gate.armed is False
+    held = gate.command_velocity(0.2, 0.0, 0.0, now=0.1)
+    assert held.twist == (0.0, 0.0, 0.0)
+    gate.note_joint_state(["arm_elbow_flex"], [0.0])
+    dropped = gate.command_joints(["arm_elbow_flex"], [0.1], now=0.1)
+    assert dropped.joints is None
+    assert gate.latched is True
+
+    false_stop = gate.set_emergency_stop(False, 0.2)
+    assert false_stop.twist is None
+    assert gate.latched is True
+    gate.heartbeat(0.2)
+    assert gate.armed is False
+
+    true_stop = gate.set_emergency_stop(True, 0.3)
+    assert true_stop.twist == (0.0, 0.0, 0.0)
+    assert gate.reason == "estop"
+    refused = gate.reset(0.3)
+    assert refused.ok is False
+    assert gate.latched is True
+
+    gate.set_emergency_stop(False, 0.4)
+    released = gate.reset(0.4)
+    assert released.ok is True
+    assert gate.latched is False
+    gate.heartbeat(0.4)
+    assert gate.armed is True
+    moving = gate.command_velocity(0.2, 0.0, 0.0, now=0.5)
+    assert moving.twist[0] > 0.0
+
+    restarted, _restart_clock = make_gate(tmp_path, release_startup=False)
+    assert restarted.latched is True
+    assert restarted.reason == "startup"
+    restarted.heartbeat(1.0)
+    assert restarted.armed is False
+    assert restarted.command_velocity(0.2, 0.0, 0.0, now=1.1).twist == (
+        0.0,
+        0.0,
+        0.0,
+    )
+
+
+def test_default_audit_dir_honors_nonempty_override(tmp_path):
+    home = Path.home() / ".ohho" / "safety"
+    assert default_audit_dir({}) == home
+    assert default_audit_dir({AUDIT_DIR_ENV: ""}) == home
+    assert default_audit_dir({AUDIT_DIR_ENV: str(tmp_path)}) == Path(tmp_path)
+
+
+def test_audit_write_failure_stops_motion(tmp_path):
+    blocked = tmp_path / "blocked"
+    blocked.write_text("not a directory", encoding="utf-8")
+    gate = TeleopGate(clock=Clock(), audit_dir=blocked)
+    assert gate.armed is False
+    assert gate.latched is True
+    assert gate.reason == "audit_failure"
+    gate.heartbeat(0.0)
+    out = gate.command_velocity(0.2, 0.0, 0.0, now=0.2)
+    assert out.twist == (0.0, 0.0, 0.0)
+    refused = gate.reset(0.2)
+    assert refused.ok is False
+    assert gate.latched is True
+
+
+def test_bringup_docs_state_heartbeat_and_raw_ceilings():
+    reference = (REPO / "docs" / "reference.md").read_text(encoding="utf-8")
+    safety = (REPO / "docs" / "safety.md").read_text(encoding="utf-8")
+    assert "/ohho/heartbeat" in reference
+    assert "std_msgs/Empty" in reference
+    assert "/ohho/estop_reset" in reference
+    assert "safety.md" in reference
+    assert "pass through `teleop_safety`" in safety
+    assert "/cmd_vel/teleop_raw" in safety
+    assert "starts latched" in safety
+    assert "OHHO_SAFETY_DIR" in safety
+    assert "~/.ohho/safety/" in safety
+    assert "heartbeat alone does not arm it" in reference
+
+
 def test_launch_files_wire_teleop_safety():
     pi = (
         BRINGUP / "launch" / "master" / "omnibot_pi.launch.py"
@@ -284,15 +483,24 @@ def test_launch_files_wire_teleop_safety():
         REPO / "omnibot-ros2" / "omnibot_hybrid" / "launch" / "hybrid_robot.launch.py"
     ).read_text(encoding="utf-8")
     sim = (BRINGUP / "launch" / "sim.launch.py").read_text(encoding="utf-8")
+    sim_teleop = (BRINGUP / "launch" / "sim_teleop.launch.py").read_text(
+        encoding="utf-8"
+    )
     safety_launch = SAFETY_LAUNCH.read_text(encoding="utf-8")
     vr_bridge = (BRINGUP / "config" / "sim_bridge_vr.yaml").read_text(encoding="utf-8")
     flat_bridge = (BRINGUP / "config" / "sim_bridge.yaml").read_text(encoding="utf-8")
 
     for text in (pi, mobile, hybrid):
         assert "teleop_safety.launch.py" in text
+    # sim.launch.py vr:=true is the camera profile. The gate lives in
+    # sim_teleop.launch.py so that file can keep the bridge name and the
+    # camera tests can keep forbidding the gate token in sim.launch.py.
     assert 'default_value="false"' in sim
-    assert "teleop_safety.launch.py" in sim
     assert "sim_bridge_vr.yaml" in sim
+    assert "teleop_safety.launch.py" not in sim
+    assert "teleop_safety.launch.py" in sim_teleop
+    assert "sim_bridge_vr.yaml" in sim_teleop
+    assert "sim.launch.py" in sim_teleop
     assert '"use_sim_time": False' in safety_launch
     assert "max_vx" not in safety_launch
     assert 'ros_topic_name: "/cmd_vel/out"' in vr_bridge
@@ -335,14 +543,15 @@ def test_node_wiring_latch_and_service_without_ros(tmp_path):
         clock_mod = _pkg("rclpy.clock")
         clock_mod.Clock = lambda *a, **k: None
         clock_mod.ClockType = SimpleNamespace(STEADY_TIME=0)
-        param_mod = _pkg("rclpy.parameter")
-
         class SetParametersResult:
             def __init__(self, successful=True, reason=""):
                 self.successful = successful
                 self.reason = reason
 
-        param_mod.SetParametersResult = SetParametersResult
+        interfaces = _pkg("rcl_interfaces")
+        interfaces_msg = _pkg("rcl_interfaces.msg")
+        interfaces.msg = interfaces_msg
+        interfaces_msg.SetParametersResult = SetParametersResult
         qos = _pkg("rclpy.qos")
         qos.QoSProfile = lambda *a, **k: None
         qos.DurabilityPolicy = SimpleNamespace(TRANSIENT_LOCAL=1)
@@ -437,6 +646,21 @@ def test_node_wiring_latch_and_service_without_ros(tmp_path):
         assert "/emergency_stop" in node.subscriptions
         assert "/ohho/estop_reset" in node.services
         assert node._state_pub.msgs[-1].data
+        assert node._gate.latched is True
+        assert node._gate.armed is False
+
+        t["n"] = 0.0
+        node._heartbeat_cb(Empty())
+        assert node._gate.armed is False
+        held = Twist()
+        held.linear.x = 0.2
+        node._twist_cb(held)
+        assert node._twist_pub.msgs[-1].linear.x == 0.0
+        startup = SimpleNamespace(success=False, message="")
+        node._reset_cb(None, startup)
+        assert startup.success is True
+        assert node._gate.latched is False
+        node._twist_pub.msgs.clear()
 
         t["n"] = 0.0
         node._heartbeat_cb(Empty())

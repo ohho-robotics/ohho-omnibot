@@ -91,6 +91,34 @@ visionOS support is planned but not yet implemented. Architecture notes:
    (default `192.168.1.101`) and port (default `9090`) → **Connect**.
    The status dot turns green when connected.
 
+### Supabase anon key (local file, not git)
+
+`Assets/Resources/vr_manifest.json` is committed with an empty `auth.anonKey`. The project URL stays in that file. The anon key does not.
+
+At runtime [`OhhoPlatform`](Assets/Scripts/Core/Platform/OhhoPlatform.cs) loads `Assets/Resources/vr_manifest_local.json` and copies only auth fields the manifest left empty. A value already set on the fetched or bundled manifest is kept. The local file is listed in [`.gitignore`](.gitignore). Sign-in stays off when the key is missing.
+
+Create the file on the machine that builds or runs the headset app:
+
+```json
+{
+  "auth": {
+    "anonKey": "<Supabase anon public key>"
+  }
+}
+```
+
+Take the key from the Supabase dashboard (Project Settings → API → anon / public). Do not paste it into `vr_manifest.json` or any other committed file.
+
+To write that same gitignored file from the environment before opening Unity or building the APK, from `omnibot-vr/`:
+
+```powershell
+if (-not $env:OHHO_VR_SUPABASE_ANON_KEY) { throw "OHHO_VR_SUPABASE_ANON_KEY is not set" }
+New-Item -ItemType Directory -Force -Path Assets/Resources | Out-Null
+@{ auth = @{ anonKey = $env:OHHO_VR_SUPABASE_ANON_KEY } } | ConvertTo-Json | Set-Content -Encoding utf8 Assets/Resources/vr_manifest_local.json
+```
+
+Unity includes the key in a player build only when the file exists at build time. The key that used to be in git history is still live until it is rotated; see [`docs/security/gitleaks-pending-rotation.md`](../docs/security/gitleaks-pending-rotation.md).
+
 The headset client connects with [`ROSBridgeClient.cs`](Assets/Scripts/Core/ROSBridgeClient.cs). This repository does not contain `launch_vr_teleop.sh` or `launch_rosbridge.sh`. Recording export posts to port 8765 from [`TeleopHudController.cs`](Assets/Scripts/UI/TeleopHudController.cs); a ROS package named `omnibot_vr` is not in this tree.
 
 ---
@@ -269,6 +297,7 @@ omnibot-vr/
 | Hand mesh offset from real hand | Fixed in this branch — hand skeletons update root pose/scale/bone translations; re-run **OmniBot → Rebuild Unified OhhO Screen** if it regresses |
 | Hand visible in one eye only | Fixed in this branch — hand meshes use `updateWhenOffscreen` so per-eye frustum culling can't drop them |
 | Camera feed shows "No Signal" | Ensure `web_video_server` is running: `ros2 run web_video_server web_video_server` |
+| Quest cannot open a sim that is running in WSL2 on Windows | Use [Quest to WSL2 networking](../docs/vr-sim-network-windows.md). Browser video is `http://<pc-ip>:8080`; the VR app uses `ws://<pc-ip>:9090` |
 | Export fails | The headset posts to port 8765 ([`TeleopHudController.cs`](Assets/Scripts/UI/TeleopHudController.cs)). This repository has no `omnibot_vr` launch file serving that port. |
 | Arm not moving | Toggle arm enable with left-hand thumbs-up, check `/arm/enable` topic |
 | UI looks low-res | `VRGraphicsBoost` sets 1.5× eye resolution at startup; check it exists on `[OhhO VR App]` |
