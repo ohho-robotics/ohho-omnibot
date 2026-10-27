@@ -2,6 +2,7 @@ package com.varunvaidhiya.robotcontrol.data.repository
 
 import com.varunvaidhiya.robotcontrol.data.models.WheelSpeed
 import com.varunvaidhiya.robotcontrol.network.ROSBridgeManager
+import com.varunvaidhiya.robotcontrol.utils.Constants
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -41,5 +42,10 @@ class RobotRepositoryTest {
         assertEquals(2.0f, speeds.front_right, 0.001f)
         assertEquals(3.0f, speeds.rear_left, 0.001f)
         assertEquals(4.0f, speeds.rear_right, 0.001f)
+    }
+
+    @Test
+    fun `arm joint commands publish on the teleop mux input`() {
+        assertEquals("/arm/joint_commands/teleop", Constants.TOPIC_ARM_JOINT_COMMANDS)
     }
 }

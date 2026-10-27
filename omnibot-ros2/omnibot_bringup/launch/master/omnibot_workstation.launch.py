@@ -125,7 +125,7 @@ def generate_launch_description():
     # ── 2. Visuomotor policy_node ─────────────────────────────────────────────
     # Subscribes: /camera/wrist/image_raw, /camera/base/bev/image_raw,
     #             /arm/joint_states, /odom
-    # Publishes:  /arm/joint_commands → arm_cmd_mux on Pi
+    # Publishes:  /arm/joint_commands/policy → arm_cmd_mux on Pi
     #             /cmd_vel → cmd_vel_mux on Pi
     policy_node = Node(
         package="omnibot_lerobot",

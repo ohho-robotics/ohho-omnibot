@@ -101,11 +101,13 @@ def generate_launch_description():
     arm_driver_delayed = TimerAction(period=2.0, actions=[arm_driver_node])
 
     # ------------------------------------------------------------------
-    # 6. Arm Command Mux — bridges /arm/joint_commands (SmolVLA / Android)
-    #    and /arm/joint_commands/rl → /arm/joint_commands/out → arm_driver.
-    #    default_mode teleop holds both arm sources until /control_mode is
-    #    vla, nav2, or rl_nav. The yaml file still names the arm source used
-    #    after that switch; this dict overrides its startup mode.
+    # 6. Arm Command Mux — /arm/joint_commands/teleop (VR / Android) forwards
+    #    in teleop. /arm/joint_commands/policy (alias /arm/joint_commands) and
+    #    /arm/joint_commands/rl stay held until /control_mode is vla, nav2,
+    #    or rl_nav. Output is /arm/joint_commands/out → arm_driver.
+    #    default_mode teleop is the startup control mode. The yaml file still
+    #    names the arm source used after an autonomous switch; this dict
+    #    overrides its startup mode.
     # ------------------------------------------------------------------
     arm_cmd_mux_node = Node(
         package="omnibot_rl",

@@ -642,6 +642,8 @@ class TestPolicyNodeWithROSStubs:
         assert "max_joint_delta_rad" in node._params
         assert node._params["max_joint_delta_rad"] == 0.15
         assert node.guard.max_joint_delta_rad == 0.15
+        assert "/arm/joint_commands/policy" in node._publishers
+        assert "/arm/joint_commands" not in node._publishers
 
     def test_node_passes_joint_limits_to_guard(self):
         from omnibot_lerobot import policy_node
