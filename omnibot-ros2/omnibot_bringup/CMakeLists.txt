@@ -29,6 +29,10 @@ if(BUILD_TESTING)
     test/test_teleop_safety.py
     TIMEOUT 60
   )
+  ament_add_pytest_test(test_sim_vr_profile
+    test/test_sim_vr_profile.py
+    TIMEOUT 60
+  )
   ament_add_pytest_test(test_pick_place_spawn
     test/test_pick_place_spawn.py
     TIMEOUT 60
@@ -58,6 +62,10 @@ if(BUILD_TESTING)
     add_launch_test(
       test/test_teleop_safety_sim.py
       TIMEOUT 240
+    )
+    add_launch_test(
+      test/test_sim_vr_contract.py
+      TIMEOUT 300
     )
   endif()
 endif()
