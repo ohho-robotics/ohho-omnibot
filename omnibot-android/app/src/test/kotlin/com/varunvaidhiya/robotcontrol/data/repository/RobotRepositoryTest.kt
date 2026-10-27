@@ -45,7 +45,10 @@ class RobotRepositoryTest {
     }
 
     @Test
-    fun `arm joint commands publish on the teleop mux input`() {
-        assertEquals("/arm/joint_commands/teleop", Constants.TOPIC_ARM_JOINT_COMMANDS)
+    fun `arm and base teleop publish on the safety raw inputs`() {
+        assertEquals("/cmd_vel/teleop_raw", Constants.TOPIC_CMD_VEL)
+        assertEquals("/arm/joint_commands/teleop_raw", Constants.TOPIC_ARM_JOINT_COMMANDS)
+        assertEquals("/ohho/heartbeat", Constants.TOPIC_HEARTBEAT)
+        assertEquals(100L, Constants.HEARTBEAT_PERIOD_MS)
     }
 }

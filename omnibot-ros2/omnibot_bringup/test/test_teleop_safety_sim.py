@@ -99,10 +99,13 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
         drive.linear.x = 0.2
         start = self.odom[-1].pose.pose.position
         moving = False
+        # The 350 ms budget starts at the last command, not after spin_once.
+        last_command_at = None
         drive_deadline = time.monotonic() + 20.0
         while time.monotonic() < drive_deadline:
             self.heartbeat.publish(Empty())
             self.raw.publish(drive)
+            last_command_at = time.monotonic()
             rclpy.spin_once(self.node, timeout_sec=0.05)
             if not self.odom:
                 continue
@@ -118,8 +121,12 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
             f"odom={len(self.odom)} speed={_speed(self.odom[-1]):.4f}"
         )
         self.assertTrue(moving, "base did not move on /cmd_vel/teleop_raw")
+        self.assertIsNotNone(
+            last_command_at,
+            "drive loop exited without publishing a command",
+        )
 
-        t_kill = time.monotonic()
+        t_kill = last_command_at
         cmd_zero_at = None
         odom_stop_at = None
         deadline = t_kill + 1.0

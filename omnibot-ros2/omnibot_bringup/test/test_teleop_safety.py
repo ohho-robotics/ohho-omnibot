@@ -25,6 +25,7 @@ SAFETY_LAUNCH = HYBRID_ROOT / "launch" / "teleop_safety.launch.py"
 sys.path.insert(0, str(HYBRID_ROOT))
 
 from omnibot_hybrid.teleop_gate import (  # noqa: E402
+    AUDIT_REPEAT_S,
     CMD_TIMEOUT_S,
     HARD_MAX_ACCEL_X,
     HARD_MAX_VX,
@@ -54,6 +55,15 @@ def _audit_text(tmp_path):
     return "\n".join(
         path.read_text(encoding="utf-8") for path in tmp_path.glob("*.jsonl")
     )
+
+
+def _audit_events(tmp_path):
+    events = []
+    for path in sorted(tmp_path.glob("*.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                events.append(json.loads(line))
+    return events
 
 
 def test_ceilings_match_omnibot_profile_and_stop_budget():
@@ -271,6 +281,81 @@ def test_joint_limits_and_policy_guard_step(tmp_path):
     still = gate.command_joints(["arm_elbow_flex"], [0.1], now=0.2)
     assert still.joints is None
     assert "joint_step" in _audit_text(tmp_path)
+
+
+def _velocity_cap_clamps(tmp_path):
+    return [
+        event
+        for event in _audit_events(tmp_path)
+        if event["event"] == "clamp" and event.get("reasons") == ["velocity_cap"]
+    ]
+
+
+def test_repeated_clamp_and_latched_reject_audits_are_throttled(tmp_path):
+    gate, _clock = make_gate(tmp_path)
+    gate.heartbeat(0.0)
+    gate.heartbeat(0.5)
+    gate.command_velocity(0.2, 0.0, 0.0, now=0.5)
+    gate.heartbeat(0.8)
+    at_cap = gate.command_velocity(0.2, 0.0, 0.0, now=0.8)
+    assert at_cap.twist[0] == pytest.approx(0.2)
+
+    first_stamp = 1.2
+    gate.heartbeat(first_stamp)
+    first = gate.command_velocity(5.0, 0.0, 0.0, now=first_stamp)
+    assert first.twist[0] == pytest.approx(0.2)
+    stamp = first_stamp
+    while stamp < first_stamp + AUDIT_REPEAT_S - 0.05:
+        stamp += 0.05
+        gate.heartbeat(stamp)
+        out = gate.command_velocity(5.0, 0.0, 0.0, now=stamp)
+        assert out.twist[0] == pytest.approx(0.2)
+    assert len(_velocity_cap_clamps(tmp_path)) == 1
+
+    later = first_stamp + AUDIT_REPEAT_S + 0.05
+    gate.heartbeat(later)
+    again = gate.command_velocity(5.0, 0.0, 0.0, now=later)
+    assert again.twist[0] == pytest.approx(0.2)
+    assert len(_velocity_cap_clamps(tmp_path)) == 2
+
+    gate.set_emergency_stop(True, later)
+    for step in range(15):
+        held = gate.command_velocity(0.2, 0.0, 0.0, now=later + step * 0.01)
+        assert held.twist == (0.0, 0.0, 0.0)
+    rejects = [
+        event
+        for event in _audit_events(tmp_path)
+        if event["event"] == "reject" and event.get("reason") == "estop_latched"
+    ]
+    assert len(rejects) == 1
+    assert any(event["event"] == "estop" for event in _audit_events(tmp_path))
+
+    gate.set_emergency_stop(False, later + 0.2)
+    released = gate.reset(later + 0.2)
+    assert released.ok is True
+    assert any(event["event"] == "estop_release" for event in _audit_events(tmp_path))
+
+
+def test_audit_write_failure_stops_motion(tmp_path):
+    blocked = tmp_path / "blocked"
+    blocked.write_text("not a directory", encoding="utf-8")
+    gate = TeleopGate(clock=Clock(), audit_dir=blocked)
+    assert gate.armed is False
+    gate.heartbeat(0.0)
+    out = gate.command_velocity(0.2, 0.0, 0.0, now=0.2)
+    assert out.twist == (0.0, 0.0, 0.0)
+    assert gate.latched is False
+
+
+def test_bringup_docs_state_heartbeat_and_raw_ceilings():
+    reference = (REPO / "docs" / "reference.md").read_text(encoding="utf-8")
+    safety = (REPO / "docs" / "safety.md").read_text(encoding="utf-8")
+    assert "/ohho/heartbeat" in reference
+    assert "std_msgs/Empty" in reference
+    assert "/ohho/estop_reset" in reference
+    assert "safety.md" in reference
+    assert "pass through `teleop_safety`" in safety
+    assert "/cmd_vel/teleop_raw" in safety
 
 
 def test_launch_files_wire_teleop_safety():

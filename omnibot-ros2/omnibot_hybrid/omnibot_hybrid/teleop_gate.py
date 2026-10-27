@@ -39,6 +39,8 @@ HARD_MAX_ACCEL_Y = 0.5  # m/s^2
 HARD_MAX_ACCEL_WZ = 2.0  # rad/s^2
 CMD_TIMEOUT_S = 0.3
 HEARTBEAT_TIMEOUT_S = CMD_TIMEOUT_S
+# Repeated clamp and latched-reject lines. State transitions are not throttled.
+AUDIT_REPEAT_S = 1.0
 # arm_safety.MAX_JOINT_DELTA_RAD. Stricter than SafetyProfile.max_joint_step.
 HARD_MAX_JOINT_DELTA_RAD = 0.15
 AUDIT_DIR_ENV = "OHHO_SAFETY_DIR"
@@ -290,6 +292,7 @@ class TeleopGate:
         self._measured: dict[str, float] = {}
         self._joint_cmd: dict[str, float] = {}
         self._armed_flag = False
+        self._audit_last: dict[tuple, float] = {}
         self._audit("connect")
 
     @property
@@ -397,8 +400,9 @@ class TeleopGate:
                 return Outcome(twist=_ZERO)
             if self._latched or self._audit_blocked:
                 self._stop_motion()
-                self._audit(
+                self._audit_throttled(
                     "reject",
+                    stamp,
                     command="velocity",
                     reason="estop_latched" if self._latched else "audit_failure",
                     requested=list(req),
@@ -427,8 +431,9 @@ class TeleopGate:
                 reasons.append("velocity_cap")
             if applied != capped:
                 reasons.append("accel_cap")
-            if reasons and not self._audit(
+            if reasons and not self._audit_throttled(
                 "clamp",
+                stamp,
                 command="velocity",
                 requested=list(req),
                 applied=list(applied),
@@ -468,8 +473,9 @@ class TeleopGate:
                 self._audit("reject", command="joints", reason="bad_joints")
                 return Outcome()
             if self._latched or self._audit_blocked:
-                self._audit(
+                self._audit_throttled(
                     "reject",
+                    stamp,
                     command="joints",
                     reason="estop_latched" if self._latched else "audit_failure",
                 )
@@ -527,8 +533,9 @@ class TeleopGate:
                 reasons.append("joint_limit")
             if applied_list != limited:
                 reasons.append("joint_step")
-            if reasons and not self._audit(
+            if reasons and not self._audit_throttled(
                 "clamp",
+                stamp,
                 command="joints",
                 requested=requested,
                 applied=applied_list,
@@ -611,6 +618,23 @@ class TeleopGate:
         if name in self._measured:
             return self._measured[name]
         return self._joint_cmd.get(name)
+
+    def _audit_throttled(self, event: str, now: float, **fields: Any) -> bool:
+        """Write at most one repeated clamp or reject line per second.
+
+        State transitions stay on ``_audit``. A skipped repeat does not clear
+        ``_audit_blocked``. A failed write still stops motion.
+        """
+        reasons = fields.get("reasons") or ()
+        if not isinstance(reasons, tuple):
+            reasons = tuple(reasons)
+        key = (event, fields.get("command"), fields.get("reason"), reasons)
+        stamp = float(now)
+        last = self._audit_last.get(key)
+        if last is not None and 0.0 <= stamp - last < AUDIT_REPEAT_S:
+            return not self._audit_blocked
+        self._audit_last[key] = stamp
+        return self._audit(event, **fields)
 
     def _audit(self, event: str, **fields: Any) -> bool:
         ok = self._audit_log.write(

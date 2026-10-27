@@ -5,9 +5,16 @@ import com.varunvaidhiya.robotcontrol.network.ROSBridgeListener
 import com.varunvaidhiya.robotcontrol.network.ROSBridgeManager
 import com.varunvaidhiya.robotcontrol.ui.views.PointCloudView
 import com.varunvaidhiya.robotcontrol.utils.Constants
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.atan2
 import kotlin.math.sqrt
@@ -22,6 +29,8 @@ import javax.inject.Singleton
 class RobotRepository @Inject constructor() {
 
     private var rosManager: ROSBridgeManager? = null
+    private val heartbeatScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var heartbeatJob: Job? = null
 
     // ── Connection ─────────────────────────────────────────────────────────────
     private val _connectionState = MutableStateFlow(ROSBridgeManager.ConnectionState.DISCONNECTED)
@@ -82,14 +91,17 @@ class RobotRepository @Inject constructor() {
             _connectionState.value = ROSBridgeManager.ConnectionState.CONNECTED
             _robotStatus.value = _robotStatus.value.copy(isConnected = true)
             subscribeToTopics()
+            startSafetyHeartbeat()
         }
 
         override fun onDisconnected() {
+            stopSafetyHeartbeat()
             _connectionState.value = ROSBridgeManager.ConnectionState.DISCONNECTED
             _robotStatus.value = _robotStatus.value.copy(isConnected = false)
         }
 
         override fun onError(error: String) {
+            stopSafetyHeartbeat()
             _connectionState.value = ROSBridgeManager.ConnectionState.ERROR
             Timber.e("ROS Error: $error")
         }
@@ -109,7 +121,29 @@ class RobotRepository @Inject constructor() {
         _connectionState.value = ROSBridgeManager.ConnectionState.CONNECTING
     }
 
-    fun disconnect() = rosManager?.disconnect()
+    fun disconnect() {
+        stopSafetyHeartbeat()
+        rosManager?.disconnect()
+    }
+
+    /**
+     * Keep teleop_safety armed. The gate zeros the base when this topic is
+     * silent for 300 ms, so the loop stops as soon as the socket drops.
+     */
+    private fun startSafetyHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = heartbeatScope.launch {
+            while (isActive) {
+                rosManager?.publish(Constants.TOPIC_HEARTBEAT, emptyMap())
+                delay(Constants.HEARTBEAT_PERIOD_MS)
+            }
+        }
+    }
+
+    private fun stopSafetyHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
 
     fun sendVelocity(command: VelocityCommand) =
         rosManager?.publish(Constants.TOPIC_CMD_VEL, command.toROSTwist())
