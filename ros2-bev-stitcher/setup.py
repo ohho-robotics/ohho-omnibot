@@ -27,6 +27,7 @@ setup(
             "bev_calibrate = ros2_bev_stitcher.bev_calibrate:main",
             "bev_ipm = ros2_bev_stitcher.bev_ipm:main",
             "bev_cal_ui = ros2_bev_stitcher.bev_cal_ui:main",
+            "calibrate_bev_ipm = ros2_bev_stitcher.calibrate_bev_ipm:main",
         ],
     },
 )

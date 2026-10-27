@@ -115,7 +115,15 @@ A Quest on Wi-Fi reaches rosbridge and `web_video_server` on the Windows LAN add
 
 ## Bring-up control mode
 
-`mobile_manipulation.launch.py` starts `cmd_vel_mux` and `arm_cmd_mux` in `teleop`. `/cmd_vel/teleop` is forwarded. Nav2, VLA, and RL base commands, and both arm command sources, are not forwarded until `/control_mode` is `vla`, `nav2`, or `rl_nav`. Switching `/control_mode` between any two different modes (teleop→autonomous, autonomous→teleop, or autonomous→autonomous) publishes a zero Twist to stop the base on that callback so the previous source's latched velocity does not run away. Setting `/control_mode` back to `teleop` also stops the autonomous arm stream on that callback and forwards `/cmd_vel/teleop`. Publishing `/emergency_stop` true stops base and arm outputs, including teleop, on that callback. `/arm/joint_commands` is shared by the policy and the Android app, so Android joint commands wait for an autonomous mode as well.
+`mobile_manipulation.launch.py` starts `cmd_vel_mux` and `arm_cmd_mux` in `teleop`. `/cmd_vel/teleop` is forwarded. Nav2, VLA, and RL base commands are not forwarded until `/control_mode` is `vla`, `nav2`, or `rl_nav`. `/arm/joint_commands/teleop` (Quest VR hand IK and Android joint sliders) is forwarded in `teleop` while `/emergency_stop` is false, and held in `vla`, `nav2`, and `rl_nav`. `/arm/joint_commands/policy` (`policy_node`) and `/arm/joint_commands/rl` stay held in `teleop`. `/arm/joint_commands` is a deprecated alias of the policy input for one release and is held in teleop the same way. Switching `/control_mode` between any two different modes (teleop→autonomous, autonomous→teleop, or autonomous→autonomous) publishes a zero Twist to stop the base on that callback so the previous source's latched velocity does not run away. Setting `/control_mode` back to `teleop` stops the policy and RL arm streams on that callback, forwards `/cmd_vel/teleop`, and forwards `/arm/joint_commands/teleop`. Publishing `/emergency_stop` true stops base and arm outputs, including teleop, on that callback.
+
+| Arm input | Who publishes | Forwarded when |
+|---|---|---|
+| `/arm/joint_commands/teleop` | Quest VR OmniBot profile, Android app | `/control_mode` is `teleop` and `/emergency_stop` is false |
+| `/arm/joint_commands/policy` | `policy_node` | `vla` or `nav2`, arm source `policy`, e-stop clear |
+| `/arm/joint_commands` | deprecated alias of the policy input (one release) | same gate as `/arm/joint_commands/policy` |
+| `/arm/joint_commands/rl` | `rl_arm_node` | `rl_nav`, arm source `rl_arm`, e-stop clear |
+| `/arm/joint_commands/out` | `arm_cmd_mux` | the selected source above; `arm_driver_node` subscribes |
 
 `hybrid_robot.launch.py` and `omnibot_pi.launch.py` still pass `default_mode:=nav2` for the base mux. This gate was unit-tested here without ROS 2. It was not run with `ros2 launch`, Gazebo, or a robot.
 

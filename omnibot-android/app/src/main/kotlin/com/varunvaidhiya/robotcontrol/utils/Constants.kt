@@ -36,8 +36,9 @@ object Constants {
     const val TOPIC_RECORD_START       = "/rosbag_recorder/start"  // std_msgs/String (bag name)
     const val TOPIC_RECORD_STOP        = "/rosbag_recorder/stop"   // std_msgs/Empty
 
-    // Arm topics
-    const val TOPIC_ARM_JOINT_COMMANDS = "/arm/joint_commands"
+    // Arm joint teleop. arm_cmd_mux forwards this only while /control_mode
+    // is "teleop" and /emergency_stop is false.
+    const val TOPIC_ARM_JOINT_COMMANDS = "/arm/joint_commands/teleop"
     const val TOPIC_ARM_ENABLE         = "/arm/enable"
 
     // ── ROS Topics: subscribe ─────────────────────────────────────────────────

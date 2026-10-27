@@ -1,0 +1,97 @@
+{
+  "summary": {
+    "total_episodes": 3,
+    "kept_episodes": 0,
+    "rejected_episodes": 3,
+    "keep_ratio": 0.0,
+    "camera_skew: unchecked (no per-camera timestamps)": 0
+  },
+  "thresholds": {
+    "max_frozen_s": 0.5,
+    "max_camera_skew_s": 0.05,
+    "max_joint_step_rad": 0.5,
+    "min_duration_s": 2.0,
+    "frame_diff_threshold": 2.0,
+    "missing_camera_timestamps": "unchecked",
+    "continuous_joints": [
+      "wrist_roll"
+    ]
+  },
+  "kept": [],
+  "rejected": [
+    0,
+    1,
+    2
+  ],
+  "episodes": {
+    "0": {
+      "episode_index": 0,
+      "passed": false,
+      "status": "reject",
+      "reasons": [
+        "frozen_video: camera 'observation.images.wrist' has identical frames for 0.50s (> 0.50s) from frame 0 (t=1791995384.87s) to frame 5 (t=1791995385.37s)",
+        "frozen_video: camera 'observation.images.bev' has identical frames for 0.50s (> 0.50s) from frame 0 (t=1791995384.87s) to frame 5 (t=1791995385.37s)"
+      ],
+      "warnings": [],
+      "camera_skew": "0.0000s",
+      "metrics": {
+        "duration_s": 13.1002,
+        "max_frozen_duration_s": 13.1002,
+        "max_camera_skew_s": 0.0,
+        "max_joint_step_rad": 0.107,
+        "frame_count": 132,
+        "fps": 10.0,
+        "frozen_camera_durations": {
+          "observation.images.wrist": 13.1002,
+          "observation.images.bev": 13.1002
+        }
+      }
+    },
+    "1": {
+      "episode_index": 1,
+      "passed": false,
+      "status": "reject",
+      "reasons": [
+        "frozen_video: camera 'observation.images.wrist' has identical frames for 0.50s (> 0.50s) from frame 0 (t=1791995398.27s) to frame 5 (t=1791995398.77s)",
+        "frozen_video: camera 'observation.images.bev' has identical frames for 0.50s (> 0.50s) from frame 0 (t=1791995398.27s) to frame 5 (t=1791995398.77s)"
+      ],
+      "warnings": [],
+      "camera_skew": "0.0000s",
+      "metrics": {
+        "duration_s": 13.1001,
+        "max_frozen_duration_s": 13.1001,
+        "max_camera_skew_s": 0.0,
+        "max_joint_step_rad": 0.0804,
+        "frame_count": 132,
+        "fps": 10.0,
+        "frozen_camera_durations": {
+          "observation.images.wrist": 13.1001,
+          "observation.images.bev": 13.1001
+        }
+      }
+    },
+    "2": {
+      "episode_index": 2,
+      "passed": false,
+      "status": "reject",
+      "reasons": [
+        "frozen_video: camera 'observation.images.wrist' has identical frames for 0.50s (> 0.50s) from frame 0 (t=1791995411.57s) to frame 5 (t=1791995412.07s)",
+        "frozen_video: camera 'observation.images.bev' has identical frames for 0.50s (> 0.50s) from frame 0 (t=1791995411.57s) to frame 5 (t=1791995412.07s)"
+      ],
+      "warnings": [],
+      "camera_skew": "0.0000s",
+      "metrics": {
+        "duration_s": 13.1,
+        "max_frozen_duration_s": 13.1,
+        "max_camera_skew_s": 0.0,
+        "max_joint_step_rad": 0.0803,
+        "frame_count": 132,
+        "fps": 10.0,
+        "frozen_camera_durations": {
+          "observation.images.wrist": 13.1,
+          "observation.images.bev": 13.1
+        }
+      }
+    }
+  }
+}

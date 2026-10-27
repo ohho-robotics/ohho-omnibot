@@ -35,6 +35,7 @@ setup(
         "console_scripts": [
             "policy_node = omnibot_lerobot.policy_node:main",
             "teleop_recorder_node = omnibot_lerobot.teleop_recorder_node:main",
+            "scripted_vr_headset = omnibot_lerobot.scripted_vr_headset:main",
             "bev_stitcher_node = omnibot_lerobot.bev_stitcher_node:main",
         ],
     },

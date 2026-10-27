@@ -429,7 +429,7 @@ def generate_launch_description():
     )
 
     # ── 14. arm_cmd_mux ───────────────────────────────────────────────────────
-    # Routes: policy | rl_arm → /arm/joint_commands/out → arm_driver
+    # Routes: teleop | policy | rl_arm → /arm/joint_commands/out → arm_driver
     arm_cmd_mux = Node(
         package="omnibot_rl",
         executable="arm_cmd_mux",

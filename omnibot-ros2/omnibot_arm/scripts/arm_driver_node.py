@@ -11,8 +11,9 @@ Topics published:
 
 Topics subscribed:
   /arm/joint_commands/out (sensor_msgs/JointState) - commanded positions for follower
-                          routed via arm_cmd_mux (omnibot_rl) which selects between
-                          SmolVLA (/arm/joint_commands) and RL (/arm/joint_commands/rl)
+                          routed via arm_cmd_mux (omnibot_rl), which selects
+                          teleop (/arm/joint_commands/teleop), policy
+                          (/arm/joint_commands/policy), or RL (/arm/joint_commands/rl)
   /arm/enable             (std_msgs/Bool)           - enable/disable torque
   /emergency_stop         (std_msgs/Bool)           - true forces Torque_Enable 0
 
