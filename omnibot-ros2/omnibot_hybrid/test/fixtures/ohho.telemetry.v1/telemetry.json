@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ohho-robotics.com/schemas/ohho.telemetry.v1/telemetry.json",
+  "title": "TelemetryV1",
+  "description": "One ohho.telemetry.v1 sample. Safety fields are required. Base, joints, gripper, IMU, and the other blocks are optional so a robot without an arm or IMU can still emit a valid sample. Zero is a real measurement, not a placeholder for missing data. A schema-valid sample is not permission to skip the producer safety gate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "t", "robot_id", "kind", "mode", "estop", "deadman", "link"],
+  "properties": {
+    "v": { "$ref": "defs.json#/$defs/SchemaVersion" },
+    "t": { "$ref": "defs.json#/$defs/UnixTimeSeconds" },
+    "robot_id": { "$ref": "defs.json#/$defs/RobotId" },
+    "kind": { "$ref": "defs.json#/$defs/RobotKind" },
+    "mode": { "$ref": "defs.json#/$defs/ModeState" },
+    "estop": { "$ref": "defs.json#/$defs/EstopState" },
+    "deadman": {
+      "description": "Operator deadman permit. True only while the deadman control is asserted. False is not a permit. Omitting the field is invalid and must not be read as true.",
+      "type": "boolean"
+    },
+    "link": { "$ref": "defs.json#/$defs/LinkStatus" },
+    "base": { "$ref": "defs.json#/$defs/BaseState" },
+    "joints": {
+      "description": "Revolute joint samples. Omit when the robot has no arm sample.",
+      "type": "array",
+      "items": { "$ref": "defs.json#/$defs/JointSample" }
+    },
+    "gripper": { "$ref": "defs.json#/$defs/GripperState" },
+    "imu": { "$ref": "defs.json#/$defs/ImuSample" },
+    "battery": { "$ref": "defs.json#/$defs/BatteryState" },
+    "nav": { "$ref": "defs.json#/$defs/NavState" },
+    "policy": { "$ref": "defs.json#/$defs/PolicyState" },
+    "rec": { "$ref": "defs.json#/$defs/RecordingState" },
+    "sys": { "$ref": "defs.json#/$defs/HostStatus" }
+  }
+}

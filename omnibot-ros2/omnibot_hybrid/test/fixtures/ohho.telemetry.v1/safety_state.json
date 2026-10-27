@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ohho-robotics.com/schemas/ohho.telemetry.v1/safety_state.json",
+  "title": "SafetyState",
+  "description": "Safety-only sample: e-stop, deadman, mode, and link, plus identity. A schema-valid sample is not permission to skip the producer safety gate. Missing safety fields are invalid and must not be treated as a permit.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "t", "robot_id", "kind", "mode", "estop", "deadman", "link"],
+  "properties": {
+    "v": { "$ref": "defs.json#/$defs/SchemaVersion" },
+    "t": { "$ref": "defs.json#/$defs/UnixTimeSeconds" },
+    "robot_id": { "$ref": "defs.json#/$defs/RobotId" },
+    "kind": { "$ref": "defs.json#/$defs/RobotKind" },
+    "mode": { "$ref": "defs.json#/$defs/ModeState" },
+    "estop": { "$ref": "defs.json#/$defs/EstopState" },
+    "deadman": {
+      "description": "Operator deadman permit. True only while the deadman control is asserted. False is not a permit. Omitting the field is invalid and must not be read as true.",
+      "type": "boolean"
+    },
+    "link": { "$ref": "defs.json#/$defs/LinkStatus" }
+  }
+}

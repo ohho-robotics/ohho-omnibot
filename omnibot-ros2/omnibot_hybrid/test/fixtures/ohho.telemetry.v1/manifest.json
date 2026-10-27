@@ -1,0 +1,12 @@
+{
+  "id": "ohho.telemetry.v1",
+  "version": "1.0.0",
+  "versionPattern": "^1\\.0\\.(0|[1-9]\\d*)$",
+  "description": "Source of truth for the ohho.telemetry.v1 contract. Edit the JSON Schemas, then run npm run codegen:telemetry.",
+  "messages": [
+    "heartbeat.json",
+    "heartbeat_echo.json",
+    "safety_state.json",
+    "telemetry.json"
+  ]
+}
