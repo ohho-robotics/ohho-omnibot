@@ -301,7 +301,7 @@ flowchart LR
   AD --> LR
 ```
 
-Details: control-mode gating in [docs/reference.md](docs/reference.md#bring-up-control-mode), arm and policy safety in [docs/safety.md](docs/safety.md). October pick-and-place fill-in: [docs/october-task.md](docs/october-task.md).
+Details: control-mode gating in [docs/reference.md](docs/reference.md#bring-up-control-mode), arm and policy safety in [docs/safety.md](docs/safety.md), and the model adapter interface in [docs/model-adapter.md](docs/model-adapter.md). October pick-and-place fill-in: [docs/october-task.md](docs/october-task.md).
 
 ## Observability (1 robot)
 
