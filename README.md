@@ -31,14 +31,19 @@
   </p>
 </div>
 
-<p align="center"><strong>An open-source ROS 2 Jazzy mobile manipulator (mecanum base + SO-101 arm) that you can run in simulation on a laptop in three commands, then build at home.</strong></p>
+<p align="center"><strong>Ohho is the open harness layer for physical AI. Bring any model, we make it run on a real robot. OmniBot is the reference robot: an open-source ROS 2 Jazzy mobile manipulator (mecanum base + SO-101 arm) that you can run in simulation on a laptop in three commands, then build at home.</strong></p>
 
 <p align="center">⭐ <strong>If OmniBot is useful or interesting to you, please star the repo</strong>: it helps other robotics people find it.</p>
 
 ## Why OmniBot
 
-- **Full mobile-manipulation stack in one repo**: mecanum base driver and kinematics, SO-101 arm with e-stop and joint-limit safety, Nav2/SLAM, Gazebo Harmonic sim, and LeRobot data capture feeding VLA/RL policies.
-- **Teleop from anywhere**: Xbox gamepad, Android app, Meta Quest VR, or the browser via rosbridge.
+A model alone isn't a robot. An LLM needs an agent harness (tools, memory, guardrails) before it can do real work; a VLA or RL policy needs the same around it before it can move real motors. OmniBot is that harness, end to end, in one repo:
+
+- **Simulation**: Gazebo Harmonic worlds, Nav2/SLAM, a CPU-only Docker sim, and Gazebo + RViz in the browser. Test a policy before it touches hardware.
+- **Data**: teleop from Meta Quest VR, an Xbox gamepad, the Android app, or the browser via rosbridge, recorded into LeRobot datasets.
+- **Policy runtime**: OpenVLA, SmolVLA, and RL policies drive the mecanum base and SO-101 arm over ROS 2, through one command mux per actuator.
+- **Safety guards**: e-stop torque latch, joint limits and per-cycle delta clamps, stale-inference rejection, refusal on missing or black camera frames, and a source-staleness watchdog on base velocity. See [docs/safety.md](docs/safety.md).
+- **Deployment**: `pip install ohho-os`, an opt-in OTA update agent, and Prometheus + Grafana observability (fleet v0: one robot today).
 - **Honest and tested**: README commands run in CI. CPU Python line coverage is reported in the [CI `cpu` job](.github/workflows/ci.yml) (see [docs/test-coverage.md](docs/test-coverage.md)). Anything that needs a robot or GPU is labelled as such in [docs/reference.md](docs/reference.md).
 
 ## Quickstart (no robot, no GPU)
