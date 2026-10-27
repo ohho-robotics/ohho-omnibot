@@ -40,7 +40,7 @@ namespace OmniBot.VR.Core
         /// <summary>Rate at which /arm/joint_commands is published (Hz).</summary>
         public const float ARM_PUBLISH_HZ = 20f;
 
-        // ── Arm joint names (must match omnibot_arm and smolvla_node) ────────
+        // ── Arm joint names (must match omnibot_arm and policy_node) ────────
         public static readonly string[] ARM_JOINT_NAMES =
         {
             "arm_shoulder_pan",

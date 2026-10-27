@@ -49,7 +49,7 @@ The flagship stack coordinates motion, perception, and state through a multiplex
 
 | Topic | Type | Source / Publisher | Target / Subscriber | Purpose |
 |---|---|---|---|---|
-| `/arm/joint_commands` | `sensor_msgs/msg/JointState` | `smolvla_node` / Android | `arm_cmd_mux` | Autonomous or manual joint target positions |
+| `/arm/joint_commands` | `sensor_msgs/msg/JointState` | `policy_node` / Android | `arm_cmd_mux` | Autonomous or manual joint target positions |
 | `/arm/joint_commands/rl` | `sensor_msgs/msg/JointState` | `rl_arm_node` | `arm_cmd_mux` | RL arm policy joint target commands |
 | `/arm/joint_commands/out` | `sensor_msgs/msg/JointState` | `arm_cmd_mux` | `arm_driver_node` | Gated joint commands routed to Feetech STS3215 servos |
 | `/arm/joint_states` | `sensor_msgs/msg/JointState` | `arm_driver_node` | Policy nodes, EKF, RViz | Measured positions, velocities, and currents |
@@ -73,9 +73,9 @@ The flagship stack coordinates motion, perception, and state through a multiplex
 | `/camera/rear/image_raw` | `sensor_msgs/msg/Image` | Rear `usb_cam` | `bev_stitcher` | Rear RGB camera stream |
 | `/camera/left/image_raw` | `sensor_msgs/msg/Image` | Left `usb_cam` | `bev_stitcher` | Left RGB camera stream |
 | `/camera/right/image_raw` | `sensor_msgs/msg/Image` | Right `usb_cam` | `bev_stitcher` | Right RGB camera stream |
-| `/camera/wrist/image_raw` | `sensor_msgs/msg/Image` | Wrist `usb_cam` | `smolvla_node`, LeRobot | End-effector camera stream for manipulation |
+| `/camera/wrist/image_raw` | `sensor_msgs/msg/Image` | Wrist `usb_cam` | `policy_node`, LeRobot | End-effector camera stream for manipulation |
 | `/camera/depth/image_raw` | `sensor_msgs/msg/Image` | Orbbec Astra Pro | `depthimage_to_laserscan` | Depth image stream |
-| `/camera/base/bev/image_raw` | `sensor_msgs/msg/Image` | `bev_stitcher_node` | `smolvla_node`, Foxglove | Fused 800x800 bird's-eye view surround image |
+| `/camera/base/bev/image_raw` | `sensor_msgs/msg/Image` | `bev_stitcher_node` | `policy_node`, Foxglove | Fused 800x800 bird's-eye view surround image |
 
 ### Control Mode, Mission & Safety Topics
 
@@ -117,7 +117,7 @@ Both machines communicate over a shared ROS 2 domain (`ROS_DOMAIN_ID=30`) with s
 | `rosbridge_websocket` | `rosbridge_server/rosbridge_websocket` | **Raspberry Pi 5** | Light CPU, Network | Local websocket server (port 9090) for Android app / browser connection |
 | `foxglove_bridge` | `foxglove_bridge/foxglove_bridge` | **Raspberry Pi 5** | Light CPU, Network | Local websocket bridge (port 8765) for live telemetry streaming |
 | `vla_node` | `omnibot_vla/vla_node.py` | **GPU Workstation** | Heavy GPU ($\ge$16 GB VRAM) | OpenVLA 7B foundation model requiring desktop NVIDIA CUDA compute |
-| `smolvla_node` / `policy_node` | `omnibot_lerobot/policy_node.py` | **GPU Workstation** | Heavy GPU ($\ge$8 GB VRAM) | SmolVLA 9-DOF unified policy inference at 10 Hz |
+| `policy_node` | `omnibot_lerobot/policy_node.py` | **GPU Workstation** | Heavy GPU ($\ge$8 GB VRAM) | SmolVLA 9-DOF unified policy inference at 10 Hz |
 | `rl_nav_node` / `rl_arm_node` | `omnibot_rl/rl_*_node.py` | **GPU Workstation** | Moderate GPU / ONNX | High-rate (20 Hz) reinforcement learning policy inference |
 | `langchain_agent_node` | `omnibot_orchestration/langchain_agent_node.py` | **GPU Workstation** | Network / LLM API | High-level agent reasoning (Claude/LangGraph) connecting to cloud APIs |
 

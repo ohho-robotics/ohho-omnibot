@@ -206,7 +206,7 @@ def generate_launch_description():
 
     # ------------------------------------------------------------------
     # 10. BEV stitcher — combines 4 base cameras → /camera/base/bev/image_raw
-    #     Required by smolvla_node and teleop_recorder_node.
+    #     Required by policy_node and teleop_recorder_node.
     # ------------------------------------------------------------------
     bev_stitcher_node = Node(
         package="omnibot_lerobot",
