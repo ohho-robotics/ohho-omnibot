@@ -30,7 +30,7 @@ Difference from simulation.launch.py (Gazebo)
 - Does NOT start a simulator process (Isaac Sim must already be running).
 - Does NOT use ros_gz_bridge; Isaac Sim's native bridge publishes all topics.
 - robot_state_publisher + arm_driver_node are identical to the Gazebo launch.
-- bev_stitcher_node is included here (required for smolvla_node) because Isaac
+- bev_stitcher_node is included here (required for policy_node) because Isaac
   Sim provides the 4 individual base cameras that the stitcher needs.
 """
 
@@ -70,7 +70,7 @@ def generate_launch_description():
     declare_bev = DeclareLaunchArgument(
         "bev",
         default_value="true",
-        description="Launch bev_stitcher_node (required for smolvla_node)",
+        description="Launch bev_stitcher_node (required for policy_node)",
     )
     declare_foxglove = DeclareLaunchArgument(
         "foxglove",

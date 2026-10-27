@@ -6,7 +6,7 @@ and runs it at the configured rate. Swap models by changing the model_type
 parameter — no code changes required.
 
 Unified 9-DOF action space: [arm(6), base_vx, base_vy, base_vz]
-  arm[:6]   → /arm/joint_commands  (JointState, routes via arm_cmd_mux)
+  arm[:6]   → /arm/joint_commands/policy  (JointState, routes via arm_cmd_mux)
   base[6:9] → /cmd_vel/vla         (Twist, routed by cmd_vel_mux in "vla" mode)
 
 Parameters
@@ -40,7 +40,7 @@ Topics subscribed
 
 Topics published
 ----------------
-/arm/joint_commands  (sensor_msgs/JointState)
+/arm/joint_commands/policy  (sensor_msgs/JointState)
 /cmd_vel             (geometry_msgs/Twist)     — remapped to /cmd_vel/vla by launch file
 """
 
@@ -264,7 +264,7 @@ class PolicyNode(Node):
 
         # Publishers
         self.joint_cmd_pub = self.create_publisher(
-            JointState, "/arm/joint_commands", 10
+            JointState, "/arm/joint_commands/policy", 10
         )
         self.cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
 

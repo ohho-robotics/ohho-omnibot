@@ -63,6 +63,7 @@ def test_default_holds_autonomous_sources_and_passes_teleop():
         assert base.base_allows(source) is False
     assert arm.allows("policy") is False
     assert arm.allows("rl_arm") is False
+    assert arm.allows("teleop") is True
 
 
 @pytest.mark.parametrize("mode", ["vla", "nav2", "rl_nav"])
@@ -73,6 +74,7 @@ def test_autonomous_mode_releases_matching_streams(mode):
     assert arm.set_control_mode(mode) is True
     assert base.base_allows(mode) is True
     assert base.base_allows("teleop") is False
+    assert arm.allows("teleop") is False
     if mode == "rl_nav":
         assert arm.allows("rl_arm") is True
         assert arm.allows("policy") is False
@@ -98,6 +100,7 @@ def test_return_to_teleop_stops_both_streams_within_one_call():
     assert base.base_allows("teleop") is True
     assert arm.allows("policy") is False
     assert arm.allows("rl_arm") is False
+    assert arm.allows("teleop") is True
     assert base.take_base_stop() is False
 
 
@@ -113,6 +116,7 @@ def test_emergency_stop_stops_both_streams_within_one_call():
     assert base.base_allows("teleop") is False
     assert arm.allows("rl_arm") is False
     assert arm.allows("policy") is False
+    assert arm.allows("teleop") is False
 
     base.set_emergency_stop(False)
     arm.set_emergency_stop(False)
@@ -130,6 +134,38 @@ def test_unknown_mode_is_ignored():
     assert base.mode == "vla"
     assert arm.control_mode == "nav2"
     assert arm.set_arm_mode("not-a-mode") is False
+
+
+def test_teleop_arm_forwarded_only_in_teleop_when_estop_clear():
+    arm = ArmStreamGate()
+    assert arm.allows("teleop") is True
+    assert arm.allows("policy") is False
+
+    arm.set_emergency_stop(True)
+    assert arm.allows("teleop") is False
+    arm.set_emergency_stop(False)
+    assert arm.allows("teleop") is True
+
+    for mode in ("vla", "nav2"):
+        assert arm.set_control_mode(mode) is True
+        assert arm.allows("teleop") is False
+        assert arm.allows("policy") is True
+
+    assert arm.set_control_mode("teleop") is True
+    assert arm.allows("teleop") is True
+    assert arm.allows("policy") is False
+    assert arm.allows("rl_arm") is False
+
+
+def test_arm_cmd_mode_cannot_select_teleop_or_release_policy():
+    arm = ArmStreamGate()
+    assert arm.set_arm_mode("teleop") is False
+    assert arm.arm_mode == "policy"
+    assert arm.set_arm_mode("rl_arm") is True
+    assert arm.allows("teleop") is True
+    assert arm.allows("rl_arm") is False
+    assert arm.allows("policy") is False
+    assert arm.allows("not-a-source") is False
 
 
 def test_invalid_default_falls_back_to_teleop():
@@ -337,20 +373,24 @@ def test_arm_cmd_mux_wrapper_without_ros():
         class Node:
             def __init__(self, name):
                 self._params = {}
+                self.subscriptions = []
+                self.warnings = []
             def declare_parameter(self, name, default):
                 self._params[name] = default
             def get_parameter(self, name):
                 return SimpleNamespace(value=self._params[name])
-            def create_subscription(self, *a, **k):
+            def create_subscription(self, msg_type, topic, callback, qos):
+                self.subscriptions.append(topic)
                 return None
             def create_publisher(self, *a, **k):
                 return Pub()
             def create_timer(self, *a, **k):
                 return None
             def get_logger(self):
+                warnings = self.warnings
                 return SimpleNamespace(
                     info=lambda *a, **k: None,
-                    warn=lambda *a, **k: None,
+                    warn=lambda message, *a, **k: warnings.append(message),
                 )
             def destroy_node(self):
                 return None
@@ -381,21 +421,50 @@ def test_arm_cmd_mux_wrapper_without_ros():
         std_msg.Bool = BoolMsg
 
         from omnibot_rl.arm_cmd_mux import ArmCmdMux
+        from omnibot_rl.arm_stream_gate import (
+            TOPIC_JOINT_COMMANDS_POLICY,
+            TOPIC_JOINT_COMMANDS_POLICY_ALIAS,
+            TOPIC_JOINT_COMMANDS_RL,
+            TOPIC_JOINT_COMMANDS_TELEOP,
+        )
 
         node = ArmCmdMux()
         assert node._gate.control_mode == "teleop"
+        assert TOPIC_JOINT_COMMANDS_TELEOP in node.subscriptions
+        assert TOPIC_JOINT_COMMANDS_POLICY in node.subscriptions
+        assert TOPIC_JOINT_COMMANDS_POLICY_ALIAS in node.subscriptions
+        assert TOPIC_JOINT_COMMANDS_RL in node.subscriptions
         cmd = JointState()
         cmd.position = [0.1]
+        node._teleop_cb(cmd)
+        assert node._out_pub.msgs[-1].position == [0.1]
+        node._out_pub.msgs.clear()
         node._policy_cb(cmd)
+        node._policy_alias_cb(cmd)
         node._rl_arm_cb(cmd)
         assert node._out_pub.msgs == []
+        assert len(node.warnings) == 1
 
         mode = StringMsg()
         mode.data = "vla"
         node._control_mode_cb(mode)
+        node._teleop_cb(cmd)
+        assert node._out_pub.msgs == []
         node._policy_cb(cmd)
         assert len(node._out_pub.msgs) == 1
+        node._policy_alias_cb(cmd)
+        assert len(node._out_pub.msgs) == 2
+        assert len(node.warnings) == 1
         node._rl_arm_cb(cmd)
+        assert len(node._out_pub.msgs) == 2
+
+        nav = StringMsg()
+        nav.data = "nav2"
+        node._control_mode_cb(nav)
+        node._out_pub.msgs.clear()
+        node._teleop_cb(cmd)
+        assert node._out_pub.msgs == []
+        node._policy_cb(cmd)
         assert len(node._out_pub.msgs) == 1
 
         back = StringMsg()
@@ -403,11 +472,17 @@ def test_arm_cmd_mux_wrapper_without_ros():
         node._control_mode_cb(back)
         node._out_pub.msgs.clear()
         node._policy_cb(cmd)
+        node._policy_alias_cb(cmd)
         node._rl_arm_cb(cmd)
         assert node._out_pub.msgs == []
+        node._teleop_cb(cmd)
+        assert len(node._out_pub.msgs) == 1
 
         mode.data = "rl_nav"
         node._control_mode_cb(mode)
+        node._out_pub.msgs.clear()
+        node._teleop_cb(cmd)
+        assert node._out_pub.msgs == []
         node._rl_arm_cb(cmd)
         assert len(node._out_pub.msgs) == 1
         stop = BoolMsg()
@@ -416,6 +491,20 @@ def test_arm_cmd_mux_wrapper_without_ros():
         node._out_pub.msgs.clear()
         node._rl_arm_cb(cmd)
         node._policy_cb(cmd)
+        node._teleop_cb(cmd)
+        assert node._out_pub.msgs == []
+
+        clear = BoolMsg()
+        clear.data = False
+        node._estop_cb(clear)
+        node._control_mode_cb(back)
+        node._out_pub.msgs.clear()
+        node._teleop_cb(cmd)
+        assert len(node._out_pub.msgs) == 1
+        stop.data = True
+        node._estop_cb(stop)
+        node._out_pub.msgs.clear()
+        node._teleop_cb(cmd)
         assert node._out_pub.msgs == []
         """
     )

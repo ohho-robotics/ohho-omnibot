@@ -8,7 +8,7 @@
 #               --bridge-config <path>/isaac_ros_bridge.yaml
 #
 # Topic names are kept identical to ros_gz_bridge.yaml so all downstream
-# nodes (Nav2, smolvla_node, teleop_recorder_node) work unchanged.
+# nodes (Nav2, policy_node, teleop_recorder_node) work unchanged.
 #
 # Direction field maps to Isaac Sim bridge concepts:
 #   subscriber  →  ROS topic that Isaac Sim reads  (ROS → Isaac)
@@ -47,7 +47,7 @@
   message_type: sensor_msgs/msg/CameraInfo
   direction: publisher
 
-# Wrist camera (required by smolvla_node and teleop_recorder_node)
+# Wrist camera (required by policy_node and teleop_recorder_node)
 - topic_name: /camera/wrist/image_raw
   message_type: sensor_msgs/msg/Image
   direction: publisher
@@ -122,4 +122,4 @@
 # ── Arm mode control ─────────────────────────────────────────────────────────
 - topic_name: /arm/cmd_mode
   message_type: std_msgs/msg/String
-  direction: subscriber          # ROS → Isaac: "smolvla" | "rl_arm" (monitoring)
+  direction: subscriber          # ROS → Isaac: "policy" | "rl_arm" (monitoring)

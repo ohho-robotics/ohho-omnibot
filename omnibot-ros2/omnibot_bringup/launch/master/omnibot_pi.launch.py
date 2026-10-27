@@ -26,7 +26,7 @@ What this starts (in order):
   │                          velocity_smoother, lifecycle_manager             │
   ├─ CONTROL ROUTING ───────────────────────────────────────────────────────┤
   │  cmd_vel_mux             routes nav2/vla/teleop/rl_nav → motors           │
-  │  arm_cmd_mux             routes smolvla/rl_arm → arm driver               │
+  │  arm_cmd_mux             routes policy/rl_arm → arm driver                │
   │  mission_planner         parses /mission/command → Nav2 + VLA goals       │
   ├─ CONNECTIVITY ──────────────────────────────────────────────────────────┤
   │  foxglove_bridge         ws://pi-ip:8765  (workstation Foxglove viewer)   │
@@ -414,7 +414,7 @@ def generate_launch_description():
     )
 
     # ── 14. arm_cmd_mux ───────────────────────────────────────────────────────
-    # Routes: smolvla | rl_arm → /arm/joint_commands/out → arm_driver
+    # Routes: teleop | policy | rl_arm → /arm/joint_commands/out → arm_driver
     arm_cmd_mux = Node(
         package="omnibot_rl",
         executable="arm_cmd_mux",

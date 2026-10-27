@@ -22,8 +22,9 @@ jobs:
             -e omnibot-ai-engines/learning_engine \
             -e omnibot-ai-engines/agent_engine \
             -e yahboom-python-driver \
+            -e yahboom-python-driver \
             ohho-os \
-            pytest numpy pyarrow click pyyaml ruff opencv-python-headless pandas aiortc \
+            pytest numpy pyarrow click pyyaml ruff coverage opencv-python-headless pandas aiortc \
             xacro trimesh fast-simplification
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Ruff
@@ -34,6 +35,16 @@ jobs:
           python -m unittest discover -s omnibot-ai-engines/learning_engine/tests -t omnibot-ai-engines
           python -m unittest discover -s omnibot-ai-engines/agent_engine/tests -t omnibot-ai-engines
           PYTHONPATH=omnibot-ai-engines pytest omnibot-ai-engines/data_engine/tests omnibot-ai-engines/lerobot_engine/tests -q
+      - name: CPU line coverage
+        run: python scripts/run_cpu_coverage.py
+      - name: Upload CPU coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpu-coverage
+          path: |
+            coverage/coverage-summary.txt
+            coverage/cpu-coverage.json
 
   vla-engine:
     name: OmniVLA engine (vla_engine) tests

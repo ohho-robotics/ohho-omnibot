@@ -60,7 +60,7 @@ namespace OmniBot.VR.UI
             if (btnRlNav)   btnRlNav.onClick.AddListener(()  => SendControlMode("rl_nav"));
 
             // Arm mode buttons (publish to /arm/cmd_mode)
-            if (btnSmolVla) btnSmolVla.onClick.AddListener(() => SendArmMode("smolvla"));
+            if (btnSmolVla) btnSmolVla.onClick.AddListener(() => SendArmMode("policy"));
             if (btnRlArm)   btnRlArm.onClick.AddListener(()   => SendArmMode("rl_arm"));
 
             // Mission
