@@ -31,14 +31,19 @@
   </p>
 </div>
 
-<p align="center"><strong>An open-source ROS 2 Jazzy mobile manipulator (mecanum base + SO-101 arm) that you can run in simulation on a laptop in three commands, then build at home.</strong></p>
+<p align="center"><strong>Ohho is the open harness layer for physical AI. Bring any model, we make it run on a real robot. OmniBot is the reference robot: an open-source ROS 2 Jazzy mobile manipulator (mecanum base + SO-101 arm) that you can run in simulation on a laptop in three commands, then build at home.</strong></p>
 
 <p align="center">⭐ <strong>If OmniBot is useful or interesting to you, please star the repo</strong>: it helps other robotics people find it.</p>
 
 ## Why OmniBot
 
-- **Full mobile-manipulation stack in one repo**: mecanum base driver and kinematics, SO-101 arm with e-stop and joint-limit safety, Nav2/SLAM, Gazebo Harmonic sim, and LeRobot data capture feeding VLA/RL policies.
-- **Teleop from anywhere**: Xbox gamepad, Android app, Meta Quest VR, or the browser via rosbridge.
+A model alone isn't a robot. An LLM needs an agent harness (tools, memory, guardrails) before it can do real work; a VLA or RL policy needs the same around it before it can move real motors. OmniBot is that harness, end to end, in one repo:
+
+- **Simulation**: Gazebo Harmonic worlds, Nav2/SLAM, a CPU-only Docker sim, and Gazebo + RViz in the browser. Test a policy before it touches hardware.
+- **Data**: `teleop_recorder_node` writes LeRobot datasets and is started from `omnibot_lerobot` `teleop_record.launch.py` (not the default bring-up). Default `action_source` is `leader` (Xbox gamepad and leader arm). Quest and Android teleop on `/cmd_vel/teleop` and `/arm/joint_commands/teleop` need `action_source:=vr` and the `/ohho/record/start` and `/ohho/record/stop` services. Android record buttons publish rosbag topics `/rosbag_recorder/start` and `/rosbag_recorder/stop`. Documented browser sim teleop publishes `/cmd_vel` ([docs/reference.md](docs/reference.md)); the recorder's teleop action source is `/cmd_vel/teleop`.
+- **Policy runtime**: OpenVLA, SmolVLA, and RL policies drive the mecanum base and SO-101 arm over ROS 2, through one command mux per actuator.
+- **Safety guards**: e-stop torque latch, joint limits and per-cycle delta clamps, stale-inference rejection, refusal on missing or black camera frames, and a source-staleness watchdog on base velocity. See [docs/safety.md](docs/safety.md).
+- **Deployment**: `pip install ohho-os`, Prometheus + Grafana observability (fleet v0: one robot today), and an opt-in OTA update agent that needs the `omnibot_ota` ROS package, which this workspace does not build.
 - **Honest and tested**: README commands run in CI. CPU Python line coverage is reported in the [CI `cpu` job](.github/workflows/ci.yml) (see [docs/test-coverage.md](docs/test-coverage.md)). Anything that needs a robot or GPU is labelled as such in [docs/reference.md](docs/reference.md).
 
 ## Quickstart (no robot, no GPU)
