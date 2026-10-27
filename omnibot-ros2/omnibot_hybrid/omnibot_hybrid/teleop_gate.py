@@ -13,9 +13,12 @@ parameter, topic, or service. Acceleration ceilings match that profile
 300 ms is rejected.
 
 Command loss and ``/ohho/heartbeat`` loss zero base velocity. They do not
-latch. ``/emergency_stop`` true latches until ``reset()``, which only the
+latch. The gate starts latched (``reason`` ``startup``), including after a
+process restart, so a heartbeat cannot arm it until ``reset()``.
+``/emergency_stop`` true keeps that latch until ``reset()``, which only the
 ``/ohho/estop_reset`` service calls. Publishing false does not clear it.
-Joint targets are never zeroed; a refused arm command is dropped.
+Reset is refused while the stop input is still true. Joint targets are
+never zeroed; a refused arm command is dropped.
 """
 
 from __future__ import annotations
@@ -280,8 +283,10 @@ class TeleopGate:
         self.max_joint_delta_rad = _ceiling(max_joint_delta_rad, MAX_JOINT_DELTA_RAD)
         self._audit_log = AuditLog(audit_dir, wall_clock=wall_clock)
         self._lock = threading.RLock()
-        self._latched = False
-        self._reason = ""
+        # A new process does not receive a prior volatile /emergency_stop.
+        # Stay latched until reset() so a heartbeat cannot arm the gate.
+        self._latched = True
+        self._reason = "startup"
         self._estop_asserted = False
         self._audit_blocked = False
         self._last_heartbeat: Optional[float] = None
@@ -328,12 +333,19 @@ class TeleopGate:
         return Outcome()
 
     def set_emergency_stop(self, active: bool, now: Optional[float] = None) -> Outcome:
-        """Latch on true. False does not clear the latch."""
+        """Latch on true. False does not clear the latch.
+
+        A startup latch still records the first true input as ``estop`` and
+        returns one zero. A repeated true does not publish again.
+        """
         with self._lock:
             stamp = self._now(now)
             active = bool(active)
             self._estop_asserted = active
-            if not active or self._latched:
+            if not active:
+                self._sync(stamp)
+                return Outcome()
+            if self._latched and self._reason == "estop":
                 self._sync(stamp)
                 return Outcome()
             self._latched = True

@@ -25,6 +25,7 @@ SAFETY_LAUNCH = HYBRID_ROOT / "launch" / "teleop_safety.launch.py"
 sys.path.insert(0, str(HYBRID_ROOT))
 
 from omnibot_hybrid.teleop_gate import (  # noqa: E402
+    AUDIT_DIR_ENV,
     AUDIT_REPEAT_S,
     CMD_TIMEOUT_S,
     HARD_MAX_ACCEL_X,
@@ -33,6 +34,7 @@ from omnibot_hybrid.teleop_gate import (  # noqa: E402
     HEARTBEAT_TIMEOUT_S,
     MAX_JOINT_DELTA_RAD,
     TeleopGate,
+    default_audit_dir,
     parameter_change_allowed,
 )
 
@@ -45,9 +47,13 @@ class Clock:
         return self.t
 
 
-def make_gate(tmp_path, clock=None, **kwargs):
+def make_gate(tmp_path, clock=None, *, release_startup=True, **kwargs):
     clock = clock or Clock()
     gate = TeleopGate(clock=clock, audit_dir=tmp_path, **kwargs)
+    if release_startup:
+        released = gate.reset(clock())
+        assert released.ok is True, released.message
+        assert gate.latched is False
     return gate, clock
 
 
@@ -336,15 +342,79 @@ def test_repeated_clamp_and_latched_reject_audits_are_throttled(tmp_path):
     assert any(event["event"] == "estop_release" for event in _audit_events(tmp_path))
 
 
+def test_startup_latch_blocks_until_reset_and_returns_on_restart(tmp_path):
+    gate, _clock = make_gate(tmp_path, release_startup=False)
+    assert gate.latched is True
+    assert gate.armed is False
+    assert gate.reason == "startup"
+    assert json.loads(gate.state_json(0.0)) == {
+        "armed": False,
+        "latched": True,
+        "reason": "startup",
+    }
+    gate.heartbeat(0.0)
+    assert gate.armed is False
+    held = gate.command_velocity(0.2, 0.0, 0.0, now=0.1)
+    assert held.twist == (0.0, 0.0, 0.0)
+    gate.note_joint_state(["arm_elbow_flex"], [0.0])
+    dropped = gate.command_joints(["arm_elbow_flex"], [0.1], now=0.1)
+    assert dropped.joints is None
+    assert gate.latched is True
+
+    false_stop = gate.set_emergency_stop(False, 0.2)
+    assert false_stop.twist is None
+    assert gate.latched is True
+    gate.heartbeat(0.2)
+    assert gate.armed is False
+
+    true_stop = gate.set_emergency_stop(True, 0.3)
+    assert true_stop.twist == (0.0, 0.0, 0.0)
+    assert gate.reason == "estop"
+    refused = gate.reset(0.3)
+    assert refused.ok is False
+    assert gate.latched is True
+
+    gate.set_emergency_stop(False, 0.4)
+    released = gate.reset(0.4)
+    assert released.ok is True
+    assert gate.latched is False
+    gate.heartbeat(0.4)
+    assert gate.armed is True
+    moving = gate.command_velocity(0.2, 0.0, 0.0, now=0.5)
+    assert moving.twist[0] > 0.0
+
+    restarted, _restart_clock = make_gate(tmp_path, release_startup=False)
+    assert restarted.latched is True
+    assert restarted.reason == "startup"
+    restarted.heartbeat(1.0)
+    assert restarted.armed is False
+    assert restarted.command_velocity(0.2, 0.0, 0.0, now=1.1).twist == (
+        0.0,
+        0.0,
+        0.0,
+    )
+
+
+def test_default_audit_dir_honors_nonempty_override(tmp_path):
+    home = Path.home() / ".ohho" / "safety"
+    assert default_audit_dir({}) == home
+    assert default_audit_dir({AUDIT_DIR_ENV: ""}) == home
+    assert default_audit_dir({AUDIT_DIR_ENV: str(tmp_path)}) == Path(tmp_path)
+
+
 def test_audit_write_failure_stops_motion(tmp_path):
     blocked = tmp_path / "blocked"
     blocked.write_text("not a directory", encoding="utf-8")
     gate = TeleopGate(clock=Clock(), audit_dir=blocked)
     assert gate.armed is False
+    assert gate.latched is True
+    assert gate.reason == "audit_failure"
     gate.heartbeat(0.0)
     out = gate.command_velocity(0.2, 0.0, 0.0, now=0.2)
     assert out.twist == (0.0, 0.0, 0.0)
-    assert gate.latched is False
+    refused = gate.reset(0.2)
+    assert refused.ok is False
+    assert gate.latched is True
 
 
 def test_bringup_docs_state_heartbeat_and_raw_ceilings():
@@ -356,6 +426,10 @@ def test_bringup_docs_state_heartbeat_and_raw_ceilings():
     assert "safety.md" in reference
     assert "pass through `teleop_safety`" in safety
     assert "/cmd_vel/teleop_raw" in safety
+    assert "starts latched" in safety
+    assert "OHHO_SAFETY_DIR" in safety
+    assert "~/.ohho/safety/" in safety
+    assert "heartbeat alone does not arm it" in reference
 
 
 def test_launch_files_wire_teleop_safety():
@@ -532,6 +606,21 @@ def test_node_wiring_latch_and_service_without_ros(tmp_path):
         assert "/emergency_stop" in node.subscriptions
         assert "/ohho/estop_reset" in node.services
         assert node._state_pub.msgs[-1].data
+        assert node._gate.latched is True
+        assert node._gate.armed is False
+
+        t["n"] = 0.0
+        node._heartbeat_cb(Empty())
+        assert node._gate.armed is False
+        held = Twist()
+        held.linear.x = 0.2
+        node._twist_cb(held)
+        assert node._twist_pub.msgs[-1].linear.x == 0.0
+        startup = SimpleNamespace(success=False, message="")
+        node._reset_cb(None, startup)
+        assert startup.success is True
+        assert node._gate.latched is False
+        node._twist_pub.msgs.clear()
 
         t["n"] = 0.0
         node._heartbeat_cb(Empty())

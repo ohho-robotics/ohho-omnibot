@@ -23,6 +23,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Empty, String
+from std_srvs.srv import Trigger
 
 
 def generate_test_description():
@@ -70,6 +71,7 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
         cls.node.create_subscription(String, "/ohho/safety/state", cls.states.append, 10)
         cls.raw = cls.node.create_publisher(Twist, "/cmd_vel/teleop_raw", 10)
         cls.heartbeat = cls.node.create_publisher(Empty, "/ohho/heartbeat", 10)
+        cls.reset_client = cls.node.create_client(Trigger, "/ohho/estop_reset")
 
     @classmethod
     def _teleop(cls, msg):
@@ -94,6 +96,18 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
         )
         _log(f"EVIDENCE teleop_safety odom_ready={ready} count={len(self.odom)}")
         self.assertTrue(self.odom, "/odom did not publish within 30 s")
+        self.assertTrue(
+            self.reset_client.wait_for_service(timeout_sec=30.0),
+            "/ohho/estop_reset is not available",
+        )
+        future = self.reset_client.call_async(Trigger.Request())
+        reset_done = self._spin_until(
+            time.monotonic() + 5.0, lambda: future.done()
+        )
+        self.assertTrue(reset_done, "/ohho/estop_reset did not return")
+        result = future.result()
+        self.assertIsNotNone(result)
+        self.assertTrue(result.success, result.message)
 
         drive = Twist()
         drive.linear.x = 0.2
