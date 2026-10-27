@@ -1,0 +1,114 @@
+
+# OmniBot simulation stack (CPU-only, headless Gazebo Harmonic + Nav2 + Foxglove)
+#
+# Services:
+#   sim       — Gazebo Harmonic + Nav2 apartment navigation demo
+#   foxglove  — Foxglove bridge (ws://localhost:8765)
+#   desktop   — browser desktop: Gazebo GUI + RViz streamed with noVNC to
+#               http://localhost:6080 (profile "desktop", see docker/README.md)
+#
+# Quick start:
+#   docker compose up sim
+#   docker compose up -d desktop        # then open http://localhost:6080
+#
+# Visualise:
+#   Open https://app.foxglove.dev -> Connect to ws://localhost:8765
+#   Import layout: omnibot-digital-twin/configs/foxglove/omnibot_layout.json
+
+x-ros-base: &ros-base
+  image: ghcr.io/ohho-robotics/omnibot-sim:latest
+  build:
+    context: .
+    dockerfile: Dockerfile.sim
+  network_mode: host
+  environment:
+    - ROS_DOMAIN_ID=30
+    - LIBGL_ALWAYS_SOFTWARE=1
+    - GALLIUM_DRIVER=llvmpipe
+    - MESA_GL_VERSION_OVERRIDE=3.3
+    - QT_QPA_PLATFORM=offscreen
+  volumes:
+    - .:/workspaces/OmniBot:cached
+  working_dir: /workspaces/OmniBot
+
+services:
+
+  # ── Gazebo simulation + Nav2 navigation demo ──────────────────────────────
+  sim:
+    <<: *ros-base
+    container_name: omnibot_sim
+    depends_on:
+      - foxglove
+    command: >
+      bash -c "
+        source /opt/ros/jazzy/setup.bash &&
+        if [ -f /opt/omnibot/install/setup.bash ]; then source /opt/omnibot/install/setup.bash; fi &&
+        if [ -f install/setup.bash ] && [ ! install/setup.bash -ef /opt/omnibot/install/setup.bash ]; then source install/setup.bash; fi &&
+        ros2 launch omnibot_navigation sim_navigation.launch.py
+          autonavigate:=true
+          route:=kitchen
+      "
+    ports:
+      - "9090:9090"
+
+  # ── Foxglove bridge (browser visualisation) ────────────────────────────────
+  foxglove:
+    <<: *ros-base
+    container_name: omnibot_foxglove
+    command: >
+      bash -c "
+        source /opt/ros/jazzy/setup.bash &&
+        if [ -f /opt/omnibot/install/setup.bash ]; then source /opt/omnibot/install/setup.bash; fi &&
+        if [ -f install/setup.bash ] && [ ! install/setup.bash -ef /opt/omnibot/install/setup.bash ]; then source install/setup.bash; fi &&
+        sleep 4 &&
+        ros2 run foxglove_bridge foxglove_bridge
+          --ros-args -p port:=8765 -p address:=0.0.0.0
+      "
+    ports:
+      - "8765:8765"
+
+  # ── Browser desktop: Gazebo GUI + RViz in the browser via noVNC ────────────
+  # Started only when named (`docker compose up -d desktop`), so a bare
+  # `docker compose up` behaves as before. Own bridge network, not host
+  # networking: the page is published on 127.0.0.1 only.
+  desktop:
+    profiles: ["desktop"]
+    image: ${OMNIBOT_DESKTOP_IMAGE:-ghcr.io/ohho-robotics/omnibot-desktop:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.sim
+      target: desktop
+    pull_policy: missing
+    container_name: omnibot_desktop
+    hostname: omnibot-desktop
+    ports:
+      # This computer only. Change the host port with OMNIBOT_PORT.
+      - "127.0.0.1:${OMNIBOT_PORT:-6080}:6080"
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
+      - OMNIBOT_URL=http://localhost:${OMNIBOT_PORT:-6080}
+      - OMNIBOT_VNC_PASSWORD=${OMNIBOT_VNC_PASSWORD:-}
+      - OMNIBOT_WORLD=${OMNIBOT_WORLD:-flat}
+      - OMNIBOT_GUI=${OMNIBOT_GUI:-true}
+      - OMNIBOT_RVIZ=${OMNIBOT_RVIZ:-true}
+      - OMNIBOT_RESOLUTION=${OMNIBOT_RESOLUTION:-1600x900}
+    volumes:
+      # Home folder (shell history, RViz/Gazebo settings) survives restarts.
+      - desktop-home:/home/user
+      # Files shared with the host: ~/shared in the container.
+      - ${OMNIBOT_SHARED_DIR:-./omnibot-shared}:/home/user/shared
+    # Gazebo, Qt, the X server and ROS 2 shared-memory transport need more
+    # than Docker's 64 MB default.
+    shm_size: 2gb
+    stop_grace_period: 20s
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/omnibot-desktop-healthcheck"]
+      interval: 15s
+      timeout: 6s
+      start_period: 60s
+      retries: 4
+
+volumes:
+  desktop-home:
+    name: omnibot-desktop-home

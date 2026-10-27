@@ -63,7 +63,7 @@ def _check_rate_limit(key: str) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model_instance
-    logger.info("Initializing VLA Engine Inference Server...")
+    logger.info("Initializing OmniVLA engine inference server...")
     try:
         model_instance = OpenVLAModel()
     except Exception as e:

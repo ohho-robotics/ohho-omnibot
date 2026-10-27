@@ -8,7 +8,7 @@
     Provides RL-based local navigation (obstacle avoidance) and arm control
     as additional modes alongside the existing Nav2 + SmolVLA hybrid stack.
   </description>
-  <maintainer email="varunvaidhiya@todo.todo">varunvaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">varunvaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>

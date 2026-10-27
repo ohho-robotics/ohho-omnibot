@@ -15,3 +15,15 @@ paths = [
   '''omnibot-vr/Packages/com\.meta\.xr\.sdk\.core/Scripts/BuildingBlocks/MultiplayerBlocks/Shared/NetworkedAvatar/Scripts/AvatarEntity\.cs''',
   '''omnibot-vr/Packages/com\.meta\.xr\.sdk\.core/Scripts/ImmersiveDebugger/DevAgent/Voice/VoiceSetupController\.cs''',
 ]
+
+# Public values, not credentials:
+# - The Supabase anon key in vr_manifest.json is the project's publishable key
+#   (role "anon"; access is enforced by row-level security). It ships in every client.
+# - dGhlIHNhbXBsZSBub25jZQ== is the RFC 6455 sample Sec-WebSocket-Key (ohho-webrtc wsproto tests).
+[[allowlists]]
+description = "Supabase anon (publishable) key and RFC 6455 sample nonce"
+regexTarget = "match"
+regexes = [
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjbnl1YXBwZ3RjcG9scWRhb3Z2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjU5NTEsImV4cCI6MjA5NzMwMTk1MX0.Cf3g2nxHtaeGU59UwtCdpuNwQV6cCZ4yvdBSqhAEtls''',
+  '''dGhlIHNhbXBsZSBub25jZQ==''',
+]

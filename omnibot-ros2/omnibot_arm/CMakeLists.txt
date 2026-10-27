@@ -17,6 +17,9 @@ install(
     scripts/arm_safety.py
     scripts/servo_offsets.py
     scripts/lerobot_calibration_to_yaml.py
+    scripts/arm_sim_logic.py
+    scripts/arm_sim_driver_node.py
+    scripts/arm_sim_scripted_move.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -44,6 +47,10 @@ if(BUILD_TESTING)
   )
   ament_add_pytest_test(test_servo_offsets
     test/test_servo_offsets.py
+    TIMEOUT 60
+  )
+  ament_add_pytest_test(test_arm_sim
+    test/test_arm_sim.py
     TIMEOUT 60
   )
 endif()
