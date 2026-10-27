@@ -59,8 +59,13 @@ jobs:
           rosdep update
           source /opt/ros/jazzy/setup.bash
           # The 3-D mapping stack (RTAB-Map, OctoMap) is not used in this sim.
+          # omnibot_hybrid, omnibot_lerobot, and omnibot_rl are workspace
+          # exec deps of bringup, not rosdep keys. teleop_gate imports
+          # omnibot_lerobot at runtime. They have to be on --from-paths so
+          # --ignore-src skips them, and they are built below or colcon
+          # fails looking for package.sh. Nav scenarios leave vr off.
           rosdep install \
-            --from-paths src/omnibot_description src/omnibot_arm src/omnibot_bringup src/omnibot_navigation \
+            --from-paths src/omnibot_description src/omnibot_arm src/omnibot_bringup src/omnibot_navigation src/omnibot_hybrid src/omnibot_lerobot src/omnibot_rl \
             --ignore-src -y --rosdistro jazzy \
             --skip-keys "rtabmap_ros octomap_server pcl_ros octomap_msgs"
       - name: Build
@@ -69,7 +74,7 @@ jobs:
           set -eo pipefail
           source /opt/ros/jazzy/setup.bash
           colcon build --symlink-install --base-paths src \
-            --packages-select omnibot_description omnibot_arm omnibot_bringup omnibot_navigation
+            --packages-select omnibot_description omnibot_arm omnibot_hybrid omnibot_lerobot omnibot_rl omnibot_bringup omnibot_navigation
       - name: ROS-free checks (waypoints, Nav2 params, saved map)
         shell: bash
         run: |

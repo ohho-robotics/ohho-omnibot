@@ -298,7 +298,7 @@ class PolicyGuard:
         1. Validates camera images (no missing frames or black frames).
         2. Prepares observation dictionary (no black-frame zero substitution).
         3. Measures select_action duration.
-        4. Drops the action if select_action exceeds policy_period.
+        4. Drops the action if the full tick exceeds policy_period.
         5. Clamps arm targets to 0.15 rad/cycle and clips base velocities.
         """
         import time
@@ -345,10 +345,11 @@ class PolicyGuard:
         t_inf_1 = _now()
         inference_dur = t_inf_1 - t_inf_0
 
-        # 4. Latency check: drop stale action if select_action exceeded period
-        if self.is_latency_exceeded(inference_dur, self.policy_period):
+        # 4. Latency check: drop stale action if the tick exceeded policy_period
+        tick_dur = t_inf_1 - t_pre_0
+        if self.is_latency_exceeded(tick_dur, self.policy_period):
             warning = (
-                f"Inference latency ({inference_dur * 1000.0:.1f}ms) exceeded "
+                f"Policy tick ({tick_dur * 1000.0:.1f}ms) exceeded "
                 f"policy period ({self.policy_period * 1000.0:.1f}ms) — action dropped."
             )
             return TickResult(

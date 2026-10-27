@@ -1,0 +1,31 @@
+# OhhO View — parameters for four USB base cameras on the physical robot.
+# Topics match omnibot_bringup perception.launch.py (usb_cam → /camera/{name}/image_raw).
+# Output topic matches smolvla / Android / web_video_server expectations.
+
+bev_stitcher:
+  ros__parameters:
+    camera_names: ['front', 'rear', 'left', 'right']
+    input_topic_pattern: '/camera/{name}/image_raw'
+    camera_info_pattern: '/camera/{name}/camera_info'
+    output_topic: '/camera/base/bev/image_raw'
+    output_frame_id: 'bev_frame'
+
+    src_width: 640
+    src_height: 480
+    canvas_size: 800
+    output_width: 800
+    output_height: 800
+    publish_hz: 30.0
+
+    calibration_mode: 'auto'
+    calibration_file: ~/bev_calibration.npz
+
+    pixels_per_meter: 80.0
+    ground_z: 0.0
+
+    use_tf: true
+    base_frame: 'base_link'
+    tf_frame_pattern: '{name}_camera_optical_frame'
+    use_camera_info: true
+
+    publish_diagnostics: false

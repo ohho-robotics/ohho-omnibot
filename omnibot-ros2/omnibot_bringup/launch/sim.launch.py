@@ -36,8 +36,23 @@ The sim-smoke test passes `rosbridge:=false` and does not start rosbridge.
 /arm/joint_commands/out, applies arm_safety, and publishes /arm/joint_states.
 This launch does not start foxglove, arm_cmd_mux, or the Feetech arm driver.
 
+`bridge_config` (default `sim_bridge.yaml`) is the ros_gz_bridge file in
+config/. `sim_teleop.launch.py` passes `sim_bridge_vr.yaml` so Gazebo
+follows `/cmd_vel/out`. The default file still maps `/cmd_vel`, which
+sim-smoke drives directly. The Quest camera profile is `sim_vr.launch.py`.
+The safety gate is `sim_teleop.launch.py`, not this `vr` flag.
+
 `drive:=mecanum` selects the gz-sim MecanumDrive plugin instead of planar move.
 `gui:=true` opens the Gazebo client; the default is server-only so CI has no display.
+
+`pick_place:=false` (the default) does not add a table, cube, or bin. The
+apartment SDF is unchanged. `pick_place:=true` spawns those three models
+after Gazebo is up. The cube and bin start only when the table process
+exits 0. Any other table exit shuts this launch down and does not spawn
+them. Cube and bin poses come from `pick_place_seed`.
+`cmd_vel_from_mux:=false` (the default) still bridges ROS `/cmd_vel` into
+Gazebo. `cmd_vel_from_mux:=true` bridges `/cmd_vel/out` instead, so the
+base moves only through the velocity multiplexer.
 
 GPU note (not measured): this workspace has no Gazebo install, so there
 is no GPU delta on disk. `gui:=false` (the default) passes
@@ -55,14 +70,37 @@ stream is idle and while a browser holds the URL above.
 """
 
 import os
+import sys
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, TimerAction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
+    RegisterEventHandler,
+    Shutdown,
+    TimerAction,
+)
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+def _enabled(value):
+    return str(value).strip().lower() in ("1", "true", "yes")
+
+
+def _spawn_module():
+    scripts = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import pick_place_spawn
+
+    return pick_place_spawn
 
 
 def _load_camera_support():
@@ -112,7 +150,19 @@ def _launch_sim(context, *args, **kwargs):
 
     world_path = _world_path(bringup, world_key)
     xacro_file = os.path.join(description, "urdf", "omnibot.urdf.xacro")
-    bridge_config = os.path.join(bringup, "config", "sim_bridge.yaml")
+    from_mux = _enabled(LaunchConfiguration("cmd_vel_from_mux").perform(context))
+    bridge_name = "sim_bridge_mux.yaml" if from_mux else "sim_bridge.yaml"
+    if not from_mux:
+        # sim_teleop.launch.py selects sim_bridge_vr.yaml through bridge_config.
+        bridge_name = LaunchConfiguration("bridge_config").perform(context)
+        if (
+            os.path.basename(bridge_name) != bridge_name
+            or not bridge_name.endswith(".yaml")
+        ):
+            raise RuntimeError(
+                "bridge_config must be a YAML file name in the bringup config directory"
+            )
+    bridge_config = os.path.join(bringup, "config", bridge_name)
 
     robot_desc = ParameterValue(
         Command(
@@ -248,6 +298,54 @@ def _launch_sim(context, *args, **kwargs):
                 parameters=[{"port": 9090, "address": address}],
             )
         )
+    # Default off. The apartment SDF is not modified.
+    if _enabled(LaunchConfiguration("pick_place").perform(context)):
+        spawn_api = _spawn_module()
+        seed = spawn_api.parse_seed(LaunchConfiguration("pick_place_seed").perform(context))
+        world_name = spawn_api.world_name_for(world_key, world_path)
+        models_dir = os.path.join(bringup, "models")
+        plan = spawn_api.spawn_plan(True, seed, models_dir, world_name)
+        spawners = [
+            Node(
+                package="ros_gz_sim",
+                executable="create",
+                name=f"spawn_{item['name']}",
+                output="screen",
+                arguments=item["arguments"],
+            )
+            for item in plan
+        ]
+        # plan order is table, cube, bin. Objects wait for a successful table.
+        table_node, *objects = spawners
+
+        def _on_table_exit(event, _context):
+            # ROS launch emits this for a zero exit and for a failed create.
+            if event.returncode == 0:
+                return objects
+            return [
+                LogInfo(
+                    msg=(
+                        "pick-and-place table spawn failed with "
+                        f"returncode {event.returncode}; stopping the run"
+                    )
+                ),
+                Shutdown(reason="pick-and-place table spawn failed"),
+            ]
+
+        actions.append(
+            TimerAction(
+                period=6.0,
+                actions=[
+                    table_node,
+                    RegisterEventHandler(
+                        OnProcessExit(
+                            target_action=table_node,
+                            on_exit=_on_table_exit,
+                        )
+                    ),
+                ],
+            )
+        )
     if vr_on:
         actions.append(
             IncludeLaunchDescription(
@@ -300,6 +398,27 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
+                "pick_place",
+                default_value="false",
+                description=(
+                    "Spawn a table, rigid cube, and bin. Default false leaves "
+                    "the world SDF unchanged. Cube and bin poses use pick_place_seed."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "pick_place_seed",
+                default_value="0",
+                description="Integer seed for the cube and bin poses. Ignored unless pick_place is true.",
+            ),
+            DeclareLaunchArgument(
+                "cmd_vel_from_mux",
+                default_value="false",
+                description=(
+                    "Bridge Gazebo /cmd_vel from ROS /cmd_vel/out. "
+                    "Default false keeps the direct /cmd_vel bridge."
+                ),
+            ),
+            DeclareLaunchArgument(
                 "descriptor",
                 default_value="true",
                 description="Publish the latched RobotDescriptor JSON on /ohho/descriptor",
@@ -331,6 +450,15 @@ def generate_launch_description():
                     "When vr:=true, start web_video_server on port 8080. "
                     "Ignored when vr:=false. "
                     "Chase stream: /stream?topic=/sim/chase_cam/image_raw."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "bridge_config",
+                default_value="sim_bridge.yaml",
+                description=(
+                    "ros_gz_bridge YAML name in the bringup config directory. "
+                    "Default sim_bridge.yaml maps /cmd_vel. "
+                    "sim_bridge_vr.yaml maps /cmd_vel/out for sim_teleop.launch.py."
                 ),
             ),
             DeclareLaunchArgument("spawn_x", default_value="0"),

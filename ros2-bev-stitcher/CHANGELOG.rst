@@ -2,6 +2,12 @@
 Changelog for package ros2_bev_stitcher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+1.2.0 (unreleased)
+------------------
+* ``docs/CALIBRATION.md``: real-robot USB camera calibration and GIF recording steps (OHH-56)
+* ``calibrate_bev_ipm``: headless IPM ``.npz`` writer (no ROS)
+* ``bev_real_cameras.launch.py`` + ``config/bev_params_real.yaml`` for ``/camera/base/bev/image_raw``
+
 1.1.0 (2026-06-17)
 -------------------
 * OhhO View — geometric IPM + calibration UI

@@ -295,7 +295,7 @@ driven by pinch strength.
    → compute hand pose RELATIVE to that origin
 3. Scale + clamp into the arm's reachable sphere   (reach from RobotProfile.joints)
 4. SOLVE IK  → joint angles, each clamped to JointSpec.min/max
-5. Stream  /arm/joint_commands  @ 20 Hz   (names + limits from RobotProfile)
+5. Stream  /arm/joint_commands/teleop  @ 20 Hz   (names + limits from RobotProfile)
 6. pinch → gripper joint (RobotProfile.joints last entry)
 ```
 
@@ -328,7 +328,7 @@ Variants selected from `RobotConfig.capabilities` / `armDof`:
 1. Selection → **OmniBot Pro** → `RobotProfile { drive: "mecanum", holonomic: true, armDof: 6, joints: SO101_JOINTS, rosTopics.cmdVel: "/cmd_vel/teleop", … }`.
 2. Factory → `MecanumDriveScheme` + `HandIK6DOF` (analytic SO-101 solver).
 3. **Base:** left stick → vx/vy strafe, right stick X → yaw → `/cmd_vel/teleop` @ 20 Hz.
-4. **Arm:** right-hand pose → analytic IK → 6 joints → `/arm/joint_commands` @ 20 Hz; pinch → `arm_gripper`. Left-hand thumbs-up toggles arm enable; both grips = e-stop.
+4. **Arm:** right-hand pose → analytic IK → 6 joints → `/arm/joint_commands/teleop` @ 20 Hz; pinch → `arm_gripper`. Left-hand thumbs-up toggles arm enable; both grips = e-stop. `arm_cmd_mux` forwards that topic only in teleop when e-stop is clear. A later `teleop_safety` node will sit on this topic before the mux.
 5. All in passthrough: a translucent twin of the SO-101 overlays the real table so the operator previews motion before the real arm catches up.
 
 ---

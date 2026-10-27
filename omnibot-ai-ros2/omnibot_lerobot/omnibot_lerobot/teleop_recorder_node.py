@@ -29,6 +29,11 @@ action_source:=vr (default is leader; leader behaviour is unchanged):
   required. This node never publishes a joint command or a base twist.
   Leader episodes still go through the ohho-os Recorder when it imports.
 
+This node does not publish arm joint commands. Headset and Android teleop
+publish /arm/joint_commands/teleop, which arm_cmd_mux forwards only in
+teleop when /emergency_stop is clear. Leader positions stay on
+/arm/leader_states and are not mirrored onto a command topic.
+
 Unified 9D action:  [arm(6), base_vx, base_vy, base_vz]
 Unified 9D state:   [arm(6), base_vx, base_vy, base_vz]
 

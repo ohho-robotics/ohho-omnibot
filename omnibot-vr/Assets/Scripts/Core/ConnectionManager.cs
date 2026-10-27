@@ -48,6 +48,7 @@ namespace OmniBot.VR.Core
         private static readonly Dictionary<string, string> PublishTopics = new Dictionary<string, string>
         {
             { RobotConfig.TOPIC_CMD_VEL,         "geometry_msgs/Twist"       },
+            { RobotConfig.TOPIC_HEARTBEAT,       "std_msgs/Empty"            },
             { RobotConfig.TOPIC_CONTROL_MODE,    "std_msgs/String"            },
             { RobotConfig.TOPIC_ARM_COMMANDS,    "sensor_msgs/JointState"     },
             { RobotConfig.TOPIC_ARM_ENABLE,      "std_msgs/Bool"              },
