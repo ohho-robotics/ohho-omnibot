@@ -24,6 +24,8 @@
   <exec_depend>ros_gz_bridge</exec_depend>
   <exec_depend>web_video_server</exec_depend>
   <exec_depend>omnibot_arm</exec_depend>
+  <exec_depend>omnibot_hybrid</exec_depend>
+  <exec_depend>omnibot_rl</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>

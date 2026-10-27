@@ -36,6 +36,11 @@ The sim-smoke test passes `rosbridge:=false` and does not start rosbridge.
 /arm/joint_commands/out, applies arm_safety, and publishes /arm/joint_states.
 This launch does not start foxglove, arm_cmd_mux, or the Feetech arm driver.
 
+`bridge_config` (default `sim_bridge.yaml`) is the ros_gz_bridge file in
+config/. `sim_teleop.launch.py` passes `sim_bridge_vr.yaml` so Gazebo
+follows `/cmd_vel/out`. The default file still maps `/cmd_vel`, which
+sim-smoke drives directly.
+
 `drive:=mecanum` selects the gz-sim MecanumDrive plugin instead of planar move.
 `gui:=true` opens the Gazebo client; the default is server-only so CI has no display.
 
@@ -146,6 +151,16 @@ def _launch_sim(context, *args, **kwargs):
     xacro_file = os.path.join(description, "urdf", "omnibot.urdf.xacro")
     from_mux = _enabled(LaunchConfiguration("cmd_vel_from_mux").perform(context))
     bridge_name = "sim_bridge_mux.yaml" if from_mux else "sim_bridge.yaml"
+    if not from_mux:
+        # sim_teleop.launch.py selects sim_bridge_vr.yaml through bridge_config.
+        bridge_name = LaunchConfiguration("bridge_config").perform(context)
+        if (
+            os.path.basename(bridge_name) != bridge_name
+            or not bridge_name.endswith(".yaml")
+        ):
+            raise RuntimeError(
+                "bridge_config must be a YAML file name in the bringup config directory"
+            )
     bridge_config = os.path.join(bringup, "config", bridge_name)
 
     robot_desc = ParameterValue(
@@ -434,6 +449,15 @@ def generate_launch_description():
                     "When vr:=true, start web_video_server on port 8080. "
                     "Ignored when vr:=false. "
                     "Chase stream: /stream?topic=/sim/chase_cam/image_raw."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "bridge_config",
+                default_value="sim_bridge.yaml",
+                description=(
+                    "ros_gz_bridge YAML name in the bringup config directory. "
+                    "Default sim_bridge.yaml maps /cmd_vel. "
+                    "sim_bridge_vr.yaml maps /cmd_vel/out for sim_teleop.launch.py."
                 ),
             ),
             DeclareLaunchArgument("spawn_x", default_value="0"),

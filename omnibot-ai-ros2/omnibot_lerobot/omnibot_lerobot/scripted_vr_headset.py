@@ -6,6 +6,8 @@
 Publishes the VR client contract and asks teleop_recorder_node to store
 episodes with action_source:=vr. Joint targets step at most 0.08 rad from
 the measured arm pose. The deadman is /ohho/heartbeat at 10 Hz.
+teleop_safety starts latched, so this client calls /ohho/estop_reset
+before the first command.
 
 This process does not publish plant commands or an e-stop. teleop_safety
 and the muxes have to forward the client topics, and the measured arm has
@@ -78,6 +80,7 @@ def main(args=None) -> int:
             self.start = self.create_client(Trigger, "/ohho/record/start")
             self.stop = self.create_client(Trigger, "/ohho/record/stop")
             self.discard = self.create_client(Trigger, "/ohho/record/discard")
+            self.estop_reset = self.create_client(Trigger, "/ohho/estop_reset")
             self.measured = None
             self.gated_arm = 0
             self.gated_base = 0
@@ -154,12 +157,17 @@ def main(args=None) -> int:
             return forwarded, peak > MIN_JOINT_MOTION_RAD
 
         def run(self) -> int:
-            services = (self.start, self.stop, self.discard)
+            services = (self.start, self.stop, self.discard, self.estop_reset)
             if not self._wait_until(60.0, lambda: all(client.service_is_ready() for client in services)):
                 self.get_logger().error("recorder services were not ready")
                 return 1
             if not self._wait_until(90.0, lambda: self.measured is not None):
                 self.get_logger().error("/arm/joint_states was not ready")
+                return 1
+            cleared = self._call(self.estop_reset)
+            if cleared is None or not cleared.success:
+                message = cleared.message if cleared is not None else "no response"
+                self.get_logger().error(f"/ohho/estop_reset failed: {message}")
                 return 1
             for index in range(self.episodes):
                 started = self._call(self.start)

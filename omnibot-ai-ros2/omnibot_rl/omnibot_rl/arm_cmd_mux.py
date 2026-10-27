@@ -8,7 +8,7 @@ arm_driver_node subscribes to /arm/joint_commands/out.
 Topic routing
 ─────────────
   Inputs (one active at a time):
-    /arm/joint_commands/teleop  ← Quest VR hand IK, Android joint teleop
+    /arm/joint_commands/teleop  ← teleop_safety (clients publish .../teleop_raw)
     /arm/joint_commands/policy  ← policy_node
     /arm/joint_commands         ← deprecated alias of the policy input (one release)
     /arm/joint_commands/rl      ← RL arm policy (rl_arm_node)
