@@ -13,9 +13,12 @@ parameter, topic, or service. Acceleration ceilings match that profile
 300 ms is rejected.
 
 Command loss and ``/ohho/heartbeat`` loss zero base velocity. They do not
-latch. ``/emergency_stop`` true latches until ``reset()``, which only the
+latch. The gate starts latched (``reason`` ``startup``), including after a
+process restart, so a heartbeat cannot arm it until ``reset()``.
+``/emergency_stop`` true keeps that latch until ``reset()``, which only the
 ``/ohho/estop_reset`` service calls. Publishing false does not clear it.
-Joint targets are never zeroed; a refused arm command is dropped.
+Reset is refused while the stop input is still true. Joint targets are
+never zeroed; a refused arm command is dropped.
 """
 
 from __future__ import annotations
@@ -39,6 +42,8 @@ HARD_MAX_ACCEL_Y = 0.5  # m/s^2
 HARD_MAX_ACCEL_WZ = 2.0  # rad/s^2
 CMD_TIMEOUT_S = 0.3
 HEARTBEAT_TIMEOUT_S = CMD_TIMEOUT_S
+# Repeated clamp and reject lines. State transitions are not throttled.
+AUDIT_REPEAT_S = 1.0
 # arm_safety.MAX_JOINT_DELTA_RAD. Stricter than SafetyProfile.max_joint_step.
 HARD_MAX_JOINT_DELTA_RAD = 0.15
 AUDIT_DIR_ENV = "OHHO_SAFETY_DIR"
@@ -278,10 +283,13 @@ class TeleopGate:
         self.max_joint_delta_rad = _ceiling(max_joint_delta_rad, MAX_JOINT_DELTA_RAD)
         self._audit_log = AuditLog(audit_dir, wall_clock=wall_clock)
         self._lock = threading.RLock()
-        self._latched = False
-        self._reason = ""
+        # A new process does not receive a prior volatile /emergency_stop.
+        # Stay latched until reset() so a heartbeat cannot arm the gate.
+        self._latched = True
+        self._reason = "startup"
         self._estop_asserted = False
         self._audit_blocked = False
+        self._block_zero_pending = False
         self._last_heartbeat: Optional[float] = None
         self._heartbeat_tripped = False
         self._last_cmd_t = float(self._clock())
@@ -290,6 +298,7 @@ class TeleopGate:
         self._measured: dict[str, float] = {}
         self._joint_cmd: dict[str, float] = {}
         self._armed_flag = False
+        self._audit_last: dict[tuple, float] = {}
         self._audit("connect")
 
     @property
@@ -325,12 +334,19 @@ class TeleopGate:
         return Outcome()
 
     def set_emergency_stop(self, active: bool, now: Optional[float] = None) -> Outcome:
-        """Latch on true. False does not clear the latch."""
+        """Latch on true. False does not clear the latch.
+
+        A startup latch still records the first true input as ``estop`` and
+        returns one zero. A repeated true does not publish again.
+        """
         with self._lock:
             stamp = self._now(now)
             active = bool(active)
             self._estop_asserted = active
-            if not active or self._latched:
+            if not active:
+                self._sync(stamp)
+                return Outcome()
+            if self._latched and self._reason == "estop":
                 self._sync(stamp)
                 return Outcome()
             self._latched = True
@@ -383,8 +399,9 @@ class TeleopGate:
             )
             if any(item is None for item in parsed):
                 self._stop_motion()
-                self._audit(
+                self._audit_throttled(
                     "reject",
+                    stamp,
                     command="velocity",
                     reason="non_finite",
                     requested=[vx, vy, wz],
@@ -397,8 +414,9 @@ class TeleopGate:
                 return Outcome(twist=_ZERO)
             if self._latched or self._audit_blocked:
                 self._stop_motion()
-                self._audit(
+                self._audit_throttled(
                     "reject",
+                    stamp,
                     command="velocity",
                     reason="estop_latched" if self._latched else "audit_failure",
                     requested=list(req),
@@ -427,8 +445,9 @@ class TeleopGate:
                 reasons.append("velocity_cap")
             if applied != capped:
                 reasons.append("accel_cap")
-            if reasons and not self._audit(
+            if reasons and not self._audit_throttled(
                 "clamp",
+                stamp,
                 command="velocity",
                 requested=list(req),
                 applied=list(applied),
@@ -465,11 +484,17 @@ class TeleopGate:
             stamp = self._now(now)
             self._sync(stamp)
             if len(names) != len(positions) or not names:
-                self._audit("reject", command="joints", reason="bad_joints")
+                self._audit_throttled(
+                    "reject",
+                    stamp,
+                    command="joints",
+                    reason="bad_joints",
+                )
                 return Outcome()
             if self._latched or self._audit_blocked:
-                self._audit(
+                self._audit_throttled(
                     "reject",
+                    stamp,
                     command="joints",
                     reason="estop_latched" if self._latched else "audit_failure",
                 )
@@ -488,12 +513,18 @@ class TeleopGate:
             for name, position in zip(names, positions):
                 number = _finite_number(position)
                 if not isinstance(name, str) or number is None:
-                    self._audit("reject", command="joints", reason="non_finite")
+                    self._audit_throttled(
+                        "reject",
+                        stamp,
+                        command="joints",
+                        reason="non_finite",
+                    )
                     return Outcome()
                 bounds = JOINT_LIMITS.get(name)
                 if bounds is None:
-                    self._audit(
+                    self._audit_throttled(
                         "reject",
+                        stamp,
                         command="joints",
                         reason="unknown_joint",
                         joint=name,
@@ -501,8 +532,9 @@ class TeleopGate:
                     return Outcome()
                 ref = self._joint_reference(name)
                 if ref is None:
-                    self._audit(
+                    self._audit_throttled(
                         "reject",
+                        stamp,
                         command="joints",
                         reason="no_joint_reference",
                         joint=name,
@@ -519,7 +551,12 @@ class TeleopGate:
                 limited, reference, self.max_joint_delta_rad
             )
             if len(applied) != len(limited):
-                self._audit("reject", command="joints", reason="bad_joints")
+                self._audit_throttled(
+                    "reject",
+                    stamp,
+                    command="joints",
+                    reason="bad_joints",
+                )
                 return Outcome()
             applied_list = [float(item) for item in applied]
             reasons = []
@@ -527,8 +564,9 @@ class TeleopGate:
                 reasons.append("joint_limit")
             if applied_list != limited:
                 reasons.append("joint_step")
-            if reasons and not self._audit(
+            if reasons and not self._audit_throttled(
                 "clamp",
+                stamp,
                 command="joints",
                 requested=requested,
                 applied=applied_list,
@@ -546,6 +584,12 @@ class TeleopGate:
             stamp = self._now(now)
             self._sync(stamp)
             if self._latched or self._audit_blocked:
+                if self._block_zero_pending:
+                    self._block_zero_pending = False
+                    return Outcome(
+                        twist=_ZERO,
+                        log="audit log failed; velocity zeroed",
+                    )
                 return Outcome()
             if not self._heartbeat_fresh(stamp):
                 if self._heartbeat_tripped:
@@ -612,14 +656,33 @@ class TeleopGate:
             return self._measured[name]
         return self._joint_cmd.get(name)
 
+    def _audit_throttled(self, event: str, now: float, **fields: Any) -> bool:
+        """Write at most one repeated clamp or reject line per second.
+
+        State transitions stay on ``_audit``. A skipped repeat does not clear
+        ``_audit_blocked``. A failed write still stops motion.
+        """
+        reasons = fields.get("reasons") or ()
+        if not isinstance(reasons, tuple):
+            reasons = tuple(reasons)
+        key = (event, fields.get("command"), fields.get("reason"), reasons)
+        stamp = float(now)
+        last = self._audit_last.get(key)
+        if last is not None and 0.0 <= stamp - last < AUDIT_REPEAT_S:
+            return not self._audit_blocked
+        self._audit_last[key] = stamp
+        return self._audit(event, **fields)
+
     def _audit(self, event: str, **fields: Any) -> bool:
         ok = self._audit_log.write(
             event, robot="omnibot", protocol="ros2", **fields
         )
         if ok:
             self._audit_blocked = False
+            self._block_zero_pending = False
             return True
         self._audit_blocked = True
+        self._block_zero_pending = True
         self._reason = "audit_failure"
         self._stop_motion()
         self._armed_flag = False

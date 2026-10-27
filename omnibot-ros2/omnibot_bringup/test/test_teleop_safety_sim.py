@@ -3,8 +3,10 @@
 """Gazebo check: killing the teleop client stops the base within 350 ms.
 
 Runs only in the sim-smoke job (OMNIBOT_SIM_SMOKE=1), same as test_sim_launch.
-vr:=true starts teleop_safety and the muxes. Gazebo follows /cmd_vel/out.
-The client publishes /cmd_vel/teleop_raw and /ohho/heartbeat, then stops.
+sim_teleop.launch.py starts teleop_safety and the muxes. Gazebo follows
+/cmd_vel/out. The client publishes /cmd_vel/teleop_raw and /ohho/heartbeat,
+then stops. vr:=true on sim.launch.py is the camera profile and is not
+what arms this gate.
 """
 
 import math
@@ -21,11 +23,12 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Empty, String
+from std_srvs.srv import Trigger
 
 
 def generate_test_description():
     bringup = FindPackageShare("omnibot_bringup").find("omnibot_bringup")
-    launch_file = os.path.join(bringup, "launch", "sim.launch.py")
+    launch_file = os.path.join(bringup, "launch", "sim_teleop.launch.py")
     return LaunchDescription(
         [
             IncludeLaunchDescription(
@@ -35,7 +38,6 @@ def generate_test_description():
                     "gui": "false",
                     "drive": "planar",
                     "rosbridge": "false",
-                    "vr": "true",
                 }.items(),
             ),
             launch_testing.actions.ReadyToTest(),
@@ -69,6 +71,7 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
         cls.node.create_subscription(String, "/ohho/safety/state", cls.states.append, 10)
         cls.raw = cls.node.create_publisher(Twist, "/cmd_vel/teleop_raw", 10)
         cls.heartbeat = cls.node.create_publisher(Empty, "/ohho/heartbeat", 10)
+        cls.reset_client = cls.node.create_client(Trigger, "/ohho/estop_reset")
 
     @classmethod
     def _teleop(cls, msg):
@@ -93,22 +96,37 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
         )
         _log(f"EVIDENCE teleop_safety odom_ready={ready} count={len(self.odom)}")
         self.assertTrue(self.odom, "/odom did not publish within 30 s")
+        self.assertTrue(
+            self.reset_client.wait_for_service(timeout_sec=30.0),
+            "/ohho/estop_reset is not available",
+        )
+        future = self.reset_client.call_async(Trigger.Request())
+        reset_done = self._spin_until(
+            time.monotonic() + 5.0, lambda: future.done()
+        )
+        self.assertTrue(reset_done, "/ohho/estop_reset did not return")
+        result = future.result()
+        self.assertIsNotNone(result)
+        self.assertTrue(result.success, result.message)
 
         drive = Twist()
         drive.linear.x = 0.2
         start = self.odom[-1].pose.pose.position
         moving = False
+        # The 350 ms budget starts at the last command, not after spin_once.
+        last_command_at = None
         drive_deadline = time.monotonic() + 20.0
         while time.monotonic() < drive_deadline:
             self.heartbeat.publish(Empty())
             self.raw.publish(drive)
+            last_command_at = time.monotonic()
             rclpy.spin_once(self.node, timeout_sec=0.05)
             if not self.odom:
                 continue
             pos = self.odom[-1].pose.pose.position
             dist = math.hypot(pos.x - start.x, pos.y - start.y)
             gated = _planar(self.teleop[-1][1]) if self.teleop else 0.0
-            if dist >= 0.05 or (_speed(self.odom[-1]) > 0.02 and gated > 0.02):
+            if dist >= 0.05 and _speed(self.odom[-1]) > 0.02 and gated > 0.02:
                 moving = True
                 break
         _log(
@@ -117,8 +135,13 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
             f"odom={len(self.odom)} speed={_speed(self.odom[-1]):.4f}"
         )
         self.assertTrue(moving, "base did not move on /cmd_vel/teleop_raw")
+        self.assertIsNotNone(
+            last_command_at,
+            "drive loop exited without publishing a command",
+        )
 
-        t_kill = time.monotonic()
+        t_kill = last_command_at
+        odom_count_at_kill = len(self.odom)
         cmd_zero_at = None
         odom_stop_at = None
         deadline = t_kill + 1.0
@@ -131,7 +154,11 @@ class TestTeleopSafetyWatchdog(unittest.TestCase):
                     if _planar(msg) <= 1e-6:
                         cmd_zero_at = stamp
                         break
-            if odom_stop_at is None and self.odom and _speed(self.odom[-1]) < 0.02:
+            if (
+                odom_stop_at is None
+                and len(self.odom) > odom_count_at_kill
+                and _speed(self.odom[-1]) < 0.02
+            ):
                 odom_stop_at = time.monotonic()
             if cmd_zero_at is not None and odom_stop_at is not None:
                 break

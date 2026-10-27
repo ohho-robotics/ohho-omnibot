@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Robot-side SafetyGate between human teleop and the muxes.
 
-Clients (Quest, Android, browser Connect) publish:
+Clients (Quest and Android) publish:
 
     /cmd_vel/teleop_raw
     /arm/joint_commands/teleop_raw
@@ -16,8 +16,9 @@ This node publishes:
                              {"armed", "latched", "reason"}
 
 ``/ohho/estop_reset`` (std_srvs/Trigger) is the only way to clear a latched
-e-stop. Publishing ``/emergency_stop`` false does not clear it. The service
-refuses while the stop is still asserted.
+e-stop. The gate starts latched, so a restart stays stopped until that
+service succeeds. Publishing ``/emergency_stop`` false does not clear it.
+The service refuses while the stop is still asserted.
 
 Caps are the OmniBot ceilings in ``teleop_gate`` (0.2 m/s, 1.0 rad/s). This
 node declares no speed, acceleration, or timeout parameter, so a client
@@ -31,9 +32,14 @@ import time
 
 import rclpy
 from geometry_msgs.msg import Twist
-from rcl_interfaces.msg import SetParametersResult
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
+
+try:
+    from rclpy.parameter import SetParametersResult
+except ImportError:
+    # Jazzy has the parameter-service message and no rclpy.parameter alias.
+    from rcl_interfaces.msg import SetParametersResult
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, Empty, String
@@ -80,6 +86,9 @@ class TeleopSafety(Node):
             JointState, "/arm/joint_states", self._joint_state_cb, 10
         )
         self.create_subscription(Empty, "/ohho/heartbeat", self._heartbeat_cb, 10)
+        # In-repo publishers use the default volatile depth-10 QoS, which does
+        # not replay the last Bool to this new subscription. Transient-local
+        # here would not connect to those publishers. The gate starts latched.
         self.create_subscription(Bool, "/emergency_stop", self._estop_cb, 10)
 
         self._twist_pub = self.create_publisher(Twist, "/cmd_vel/teleop", 10)
@@ -100,6 +109,7 @@ class TeleopSafety(Node):
             "teleop_safety ceilings "
             f"lin={HARD_MAX_VX} m/s ang={HARD_MAX_WZ} rad/s "
             f"watchdog={CMD_TIMEOUT_S}s tick={TICK_PERIOD_S}s. "
+            "Gate starts latched until /ohho/estop_reset. "
             "Clients publish /cmd_vel/teleop_raw and "
             "/arm/joint_commands/teleop_raw."
         )

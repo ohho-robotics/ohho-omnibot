@@ -1,8 +1,10 @@
 """jsonschema helpers for the copied ohho.telemetry.v1 fixtures.
 
-Ubuntu 24.04's ``python3-jsonschema`` is 4.10.3. That Debian package has
-``RefResolver`` and no ``referencing`` library, and pip cannot replace it.
-jsonschema >= 4.18 resolves the same sibling ``$ref``s through a registry.
+Ubuntu Noble's python3-jsonschema 4.10.3 has Draft202012Validator and
+RefResolver, and it does not ship the ``referencing`` package (that arrived
+with jsonschema 4.18). CI keeps the Debian package. Pip cannot replace it
+(no RECORD file). Use ``referencing`` when it imports, and a local
+RefResolver store otherwise.
 """
 
 from __future__ import annotations
@@ -28,7 +30,14 @@ SCHEMA_FILES = (
 )
 
 
-def _registry_for(store: dict[str, dict]):
+def _load_documents() -> dict[str, dict]:
+    documents = {}
+    for name in SCHEMA_FILES:
+        documents[name] = json.loads((FIXTURE_DIR / name).read_text(encoding="utf-8"))
+    return documents
+
+
+def _registry_for(documents: dict[str, dict]):
     """A referencing registry on jsonschema >= 4.18, else None (Debian 4.10)."""
     try:
         parameters = inspect.signature(Draft202012Validator).parameters
@@ -41,36 +50,43 @@ def _registry_for(store: dict[str, dict]):
     except ImportError:
         return None
     resources = [
-        (uri, Resource.from_contents(document)) for uri, document in store.items()
+        (document["$id"], Resource.from_contents(document))
+        for document in documents.values()
     ]
     return Registry().with_resources(resources)
 
 
-def _draft202012(schema: dict, store: dict[str, dict]) -> Draft202012Validator:
-    registry = _registry_for(store)
-    if registry is not None:
-        return Draft202012Validator(schema, registry=registry)
-    from jsonschema import RefResolver
-
-    resolver = RefResolver(
-        base_uri=schema.get("$id", ""),
-        referrer=schema,
-        store=store,
-    )
-    return Draft202012Validator(schema, resolver=resolver)
-
-
-def load_validators() -> dict[str, Draft202012Validator]:
-    schemas: dict[str, dict] = {}
-    for name in SCHEMA_FILES:
-        document = json.loads((FIXTURE_DIR / name).read_text(encoding="utf-8"))
-        schemas[name] = document
-    store = {document["$id"]: document for document in schemas.values()}
+def _validators_with_referencing(documents: dict[str, dict]) -> dict[str, Draft202012Validator]:
+    registry = _registry_for(documents)
+    if registry is None:
+        raise RuntimeError("referencing registry is not available")
     return {
-        name: _draft202012(schemas[name], store)
+        name: Draft202012Validator(documents[name], registry=registry)
         for name in SCHEMA_FILES
         if name != "defs.json"
     }
+
+
+def _validators_with_ref_resolver(documents: dict[str, dict]) -> dict[str, Draft202012Validator]:
+    from jsonschema import RefResolver
+
+    store = {document["$id"]: document for document in documents.values()}
+    validators = {}
+    for name in SCHEMA_FILES:
+        if name == "defs.json":
+            continue
+        schema = documents[name]
+        resolver = RefResolver(base_uri=schema["$id"], referrer=schema, store=store)
+        validators[name] = Draft202012Validator(schema, resolver=resolver)
+    return validators
+
+
+def load_validators() -> dict[str, Draft202012Validator]:
+    documents = _load_documents()
+    # _registry_for is the hook the Noble fallback test replaces.
+    if _registry_for(documents) is None:
+        return _validators_with_ref_resolver(documents)
+    return _validators_with_referencing(documents)
 
 
 def assert_valid_telemetry(document: dict) -> None:

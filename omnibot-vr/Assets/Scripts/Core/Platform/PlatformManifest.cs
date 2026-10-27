@@ -38,9 +38,11 @@ namespace OmniBot.VR.Core.Platform
     }
 
     /// <summary>
-    /// Supabase auth config. Public values (same anon key the website inlines).
-    /// GoTrue lives at <c>{Url}/auth/v1</c>; the garage table is queried via
-    /// PostgREST at <c>{Url}/rest/v1/{GarageTable}</c>.
+    /// Supabase auth config. GoTrue lives at <c>{Url}/auth/v1</c>; the garage
+    /// table is queried via PostgREST at <c>{Url}/rest/v1/{GarageTable}</c>.
+    /// Neither the site's manifest nor the bundled Resources/vr_manifest.json
+    /// carries <see cref="AnonKey"/>; <see cref="OhhoPlatform"/> fills it from
+    /// the gitignored Resources/vr_manifest_local.json.
     /// </summary>
     public class VrAuthConfig
     {
@@ -49,6 +51,17 @@ namespace OmniBot.VR.Core.Platform
         [JsonProperty("anonKey")] public string AnonKey;
         [JsonProperty("signIn")] public string SignIn;       // "email_otp"
         [JsonProperty("garageTable")] public string GarageTable;
+
+        /// <summary>Copies each field that is empty here from <paramref name="local"/>. Fields already set are kept.</summary>
+        public void FillMissingFrom(VrAuthConfig local)
+        {
+            if (local == null) return;
+            if (string.IsNullOrEmpty(Provider)) Provider = local.Provider;
+            if (string.IsNullOrEmpty(Url)) Url = local.Url;
+            if (string.IsNullOrEmpty(AnonKey)) AnonKey = local.AnonKey;
+            if (string.IsNullOrEmpty(SignIn)) SignIn = local.SignIn;
+            if (string.IsNullOrEmpty(GarageTable)) GarageTable = local.GarageTable;
+        }
     }
 
     /// <summary>A product surfaced in the VR console (serializable subset of the

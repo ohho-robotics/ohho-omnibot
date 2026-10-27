@@ -19,6 +19,13 @@ import time
 
 import pytest
 
+from schema_tools import assert_valid_telemetry
+
+# Set before any test in this process calls rclpy.init(). test/conftest.py
+# owns that context for the whole pytest session.
+os.environ.setdefault("ROS_LOCALHOST_ONLY", "1")
+os.environ.setdefault("ROS_DOMAIN_ID", "208")
+
 _SKIP = (
     "ROS 2 Jazzy is not importable. Source /opt/ros/jazzy/setup.bash, put "
     "omnibot-ros2/omnibot_hybrid on PYTHONPATH, then run: "
@@ -33,8 +40,6 @@ def _need(name: str):
 
 
 def test_telemetry_publishes_about_20hz():
-    os.environ.setdefault("ROS_LOCALHOST_ONLY", "1")
-    os.environ.setdefault("ROS_DOMAIN_ID", "208")
     rclpy = _need("rclpy")
     _need("nav_msgs")
     _need("nav2_msgs")
@@ -52,7 +57,6 @@ def test_telemetry_publishes_about_20hz():
     from std_msgs.msg import String
 
     from omnibot_hybrid.telemetry_aggregator import TelemetryAggregator
-    from omnibot_hybrid.telemetry_snapshot import schema_body
 
     qos = QoSProfile(
         history=HistoryPolicy.KEEP_LAST,
@@ -63,7 +67,13 @@ def test_telemetry_publishes_about_20hz():
     stamps: list[float] = []
     payloads: list[str] = []
 
-    rclpy.init()
+    # test/conftest.py already called rclpy.init() for this process.
+    # Jazzy rejects a second init, and shutting that context down would
+    # break the rest of the session.
+    started_context = False
+    if not rclpy.ok():
+        rclpy.init()
+        started_context = True
     aggregator = None
     listener = None
     try:
@@ -94,7 +104,8 @@ def test_telemetry_publishes_about_20hz():
             aggregator.destroy_node()
         if listener is not None:
             listener.destroy_node()
-        rclpy.shutdown()
+        if started_context:
+            rclpy.shutdown()
 
     assert len(stamps) >= 20, f"only {len(stamps)} samples on /ohho/telemetry"
     span = stamps[-1] - stamps[0]
@@ -105,6 +116,4 @@ def test_telemetry_publishes_about_20hz():
     assert document["v"] == "1.0.0"
     assert document["kind"] == "real"
     assert "age_ms" in document
-    from schema_tools import load_validators
-
-    load_validators()["telemetry.json"].validate(schema_body(document))
+    assert_valid_telemetry(document)

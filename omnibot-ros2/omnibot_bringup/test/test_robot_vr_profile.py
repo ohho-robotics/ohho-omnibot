@@ -152,15 +152,14 @@ def test_default_plan_puts_safety_before_the_muxes_and_binds_loopback():
     assert ("publish_hz", "20.0") in telemetry[0]["arguments"]
     assert _includes(actions, "gateway") == []
     assert _includes(actions, "astra") == []
-    assert not any(
-        item.get("kind") == "node" and item["name"] == "ohho_descriptor"
-        for item in actions
-    )
+    descriptor = _by_name(actions, "ohho_descriptor")
+    assert descriptor["executable"] == "descriptor_node.py"
+    assert descriptor["parameters"][0]["kind"] == "real"
     logs = " ".join(item["msg"] for item in actions if item.get("kind") == "log")
     assert "/camera/front/image_raw" in logs
     assert "/camera/wrist/image_raw" in logs
     assert "/camera/base/bev/image_raw" in logs
-    assert "descriptor publisher is not installed" in logs
+    assert "robot_descriptor.yaml" in descriptor["parameters"][0]["descriptor_yaml"]
     executables = [
         item["executable"] for item in actions if item.get("kind") == "node"
     ]

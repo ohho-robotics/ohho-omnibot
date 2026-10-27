@@ -5,10 +5,12 @@ Shared by the real robot (`robot_vr.launch.py`, `mobile_manipulation.launch.py`,
 ```bash
 ros2 launch omnibot_bringup sim_vr.launch.py
 ros2 launch omnibot_bringup sim_vr.launch.py nav:=true
-ros2 launch omnibot_bringup sim_vr.launch.py world:=flat
+ros2 launch omnibot_bringup sim_teleop.launch.py world:=flat vr:=true
 ```
 
-`sim_vr.launch.py` includes [`sim.launch.py`](../omnibot-ros2/omnibot_bringup/launch/sim.launch.py) with `world:=apartment` and `vr:=true`. Gazebo's `/cmd_vel` is fed from `/cmd_vel/out` ([`sim_bridge_vr.yaml`](../omnibot-ros2/omnibot_bringup/config/sim_bridge_vr.yaml)). A Twist on ROS `/cmd_vel` is the Nav2 source into the mux. It does not drive the simulated base while `/control_mode` is `teleop`.
+`sim_vr.launch.py` includes [`sim.launch.py`](../omnibot-ros2/omnibot_bringup/launch/sim.launch.py) with `world:=apartment` and `vr:=true`. That is the Quest camera profile (wrist, BEV, chase, MJPEG). Inside the GPU container its rosbridge bind is `0.0.0.0` so Docker can publish `127.0.0.1`. It does not start the safety gate.
+
+[`sim_teleop.launch.py`](../omnibot-ros2/omnibot_bringup/launch/sim_teleop.launch.py) is the teleop profile. It passes `bridge_config:=sim_bridge_vr.yaml`, so Gazebo's `/cmd_vel` is fed from `/cmd_vel/out`. A Twist on ROS `/cmd_vel` is the Nav2 source into the mux. It does not drive the simulated base while `/control_mode` is `teleop`.
 
 On the robot, `yahboom_driver` reads `/cmd_vel/out` the same way. `teleop_safety`, `cmd_vel_mux`, and `arm_cmd_mux` are the same nodes, started once.
 
@@ -54,13 +56,13 @@ On the robot, `yahboom_driver` reads `/cmd_vel/out` the same way. `teleop_safety
 
 Startup mode is `teleop`. Switching `/control_mode` publishes one zero Twist on `/cmd_vel/out` in that callback. A stale active source is zeroed by the mux watchdog (0.3 s, wall clock) described in [safety.md](safety.md).
 
-Publishing `/cmd_vel/teleop` moves the simulated base only in teleop. Publishing `/emergency_stop` true stops it. The headless check is [`test_sim_vr_launch.py`](../omnibot-ros2/omnibot_bringup/test/test_sim_vr_launch.py). It passes `world:=flat` so the drive is clear of the apartment furniture. The `sim-smoke` job runs it.
+Publishing `/cmd_vel/teleop` moves the simulated base only in teleop. Publishing `/emergency_stop` true stops it. The headless check is [`test_sim_vr_contract.py`](../omnibot-ros2/omnibot_bringup/test/test_sim_vr_contract.py). It launches `sim_teleop.launch.py` with `vr:=true` and `world:=flat` so the drive is clear of the apartment furniture. The `sim-smoke` job runs it. [`test_sim_vr_launch.py`](../omnibot-ros2/omnibot_bringup/test/test_sim_vr_launch.py) is the CPU check that the GPU profile still forces the Quest cameras and does not start the gate.
 
 ## rosbridge and video
 
 | Port | Process | Bind |
 |---|---|---|
-| 9090 | `rosbridge_websocket` | `rosbridge_address`, default `127.0.0.1` |
+| 9090 | `rosbridge_websocket` | `rosbridge_address`. `sim.launch.py` and `sim_teleop.launch.py` default to `127.0.0.1`. `sim_vr.launch.py` defaults to `0.0.0.0` for the GPU container; the compose file publishes that port on `127.0.0.1` only. |
 | 8080 | `web_video_server` | the same address |
 
 MJPEG for the Quest view:
