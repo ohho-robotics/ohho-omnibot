@@ -284,15 +284,24 @@ def test_launch_files_wire_teleop_safety():
         REPO / "omnibot-ros2" / "omnibot_hybrid" / "launch" / "hybrid_robot.launch.py"
     ).read_text(encoding="utf-8")
     sim = (BRINGUP / "launch" / "sim.launch.py").read_text(encoding="utf-8")
+    sim_teleop = (BRINGUP / "launch" / "sim_teleop.launch.py").read_text(
+        encoding="utf-8"
+    )
     safety_launch = SAFETY_LAUNCH.read_text(encoding="utf-8")
     vr_bridge = (BRINGUP / "config" / "sim_bridge_vr.yaml").read_text(encoding="utf-8")
     flat_bridge = (BRINGUP / "config" / "sim_bridge.yaml").read_text(encoding="utf-8")
 
     for text in (pi, mobile, hybrid):
         assert "teleop_safety.launch.py" in text
+    # sim.launch.py vr:=true is the camera profile. The gate lives in
+    # sim_teleop.launch.py so that file can keep the bridge name and the
+    # camera tests can keep forbidding the gate token in sim.launch.py.
     assert 'default_value="false"' in sim
-    assert "teleop_safety.launch.py" in sim
     assert "sim_bridge_vr.yaml" in sim
+    assert "teleop_safety.launch.py" not in sim
+    assert "teleop_safety.launch.py" in sim_teleop
+    assert "sim_bridge_vr.yaml" in sim_teleop
+    assert "sim.launch.py" in sim_teleop
     assert '"use_sim_time": False' in safety_launch
     assert "max_vx" not in safety_launch
     assert 'ros_topic_name: "/cmd_vel/out"' in vr_bridge

@@ -11,8 +11,11 @@ Unified 9-DOF action space: [arm(6), base_vx, base_vy, base_vz]
 
 Parameters
 ----------
-model_type           : str   — registry name: "smolvla" | "act" | "diffusion" | "openvla"
-checkpoint_path      : str   — HuggingFace hub ID or local path
+model_type           : str   — registry name: "smolvla" | "act" | "diffusion" | "openvla" | "serve"
+checkpoint_path      : str   — HuggingFace hub ID or local path (``hf://…`` for Serve)
+serve_url            : str   — OhhO Serve base URL when model_type is "serve"
+serve_timeout_sec    : float — HTTP timeout for Serve /predict (default 0.5)
+serve_api_key        : str   — optional X-API-Key for Serve
 device               : str   — "cuda" | "cpu"
 policy_hz            : float — inference rate (Hz)
 state_dim            : int   — proprioceptive state dimension (default 9)
@@ -33,6 +36,7 @@ Topics subscribed
 /odom                       (nav_msgs/Odometry)
 /policy/task                (std_msgs/String)   — update task description
 /policy/enable              (std_msgs/Bool)     — enable/disable inference
+/policy/load                (std_msgs/String)   — checkpoint path; does not enable inference
 
 Topics published
 ----------------
@@ -63,6 +67,11 @@ except ImportError:
         PolicyGuard,
         is_black_frame,
     )
+
+try:
+    from omnibot_lerobot.policy_load import requested_checkpoint
+except ImportError:
+    from policy_load import requested_checkpoint
 
 try:
     from cv_bridge import CvBridge
@@ -164,6 +173,9 @@ class PolicyNode(Node):
         self.declare_parameter(
             "joint_max", [3.14, 1.57, 1.57, 1.57, 3.14, 0.8]
         )
+        self.declare_parameter("serve_url", "http://127.0.0.1:8000")
+        self.declare_parameter("serve_timeout_sec", 0.5)
+        self.declare_parameter("serve_api_key", "")
 
         model_type = self.get_parameter("model_type").value
         checkpoint = self.get_parameter("checkpoint_path").value
@@ -223,8 +235,22 @@ class PolicyNode(Node):
         else:
             self.device = None
 
-        # Load policy
-        self.adapter = self._load_adapter(model_type, checkpoint, device_str)
+        # Load policy. /policy/load may replace the checkpoint later.
+        # A failed reload keeps this adapter. Load never enables inference.
+        self._model_type = model_type
+        self._checkpoint = checkpoint
+        self._device_str = device_str
+        self._serve_url = self.get_parameter("serve_url").value
+        self._serve_timeout_sec = float(self.get_parameter("serve_timeout_sec").value)
+        self._serve_api_key = self.get_parameter("serve_api_key").value
+        self.adapter = self._load_adapter(
+            self._model_type,
+            self._checkpoint,
+            self._device_str,
+            serve_url=self._serve_url,
+            serve_timeout_sec=self._serve_timeout_sec,
+            serve_api_key=self._serve_api_key,
+        )
 
         # Safety guard for camera frame validation, inference latency, and arm clamping
         self.guard = PolicyGuard(
@@ -265,6 +291,7 @@ class PolicyNode(Node):
         self.create_subscription(Odometry, "/odom", self._odom_cb, 10)
         self.create_subscription(String, "/policy/task", self._task_cb, 10)
         self.create_subscription(Bool, "/policy/enable", self._enable_cb, 10)
+        self.create_subscription(String, "/policy/load", self._policy_load_cb, 10)
 
         # Inference timer
         self.create_timer(1.0 / self.policy_hz, self._inference_loop)
@@ -287,7 +314,16 @@ class PolicyNode(Node):
     # Policy loading
     # ------------------------------------------------------------------
 
-    def _load_adapter(self, model_type: str, checkpoint: str, device_str: str):
+    def _load_adapter(
+        self,
+        model_type: str,
+        checkpoint: str,
+        device_str: str,
+        *,
+        serve_url: str = "http://127.0.0.1:8000",
+        serve_timeout_sec: float = 0.5,
+        serve_api_key: str = "",
+    ):
         if not REGISTRY_AVAILABLE:
             self.get_logger().warn(
                 "lerobot_engine not on PYTHONPATH — using zero-action DummyAdapter. "
@@ -297,7 +333,19 @@ class PolicyNode(Node):
 
         try:
             self.get_logger().info(f'Loading "{model_type}" from "{checkpoint}"...')
-            adapter = make_policy(model_type, checkpoint=checkpoint, device=device_str)
+            extra = {}
+            if model_type == "serve":
+                extra = {
+                    "serve_url": serve_url,
+                    "timeout_sec": serve_timeout_sec,
+                    "api_key": serve_api_key,
+                }
+            adapter = make_policy(
+                model_type,
+                checkpoint=checkpoint,
+                device=device_str,
+                **extra,
+            )
             self.get_logger().info(f"Policy loaded. image_keys={adapter.image_keys}")
 
             if self.use_trt and self.trt_engine_path:
@@ -412,6 +460,38 @@ class PolicyNode(Node):
             if hasattr(self, "guard"):
                 self.guard.reset()
 
+    def _policy_load_cb(self, msg: String) -> None:
+        """Reload a checkpoint from the headset. Does not enable inference."""
+        requested = requested_checkpoint(getattr(self, "_checkpoint", ""), msg.data)
+        if requested is None:
+            return
+        previous = self.adapter
+        previous_ckpt = self._checkpoint
+        self._checkpoint = requested
+        loaded = self._load_adapter(
+            self._model_type,
+            requested,
+            self._device_str,
+            serve_url=self._serve_url,
+            serve_timeout_sec=self._serve_timeout_sec,
+            serve_api_key=self._serve_api_key,
+        )
+        if isinstance(loaded, _DummyAdapter) and not isinstance(previous, _DummyAdapter):
+            self.adapter = previous
+            self._checkpoint = previous_ckpt
+            self.get_logger().error(
+                f'policy/load "{requested}" failed; keeping the previous adapter.'
+            )
+            return
+        self.adapter = loaded
+        if hasattr(self, "guard"):
+            self.guard.required_keys = list(self.adapter.image_keys)
+            self.guard.reset()
+        self.get_logger().info(
+            f'policy/load applied checkpoint "{requested}". '
+            f"Inference stays {'on' if self.enabled else 'off'}."
+        )
+
     # ------------------------------------------------------------------
     # Inference loop
     # ------------------------------------------------------------------
@@ -489,6 +569,7 @@ class PolicyNode(Node):
             self.get_logger().error(
                 f"Inference error: {exc}", throttle_duration_sec=5.0
             )
+            self._publish_zero_base()
 
     def _publish_zero_base(self) -> None:
         """Publish zero base velocity when policy tick is skipped."""

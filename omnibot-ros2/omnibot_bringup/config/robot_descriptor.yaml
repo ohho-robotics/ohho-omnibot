@@ -1,0 +1,83 @@
+# OmniBot RobotDescriptor v1. Published latched as JSON on /ohho/descriptor.
+# Hard caps are the OmniBot ceilings and must not be raised:
+#   0.2 m/s linear, 1.0 rad/s yaw, 0.5 m/s^2 linear accel,
+#   2.0 rad/s^2 yaw accel, 0.15 rad joint step.
+# The Yahboom driver still clips commands to 0.12 m/s and 0.5 rad/s.
+# This file must not be used to raise that clip.
+# Joint ranges match omnibot_arm arm_params.yaml and ohho-os OMNIBOT_PROFILE.
+# AprilTag poses are nominal CAD (docs/apriltags.md), not a measured calibration.
+
+v: "1.0.0"
+id: omnibot
+model: OmniBot
+drive:
+  kind: mecanum
+  holonomic: true
+  caps:
+    vx_mps: 0.2
+    vy_mps: 0.2
+    wz_rad_s: 1.0
+arms:
+  - name: so101
+    joints:
+      - {name: arm_shoulder_pan, label: Pan, min: -3.14, max: 3.14, home: 0}
+      - {name: arm_shoulder_lift, label: Lift, min: -1.57, max: 1.57, home: 0}
+      - {name: arm_elbow_flex, label: Elbow, min: -1.57, max: 1.57, home: 0}
+      - {name: arm_wrist_flex, label: Wrist, min: -1.57, max: 1.57, home: 0}
+      - {name: arm_wrist_roll, label: Roll, min: -3.14, max: 3.14, home: 0}
+      - {name: arm_gripper, label: Grip, min: -0.1, max: 0.8, home: 0}
+topics:
+  cmd: /cmd_vel
+  state: /odom
+  estop: /emergency_stop
+  heartbeat: /ohho/heartbeat
+  telemetry: /ohho/telemetry
+  images:
+    - /camera/front/image_raw
+    - /camera/wrist/image_raw
+    - /camera/depth/image_raw
+    - /camera/bev/image_raw
+cameras:
+  - {name: front, kind: rgb, frame: front_camera_link, topic: /camera/front/image_raw}
+  - {name: wrist, kind: rgb, frame: wrist_camera_link, topic: /camera/wrist/image_raw}
+  - {name: depth, kind: depth, frame: depth_camera_optical_frame, topic: /camera/depth/image_raw}
+  - {name: bev, kind: bev, frame: bev_frame, topic: /camera/bev/image_raw}
+urdf_url: package://omnibot_description/urdf/omnibot.urdf.xacro
+# Nominal, to be measured. Schema keys are id, size, T_tag_base (ohho-sdk v1).
+# T_tag_base is row-major: p_base = T * p_tag. Translation is the tag origin in base_link.
+apriltags:
+  - id: 0
+    size: 0.08
+    T_tag_base: [
+      0.0, 0.707106781, -0.707106781, 0.137855339,
+      1.0, 0.0, 0.0, 0.0,
+      0.0, -0.707106781, -0.707106781, 0.208355339,
+      0.0, 0.0, 0.0, 1.0]
+  - id: 1
+    size: 0.08
+    T_tag_base: [
+      0.0, -0.707106781, 0.707106781, -0.092144661,
+      -1.0, 0.0, 0.0, -0.07,
+      0.0, -0.707106781, -0.707106781, 0.208355339,
+      0.0, 0.0, 0.0, 1.0]
+  - id: 2
+    size: 0.08
+    T_tag_base: [
+      -1.0, 0.0, 0.0, -0.078,
+      0.0, 0.707106781, -0.707106781, 0.079855339,
+      0.0, -0.707106781, -0.707106781, 0.208355339,
+      0.0, 0.0, 0.0, 1.0]
+telemetry:
+  schema_id: ohho.telemetry.v1
+  robot_id: omnibot
+  kind: real
+  fields: [base, joints, imu]
+safety:
+  hard:
+    max_vx_mps: 0.2
+    max_vy_mps: 0.2
+    max_wz_rad_s: 1.0
+    max_accel_x_mps2: 0.5
+    max_accel_y_mps2: 0.5
+    max_accel_wz_rad_s2: 2.0
+    max_joint_step_rad: 0.15

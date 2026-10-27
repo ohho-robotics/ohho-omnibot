@@ -1,7 +1,7 @@
 """Canonical observation/action schema for the learning engine.
 
 Must stay consistent with ``data_engine/schema/constants.py`` (the episode
-collection pipeline) and with the smolvla_node / teleop_recorder_node key
+collection pipeline) and with the policy_node / teleop_recorder_node key
 conventions. The learning engine uses flat dict observations; the LeRobot
 key map below converts to/from the HF dataset format.
 """

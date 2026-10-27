@@ -3,8 +3,10 @@
 """Gazebo check: killing the teleop client stops the base within 350 ms.
 
 Runs only in the sim-smoke job (OMNIBOT_SIM_SMOKE=1), same as test_sim_launch.
-vr:=true starts teleop_safety and the muxes. Gazebo follows /cmd_vel/out.
-The client publishes /cmd_vel/teleop_raw and /ohho/heartbeat, then stops.
+sim_teleop.launch.py starts teleop_safety and the muxes. Gazebo follows
+/cmd_vel/out. The client publishes /cmd_vel/teleop_raw and /ohho/heartbeat,
+then stops. vr:=true on sim.launch.py is the camera profile and is not
+what arms this gate.
 """
 
 import math
@@ -25,7 +27,7 @@ from std_msgs.msg import Empty, String
 
 def generate_test_description():
     bringup = FindPackageShare("omnibot_bringup").find("omnibot_bringup")
-    launch_file = os.path.join(bringup, "launch", "sim.launch.py")
+    launch_file = os.path.join(bringup, "launch", "sim_teleop.launch.py")
     return LaunchDescription(
         [
             IncludeLaunchDescription(
@@ -35,7 +37,6 @@ def generate_test_description():
                     "gui": "false",
                     "drive": "planar",
                     "rosbridge": "false",
-                    "vr": "true",
                 }.items(),
             ),
             launch_testing.actions.ReadyToTest(),

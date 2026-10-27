@@ -1,6 +1,7 @@
 name: nav-sim
 
-# OHH-30 / thin slice toward OHH-62: three headless Gazebo Nav2 scenarios
+# OHH-30: three headless Gazebo Nav2 scenarios (PR smoke). Full 10-scenario
+# scenario regression suite runs in nav-regression-nightly.yml (OHH-62).
 # (reach kitchen, desk, door from the spawn pose). Simulation only; nothing here
 # touches a robot. Nightly runs each scenario 5 times in a row.
 on:
