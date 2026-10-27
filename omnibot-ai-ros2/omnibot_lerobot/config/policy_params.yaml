@@ -4,7 +4,8 @@ policy_node:
     # Registered types: smolvla | act | diffusion | openvla | serve
     model_type: "smolvla"
     checkpoint_path: "lerobot/smolvla_base"
-    # OhhO Serve (model_type: serve). The ACT VR loop uses act_vr_sim_pick.launch.py.
+    # OhhO Serve (model_type: serve) — run: ohho serve --checkpoint hf://…
+    # The ACT VR loop uses act_vr_sim_pick.launch.py.
     serve_url: "http://127.0.0.1:8000"
     serve_timeout_sec: 0.5
     serve_api_key: ""

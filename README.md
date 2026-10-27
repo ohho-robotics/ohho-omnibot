@@ -23,6 +23,8 @@
     &nbsp;
     <a href="https://github.com/ohho-robotics/OmniBot/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ohho-robotics/OmniBot/ci.yml?branch=main&label=CI" alt="CI"/></a>
     &nbsp;
+    <a href="docs/test-coverage.md"><img src="https://img.shields.io/badge/CPU_coverage-see_CI_logs-lightgrey" alt="CPU coverage"/></a>
+    &nbsp;
     <img src="https://img.shields.io/badge/ROS_2-Jazzy-brightgreen"/>
     &nbsp;
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue" alt="Apache-2.0"/></a>
@@ -37,7 +39,7 @@
 
 - **Full mobile-manipulation stack in one repo**: mecanum base driver and kinematics, SO-101 arm with e-stop and joint-limit safety, Nav2/SLAM, Gazebo Harmonic sim, and LeRobot data capture feeding VLA/RL policies.
 - **Teleop from anywhere**: Xbox gamepad, Android app, Meta Quest VR, or the browser via rosbridge.
-- **Honest and tested**: README commands run in CI. Anything that needs a robot or GPU is labelled as such in [docs/reference.md](docs/reference.md).
+- **Honest and tested**: README commands run in CI. CPU Python line coverage is reported in the [CI `cpu` job](.github/workflows/ci.yml) (see [docs/test-coverage.md](docs/test-coverage.md)). Anything that needs a robot or GPU is labelled as such in [docs/reference.md](docs/reference.md).
 
 ## Quickstart (no robot, no GPU)
 
