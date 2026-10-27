@@ -412,6 +412,45 @@ def _release(node):
     node.joy_cb(types.SimpleNamespace(axes=list(node.joy_axes), buttons=[0] * 16))
 
 
+def _uses_ohho(node) -> bool:
+    return node._ohho_rec is not None
+
+
+def _assert_nothing_written(tmp_path):
+    assert list(tmp_path.glob("episode_*")) == []
+    assert list(tmp_path.rglob("*.npz")) == []
+    assert list(tmp_path.rglob("*.parquet")) == []
+    assert list(tmp_path.rglob("*.mp4")) == []
+
+
+def _assert_numpy_episode(tmp_path, episode_index, *, frames=None, task=None):
+    path = tmp_path / f"episode_{episode_index:05d}" / "data.npz"
+    assert path.is_file()
+    saved = np.load(path, allow_pickle=True)
+    if frames is not None:
+        assert saved["actions"].shape[0] == frames
+    if task is not None:
+        assert str(saved["task"][0]) == task
+    return saved
+
+
+def _assert_v2_episode(tmp_path, dataset_index, *, frames, task=None, action_tail=None):
+    import pyarrow.parquet as pq
+
+    path = tmp_path / "data" / "chunk-000" / f"episode_{dataset_index:06d}.parquet"
+    assert path.is_file()
+    table = pq.read_table(path)
+    assert table.num_rows == frames
+    if action_tail is not None:
+        action = table.column("action")[0].as_py()
+        assert action[6] == pytest.approx(action_tail[0])
+        assert action[7] == pytest.approx(action_tail[1])
+        assert action[8] == pytest.approx(action_tail[2])
+    if task is not None:
+        tasks = (tmp_path / "meta" / "tasks.jsonl").read_text(encoding="utf-8")
+        assert task in tasks
+
+
 class TestTeleopRecorderServices:
     @pytest.fixture
     def recorder(self, tmp_path):
@@ -465,9 +504,13 @@ class TestTeleopRecorderServices:
         assert stopped.success is True
         assert stopped.message == "saved (episode_index=0)"
         assert saves == ["save"]
-        episodes = list(tmp_path.glob("episode_*"))
-        assert [path.name for path in episodes] == ["episode_00000"]
-        assert (episodes[0] / "data.npz").is_file()
+        if _uses_ohho(node):
+            _assert_v2_episode(tmp_path, 0, frames=1)
+            assert not (tmp_path / "data" / "chunk-000" / "episode_000001.parquet").exists()
+        else:
+            episodes = list(tmp_path.glob("episode_*"))
+            assert [path.name for path in episodes] == ["episode_00000"]
+            assert (episodes[0] / "data.npz").is_file()
         assert node.session.episode_index == 1
         assert _states(node)[-1]["state"] == "idle"
         assert _states(node)[-1]["frame_count"] == 0
@@ -488,8 +531,7 @@ class TestTeleopRecorderServices:
         discarded = _call(node, "/ohho/record/discard")
         assert discarded.success is True
         assert discarded.message == "discarded; nothing written (episode_index=4)"
-        assert list(tmp_path.glob("episode_*")) == []
-        assert list(tmp_path.rglob("*.npz")) == []
+        _assert_nothing_written(tmp_path)
         assert node.session.episode_index == 4
         assert node.session.pending_frames() == []
         snap = _states(node)[-1]
@@ -506,7 +548,7 @@ class TestTeleopRecorderServices:
         assert "cannot stop while idle" in stopped.message
         assert discarded.success is False
         assert "cannot discard while idle" in discarded.message
-        assert list(tmp_path.rglob("*.npz")) == []
+        _assert_nothing_written(tmp_path)
 
     def test_topic_episode_index_is_one_shot_and_parameter_pins(self, recorder, tmp_path):
         node, _mod = recorder
@@ -515,12 +557,33 @@ class TestTeleopRecorderServices:
         node._record_frame()
         assert _call(node, "/ohho/record/stop").success is True
         assert node.session.episode_index == 5
-        assert (tmp_path / "episode_00004" / "data.npz").is_file()
+        if _uses_ohho(node):
+            _assert_v2_episode(tmp_path, 0, frames=1)
+        else:
+            _assert_numpy_episode(tmp_path, 4, frames=1)
         node._params["episode_index"] = 3
         assert _call(node, "/ohho/record/start").message == "recording (episode_index=3)"
         node._record_frame()
         assert _call(node, "/ohho/record/stop").success is True
-        assert (tmp_path / "episode_00003" / "data.npz").is_file()
+        if _uses_ohho(node):
+            _assert_v2_episode(tmp_path, 1, frames=1)
+        else:
+            _assert_numpy_episode(tmp_path, 3, frames=1)
+
+    def test_numpy_fallback_names_files_from_the_session_index(self, recorder, tmp_path):
+        node, _mod = recorder
+        node._ohho_rec = None
+        node._episode_index_cb(node._int32_cls(4))
+        assert _call(node, "/ohho/record/start").success is True
+        node._record_frame()
+        assert _call(node, "/ohho/record/stop").success is True
+        assert node.session.episode_index == 5
+        _assert_numpy_episode(tmp_path, 4, frames=1, task="mobile manipulation task")
+        node._params["episode_index"] = 3
+        assert _call(node, "/ohho/record/start").message == "recording (episode_index=3)"
+        node._record_frame()
+        assert _call(node, "/ohho/record/stop").success is True
+        _assert_numpy_episode(tmp_path, 3, frames=1)
 
     def test_state_timer_reports_frame_count(self, recorder):
         node, _mod = recorder
@@ -544,7 +607,7 @@ class TestTeleopRecorderServices:
         _release(node)
         _press(node, 6)
         assert node.session.state is RecordPhase.IDLE
-        assert list(tmp_path.rglob("*.npz")) == []
+        _assert_nothing_written(tmp_path)
         assert node.session.episode_index == 0
         _release(node)
         _press(node, 7)
@@ -556,10 +619,29 @@ class TestTeleopRecorderServices:
         assert action[8] == pytest.approx(recorder_mod.MAX_ANGULAR)
         _release(node)
         _press(node, 7)
-        assert (tmp_path / "episode_00000" / "data.npz").is_file()
-        saved = np.load(tmp_path / "episode_00000" / "data.npz", allow_pickle=True)
-        assert saved["actions"].shape[0] == 1
-        assert str(saved["task"][0]) == "mobile manipulation task"
+        if _uses_ohho(node):
+            _assert_v2_episode(
+                tmp_path,
+                0,
+                frames=1,
+                task="mobile manipulation task",
+                action_tail=(
+                    recorder_mod.MAX_LINEAR,
+                    recorder_mod.MAX_LINEAR,
+                    recorder_mod.MAX_ANGULAR,
+                ),
+            )
+        else:
+            _assert_numpy_episode(
+                tmp_path,
+                0,
+                frames=1,
+                task="mobile manipulation task",
+            )
+            saved = np.load(tmp_path / "episode_00000" / "data.npz", allow_pickle=True)
+            assert saved["actions"][0][6] == pytest.approx(recorder_mod.MAX_LINEAR)
+            assert saved["actions"][0][7] == pytest.approx(recorder_mod.MAX_LINEAR)
+            assert saved["actions"][0][8] == pytest.approx(recorder_mod.MAX_ANGULAR)
 
     def test_timeout_saves_the_open_episode(self, recorder, tmp_path):
         node, _mod = recorder
@@ -567,7 +649,10 @@ class TestTeleopRecorderServices:
         node._record_frame()
         node.session.started_at = time.time() - node.episode_timeout_s - 1
         node.record_timer_cb()
-        assert (tmp_path / "episode_00000" / "data.npz").is_file()
+        if _uses_ohho(node):
+            _assert_v2_episode(tmp_path, 0, frames=1)
+        else:
+            _assert_numpy_episode(tmp_path, 0, frames=1)
         assert node.session.state is RecordPhase.IDLE
         assert node.session.episode_index == 1
 
@@ -577,7 +662,7 @@ class TestTeleopRecorderServices:
         stopped = _call(node, "/ohho/record/stop")
         assert stopped.success is False
         assert "no frames to save" in stopped.message
-        assert list(tmp_path.rglob("*.npz")) == []
+        _assert_nothing_written(tmp_path)
         assert node.session.episode_index == 0
 
     def test_failed_write_does_not_advance_the_index(self, recorder, tmp_path):
@@ -593,5 +678,5 @@ class TestTeleopRecorderServices:
         assert stopped.success is False
         assert "disk full" in stopped.message
         assert node.session.episode_index == 0
-        assert list(tmp_path.rglob("*.npz")) == []
+        _assert_nothing_written(tmp_path)
         assert _states(node)[-1]["state"] == "idle"

@@ -30,4 +30,10 @@ install(
   DESTINATION share/${PROJECT_NAME}/config
 )
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_mecanum_kinematics test/test_mecanum_kinematics.cpp)
+  target_include_directories(test_mecanum_kinematics PRIVATE include)
+endif()
+
 ament_package()

@@ -279,9 +279,24 @@ class TestVrRecorderNode:
             assert any("action_source" in message for message in node.get_logger().warnings)
             assert _call(node, "/ohho/record/start").success is True
             node._record_frame()
+            frame = node.session.pending_frames()[-1]
+            assert "arm_source" not in frame
+            assert "base_source" not in frame
             assert _call(node, "/ohho/record/stop").success is True
-            assert (tmp_path / "episode_00000" / "data.npz").is_file()
-            assert not (tmp_path / "meta" / "info.json").exists()
+            # Leader writer: ohho-os LeRobot v2 when that stack imports, otherwise numpy.
+            # The VR writer is the one that stores operator / robot_kind / sim_world.
+            if node._ohho_rec is not None:
+                episode = json.loads(
+                    (tmp_path / "meta" / "episodes.jsonl").read_text(encoding="utf-8").strip()
+                )
+                assert episode["length"] == 1
+                assert "operator" not in episode
+                assert "robot_kind" not in episode
+                assert "sim_world" not in episode
+                assert list(tmp_path.glob("episode_*")) == []
+            else:
+                assert (tmp_path / "episode_00000" / "data.npz").is_file()
+                assert not (tmp_path / "meta" / "info.json").exists()
 
 
 def _synthetic_frames(duration_s=30.0, fps=30):

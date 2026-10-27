@@ -16,8 +16,8 @@ Topics subscribed:
   /arm/leader_states           (sensor_msgs/JointState) - leader arm (arm actions, leader mode)
   /arm/joint_states            (sensor_msgs/JointState) - follower arm (arm observations)
   /joy                         (sensor_msgs/Joy)         - Xbox controller (leader base action)
-  /camera/wrist/image_raw      (sensor_msgs/Image)
-  /camera/base/bev/image_raw   (sensor_msgs/Image)       - BEV mosaic from 4 base cameras
+  /camera/wrist/image_raw      (sensor_msgs/Image)  → observation.images.wrist
+  /camera/base/bev/image_raw   (sensor_msgs/Image)  → observation.images.bev (BEV mosaic from 4 base cameras)
   /odom                        (nav_msgs/Odometry)       - base velocity (state)
 
 action_source:=vr (default is leader; leader behaviour is unchanged):
@@ -27,6 +27,7 @@ action_source:=vr (default is leader; leader behaviour is unchanged):
   as the same teleop-only fallback. State stays follower joints + /odom.
   Episode start/stop/discard are the /ohho/record services. /joy is not
   required. This node never publishes a joint command or a base twist.
+  Leader episodes still go through the ohho-os Recorder when it imports.
 
 Unified 9D action:  [arm(6), base_vx, base_vy, base_vz]
 Unified 9D state:   [arm(6), base_vx, base_vy, base_vz]
@@ -76,6 +77,19 @@ try:
     LEROBOT_AVAILABLE = True
 except ImportError:
     LEROBOT_AVAILABLE = False
+
+try:
+    from omnibot_lerobot.ohho_teleop_recorder import (
+        OHHO_AVAILABLE,
+        WRITER_AVAILABLE,
+        OhhoTeleopRecorder,
+    )
+except ImportError:
+    OHHO_AVAILABLE = False
+    WRITER_AVAILABLE = False
+    OhhoTeleopRecorder = None  # type: ignore[misc, assignment]
+
+OHHO_RECORDING = OHHO_AVAILABLE and WRITER_AVAILABLE
 
 try:
     from omnibot_lerobot.record_session import RecordPhase, RecordSession, commit_stop
@@ -234,6 +248,14 @@ class TeleopRecorderNode(Node):
         self.prev_joy_buttons = [0] * 16
         self.wrist_image = None  # numpy HxWx3 uint8 RGB
         self.bev_image = None  # numpy HxWx3 uint8 RGB — BEV mosaic from 4 base cameras
+        self.wrist_msg_time = None
+        self.bev_msg_time = None
+
+        self._ohho_rec = (
+            OhhoTeleopRecorder(self.repo_id, self.record_hz)
+            if OHHO_RECORDING and OhhoTeleopRecorder is not None
+            else None
+        )
         # Last VR samples. None means that topic has not published yet.
         # Mux samples are ignored unless /control_mode is teleop.
         self._arm_teleop = None
@@ -279,10 +301,12 @@ class TeleopRecorderNode(Node):
 
         if self.action_source == ACTION_SOURCE_VR:
             writer = "lerobot v2"
+        elif self._ohho_rec is not None:
+            writer = "ohho-os+data_engine"
         elif LEROBOT_AVAILABLE:
-            writer = "yes"
+            writer = "lerobot"
         else:
-            writer = "no (numpy fallback)"
+            writer = "numpy fallback"
         self.get_logger().info(
             f"TeleopRecorderNode started | hz={self.record_hz} | "
             f"source={self.action_source} | output={self.output_dir} | writer={writer}"
@@ -432,11 +456,18 @@ class TeleopRecorderNode(Node):
         self.joy_buttons = list(msg.buttons)
         self._handle_button_events()
 
+    def _image_stamp_s(self, msg: Image) -> float:
+        if msg.header.stamp.sec or msg.header.stamp.nanosec:
+            return msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        return time.time()
+
     def wrist_image_cb(self, msg: Image):
         self.wrist_image = self._ros_image_to_numpy_rgb(msg)
+        self.wrist_msg_time = self._image_stamp_s(msg)
 
     def bev_image_cb(self, msg: Image):
         self.bev_image = self._ros_image_to_numpy_rgb(msg)
+        self.bev_msg_time = self._image_stamp_s(msg)
 
     # ------------------------------------------------------------------
     # Button handling
@@ -477,6 +508,8 @@ class TeleopRecorderNode(Node):
         frames_recorded = self.session.frame_count
         index = self.session.episode_index
         result = self.session.discard()
+        if result.success:
+            self._discard_ohho_episode()
         self._mirror_session()
         self._publish_state()
         self.get_logger().warn(
@@ -570,7 +603,17 @@ class TeleopRecorderNode(Node):
         if vr_sample is not None:
             frame["arm_source"] = vr_sample.arm_source
             frame["base_source"] = vr_sample.base_source
-        self.session.append_frame(frame)
+        if self.session.append_frame(frame) and self._leader_uses_ohho():
+            self._ohho_rec.capture_frame(
+                full_state,
+                full_action,
+                wrist_img,
+                bev_img,
+                wall_timestamp=captured_at,
+                wrist_timestamp=self.wrist_msg_time,
+                bev_timestamp=self.bev_msg_time,
+            )
+            self.session.note_frame_count(self._ohho_rec.frame_count)
         self.frame_count = self.session.frame_count
         self.episode_buffer = self.session.live_frames
 
@@ -621,8 +664,27 @@ class TeleopRecorderNode(Node):
         if result.success:
             self._pending_episode_index = None
         self._mirror_session()
+        if result.success:
+            self._start_ohho_episode()
         self._publish_state()
         return result
+
+    def _leader_uses_ohho(self) -> bool:
+        """Leader episodes use ohho-os. VR episodes use the LeRobot v2 writer."""
+        return self._ohho_rec is not None and self.action_source != ACTION_SOURCE_VR
+
+    def _start_ohho_episode(self) -> None:
+        if not self._leader_uses_ohho():
+            return
+        # discard_episode is a no-op when nothing is open. It clears a leftover
+        # episode so start_episode cannot raise after an empty stop.
+        self._ohho_rec.discard_episode()
+        self._ohho_rec.start_episode(self.task_description)
+
+    def _discard_ohho_episode(self) -> None:
+        if not self._leader_uses_ohho():
+            return
+        self._ohho_rec.discard_episode()
 
     def _stop_and_save(self):
         def write(frames):
@@ -636,6 +698,8 @@ class TeleopRecorderNode(Node):
             self._save_episode()
 
         result = commit_stop(self.session, write)
+        if not result.success and "no frames to save" in result.message:
+            self._discard_ohho_episode()
         self._mirror_session()
         self._publish_state()
         if not result.success:
@@ -672,6 +736,8 @@ class TeleopRecorderNode(Node):
 
     def _on_discard_service(self, _request, response):
         result = self.session.discard()
+        if result.success:
+            self._discard_ohho_episode()
         self._mirror_session()
         self._publish_state()
         self.get_logger().warn(result.message)
@@ -692,6 +758,13 @@ class TeleopRecorderNode(Node):
 
         if self.action_source == ACTION_SOURCE_VR:
             self._save_vr_dataset()
+        elif self._ohho_rec is not None:
+            self._ohho_rec.save_episode(
+                self.output_dir,
+                self.task_description,
+                self.record_hz,
+                self.repo_id,
+            )
         elif LEROBOT_AVAILABLE:
             self._save_lerobot_format()
         else:
@@ -793,7 +866,9 @@ class TeleopRecorderNode(Node):
             fps=np.array([self.record_hz]),
         )
         self.get_logger().info(
-            f"Saved numpy episode to {ep_dir}/data.npz (install lerobot for HF format)"
+            f"Saved numpy episode to {ep_dir}/data.npz "
+            "(pip install ohho-os and set PYTHONPATH to omnibot-ai-engines for LeRobot v2, "
+            "or install lerobot for the HF writer)"
         )
 
 

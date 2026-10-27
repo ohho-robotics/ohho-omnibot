@@ -22,15 +22,33 @@ jobs:
             -e omnibot-ai-engines/learning_engine \
             -e omnibot-ai-engines/agent_engine \
             -e yahboom-python-driver \
-            pytest numpy pyarrow click pyyaml ruff
+            ohho-os \
+            pytest numpy pyarrow click pyyaml ruff opencv-python-headless pandas aiortc \
+            xacro trimesh fast-simplification
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Ruff
         run: ruff check .
       - name: CPU suites
         run: |
-          pytest mecanum-kinematics/tests yahboom-python-driver/tests ros2-bev-stitcher/tests omnibot-ros2/omnibot_arm/test omnibot-ai-ros2/omnibot_lerobot/test omnibot-ros2/omnibot_bringup/test/test_unbuilt_launch.py omnibot-ros2/omnibot_bringup/test/test_teleop_default.py omnibot-ros2/omnibot_bringup/test/test_pick_place_spawn.py omnibot-ros2/omnibot_navigation/test -q
+          pytest mecanum-kinematics/tests yahboom-python-driver/tests ros2-bev-stitcher/tests ohho-webrtc/tests omnibot-ros2/omnibot_arm/test omnibot-ai-ros2/omnibot_lerobot/test omnibot-ros2/omnibot_bringup/test/test_unbuilt_launch.py omnibot-ros2/omnibot_bringup/test/test_teleop_default.py omnibot-ros2/omnibot_bringup/test/test_pick_place_spawn.py omnibot-ros2/omnibot_bringup/test/test_descriptor.py omnibot-ros2/omnibot_bringup/test/test_sim_cameras.py omnibot-ros2/omnibot_bringup/test/test_sim_vr_launch.py omnibot-ros2/omnibot_bringup/test/test_docker_sim.py omnibot-ros2/omnibot_bringup/test/test_frame_launch_docs.py omnibot-ros2/omnibot_navigation/test omnibot-ros2/omnibot_description/test infra/observability/tests scripts/test_architecture_launch_table.py -q
           python -m unittest discover -s omnibot-ai-engines/learning_engine/tests -t omnibot-ai-engines
           python -m unittest discover -s omnibot-ai-engines/agent_engine/tests -t omnibot-ai-engines
-          PYTHONPATH=omnibot-ai-engines pytest omnibot-ai-engines/data_engine/tests -q
+          PYTHONPATH=omnibot-ai-engines pytest omnibot-ai-engines/data_engine/tests omnibot-ai-engines/lerobot_engine/tests -q
+
+  vla-engine:
+    name: OmniVLA engine (vla_engine) tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install vla_engine (CPU torch) and run tests
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e "omnibot-ai-engines/vla_engine[serve,test]"
+          pytest omnibot-ai-engines/vla_engine/tests -q
 
   docs:
     name: README docs-as-tests
@@ -42,6 +60,8 @@ jobs:
           python-version: "3.12"
       - name: CPU-only README fences in a fresh venv
         run: python3 scripts/docs_test_readme.py
+      - name: VR profile release notes stay unpublished
+        run: python3 scripts/check_vr_profile_release_notes.py
 
   ros:
     name: colcon build and test
@@ -49,9 +69,16 @@ jobs:
     container: ros:jazzy-ros-base-noble
     timeout-minutes: 120
     steps:
-      - name: Install git and sudo
-        run: apt-get update && apt-get install -y git sudo ca-certificates
+      - name: Install git, sudo, and URDF validation tools
+        run: apt-get update && apt-get install -y git sudo ca-certificates liburdfdom-tools ros-jazzy-xacro
       - uses: actions/checkout@v4
+      - name: Validate the robot description
+        shell: bash
+        run: |
+          set -eo pipefail
+          source /opt/ros/jazzy/setup.bash
+          xacro omnibot-ros2/omnibot_description/urdf/omnibot.urdf.xacro > /tmp/omnibot.urdf
+          check_urdf /tmp/omnibot.urdf
       - name: ROS 2 quick start from the README
         shell: bash
         run: |

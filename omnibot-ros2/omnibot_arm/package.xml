@@ -4,7 +4,7 @@
   <name>omnibot_arm</name>
   <version>0.1.0</version>
   <description>SO-101 arm driver for OmniBot mobile manipulation</description>
-  <maintainer email="varunvaidhiya@todo.todo">varunvaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">varunvaidhiya</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>

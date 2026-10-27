@@ -1,9 +1,13 @@
 policy_node:
   ros__parameters:
     # Model selection — change model_type to swap backends without editing code.
-    # Registered types: smolvla | act | diffusion | openvla
+    # Registered types: smolvla | act | diffusion | openvla | serve
     model_type: "smolvla"
     checkpoint_path: "lerobot/smolvla_base"
+    # OhhO Serve (model_type: serve). The ACT VR loop uses act_vr_sim_pick.launch.py.
+    serve_url: "http://127.0.0.1:8000"
+    serve_timeout_sec: 0.5
+    serve_api_key: ""
     device: "cuda"
     policy_hz: 10.0
     state_dim: 9
