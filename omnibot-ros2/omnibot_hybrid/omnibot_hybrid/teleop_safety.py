@@ -32,9 +32,14 @@ import time
 
 import rclpy
 from geometry_msgs.msg import Twist
-from rcl_interfaces.msg import SetParametersResult
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
+
+try:
+    from rclpy.parameter import SetParametersResult
+except ImportError:
+    # Jazzy has the parameter-service message and no rclpy.parameter alias.
+    from rcl_interfaces.msg import SetParametersResult
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, Empty, String

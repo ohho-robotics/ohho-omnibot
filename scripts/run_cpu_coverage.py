@@ -37,6 +37,8 @@ def main() -> int:
         "omnibot-ai-ros2/omnibot_lerobot/test",
         "omnibot-ros2/omnibot_bringup/test/test_unbuilt_launch.py",
         "omnibot-ros2/omnibot_bringup/test/test_teleop_default.py",
+        "omnibot-ros2/omnibot_bringup/test/test_teleop_safety.py",
+        "omnibot-ros2/omnibot_bringup/test/test_pick_place_spawn.py",
         "omnibot-ros2/omnibot_bringup/test/test_descriptor.py",
         "omnibot-ros2/omnibot_bringup/test/test_sim_cameras.py",
         "omnibot-ros2/omnibot_bringup/test/test_sim_vr_launch.py",

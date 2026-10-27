@@ -29,6 +29,10 @@ if(BUILD_TESTING)
     test/test_teleop_safety.py
     TIMEOUT 60
   )
+  ament_add_pytest_test(test_pick_place_spawn
+    test/test_pick_place_spawn.py
+    TIMEOUT 60
+  )
   ament_add_pytest_test(test_sim_cameras
     test/test_sim_cameras.py
     TIMEOUT 60
@@ -37,7 +41,6 @@ if(BUILD_TESTING)
     test/test_sim_vr_launch.py
     TIMEOUT 60
   )
-
   ament_add_pytest_test(test_record_launch
     test/test_record_launch.py
     TIMEOUT 60
@@ -84,6 +87,16 @@ install(DIRECTORY
 # Install world files
 install(DIRECTORY
   worlds
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  models
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  scripts
   DESTINATION share/${PROJECT_NAME}
 )
 

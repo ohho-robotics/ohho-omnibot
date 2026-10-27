@@ -289,6 +289,7 @@ class TeleopGate:
         self._reason = "startup"
         self._estop_asserted = False
         self._audit_blocked = False
+        self._block_zero_pending = False
         self._last_heartbeat: Optional[float] = None
         self._heartbeat_tripped = False
         self._last_cmd_t = float(self._clock())
@@ -565,6 +566,12 @@ class TeleopGate:
             stamp = self._now(now)
             self._sync(stamp)
             if self._latched or self._audit_blocked:
+                if self._block_zero_pending:
+                    self._block_zero_pending = False
+                    return Outcome(
+                        twist=_ZERO,
+                        log="audit log failed; velocity zeroed",
+                    )
                 return Outcome()
             if not self._heartbeat_fresh(stamp):
                 if self._heartbeat_tripped:
@@ -654,8 +661,10 @@ class TeleopGate:
         )
         if ok:
             self._audit_blocked = False
+            self._block_zero_pending = False
             return True
         self._audit_blocked = True
+        self._block_zero_pending = True
         self._reason = "audit_failure"
         self._stop_motion()
         self._armed_flag = False
