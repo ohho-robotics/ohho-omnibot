@@ -23,12 +23,23 @@ def generate_launch_description():
     declare_use_rosbridge = DeclareLaunchArgument(
         "use_rosbridge",
         default_value="true",
-        description="Start ROSBridge WebSocket server on port 9090 for Android app",
+        description="Start rosbridge on 127.0.0.1:9090. LAN clients use ohho-gateway.",
     )
     declare_use_foxglove = DeclareLaunchArgument(
         "use_foxglove",
         default_value="true",
-        description="Start Foxglove bridge on port 8765 for browser-based live monitoring",
+        description="Start foxglove on 127.0.0.1:8765. LAN clients use ohho-gateway.",
+    )
+    # OHH-196: authenticated gateway is the default. gateway:=false is insecure.
+    declare_gateway = DeclareLaunchArgument(
+        "gateway",
+        default_value="true",
+        description=(
+            "Publish rosbridge and foxglove through ohho-gateway (TLS + bearer "
+            "token) and bind those servers to 127.0.0.1. "
+            "gateway:=false exposes them on every network interface with no "
+            "authentication and prints a warning."
+        ),
     )
     declare_ekf = DeclareLaunchArgument(
         "ekf",
@@ -61,8 +72,6 @@ def generate_launch_description():
         description="Publish the latched RobotDescriptor JSON on /ohho/descriptor",
     )
 
-    use_rosbridge = LaunchConfiguration("use_rosbridge")
-    use_foxglove = LaunchConfiguration("use_foxglove")
     use_ekf = LaunchConfiguration("ekf")
     use_metrics = LaunchConfiguration("use_metrics")
     metrics_port = LaunchConfiguration("metrics_port")
@@ -129,24 +138,19 @@ def generate_launch_description():
         condition=IfCondition(use_ekf),
     )
 
-    # ── ROSBridge — Android app (ws://<pi-ip>:9090) ───────────────────────────
-    rosbridge_node = Node(
-        package="rosbridge_server",
-        executable="rosbridge_websocket",
-        name="rosbridge_websocket",
-        output="screen",
-        parameters=[{"port": 9090}],
-        condition=IfCondition(use_rosbridge),
-    )
-
-    # ── Foxglove bridge — browser-based live digital twin (ws://<pi-ip>:8765) ─
-    foxglove_node = Node(
-        package="foxglove_bridge",
-        executable="foxglove_bridge",
-        name="foxglove_bridge",
-        output="screen",
-        parameters=[{"port": 8765, "address": "0.0.0.0"}],
-        condition=IfCondition(use_foxglove),
+    # ── OHH-196 ohho-gateway (default). Opt out: gateway:=false (insecure). ──
+    # rosbridge and foxglove are started by the snippet, on 127.0.0.1 unless
+    # the operator opts out. web_video_server is left to omnibot_pi.launch.py.
+    ohho_gateway = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_bringup, "launch", "ohho_gateway.launch.py")
+        ),
+        launch_arguments={
+            "gateway": LaunchConfiguration("gateway"),
+            "start_rosbridge": LaunchConfiguration("use_rosbridge"),
+            "start_foxglove": LaunchConfiguration("use_foxglove"),
+            "start_web_video": "false",
+        }.items(),
     )
 
     # ── Prometheus metrics bridge — Grafana observability ─────────────────────
@@ -198,6 +202,7 @@ def generate_launch_description():
         [
             declare_use_rosbridge,
             declare_use_foxglove,
+            declare_gateway,
             declare_ekf,
             declare_use_metrics,
             declare_metrics_port,
@@ -208,8 +213,7 @@ def generate_launch_description():
             driver_without_ekf,
             robot_state_publisher,
             ekf,
-            rosbridge_node,
-            foxglove_node,
+            ohho_gateway,
             metrics_bridge_node,
             ota_agent_node,
             descriptor_node,

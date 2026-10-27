@@ -30,9 +30,8 @@ What this starts (in order):
   │  arm_cmd_mux             routes teleop/policy/rl_arm → arm driver         │
   │  mission_planner         parses /mission/command → Nav2 + VLA goals       │
   ├─ CONNECTIVITY ──────────────────────────────────────────────────────────┤
-  │  foxglove_bridge         ws://pi-ip:8765  (workstation Foxglove viewer)   │
-  │  web_video_server        http://pi-ip:8080 (browser MJPEG streams)        │
-  │  rosbridge_websocket     ws://pi-ip:9090  (Android app)                   │
+  │  ohho-gateway            wss://pi-ip:8443 (token + TLS; default)         │
+  │  foxglove / web_video / rosbridge bind 127.0.0.1 behind that gateway     │
   └─────────────────────────────────────────────────────────────────────────┘
 
 Usage:
@@ -50,6 +49,10 @@ Skip Nav2 (drive + SLAM, no autonomous navigation):
 Headless (no foxglove/web_video):
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py \
         foxglove:=false web_video:=false
+
+Insecure opt-out (prints a warning; rosbridge, foxglove, and video listen
+on every interface with no token):
+    ros2 launch omnibot_bringup master/omnibot_pi.launch.py gateway:=false
 
 Pair with workstation:
     ros2 launch omnibot_bringup master/omnibot_workstation.launch.py  ← GPU PC
@@ -79,6 +82,7 @@ def generate_launch_description():
     # ── Package directories ───────────────────────────────────────────────────
     pkg_desc = get_package_share_directory("omnibot_description")
     pkg_nav = get_package_share_directory("omnibot_navigation")
+    pkg_bringup = get_package_share_directory("omnibot_bringup")
 
     xacro_file = os.path.join(pkg_desc, "urdf", "omnibot.urdf.xacro")
     slam_params = os.path.join(pkg_nav, "config", "slam_toolbox_params.yaml")
@@ -126,17 +130,28 @@ def generate_launch_description():
     declare_foxglove = DeclareLaunchArgument(
         "foxglove",
         default_value="true",
-        description="Foxglove WebSocket bridge (ws://pi-ip:8765)",
+        description="foxglove on port 8765. Loopback only when gateway:=true; LAN clients use ohho-gateway.",
     )
     declare_web_video = DeclareLaunchArgument(
         "web_video",
         default_value="true",
-        description="web_video_server MJPEG streams (http://pi-ip:8080)",
+        description="web_video_server on port 8080. Loopback only when gateway:=true; LAN clients use ohho-gateway.",
     )
     declare_rosbridge = DeclareLaunchArgument(
         "rosbridge",
         default_value="true",
-        description="ROSBridge WebSocket for Android app (ws://pi-ip:9090)",
+        description="rosbridge on port 9090. Loopback only when gateway:=true; LAN clients use ohho-gateway.",
+    )
+    # OHH-196: authenticated gateway is the default. gateway:=false is insecure.
+    declare_gateway = DeclareLaunchArgument(
+        "gateway",
+        default_value="true",
+        description=(
+            "Publish rosbridge, foxglove, and web_video_server through "
+            "ohho-gateway (TLS + bearer token) and bind those servers to "
+            "127.0.0.1. gateway:=false exposes them on every network interface "
+            "with no authentication and prints a warning."
+        ),
     )
 
     # Camera device paths
@@ -446,47 +461,23 @@ def generate_launch_description():
         output="screen",
     )
 
-    # ── 17. Foxglove bridge ───────────────────────────────────────────────────
-    foxglove_bridge = TimerAction(
+    # ── OHH-196 ohho-gateway (default). Opt out: gateway:=false (insecure). ──
+    # Delayed like the previous connectivity nodes so DDS can settle first.
+    # The snippet binds rosbridge, foxglove, and web_video_server to 127.0.0.1
+    # unless gateway is turned off. teleop_safety (above) still gates raw teleop.
+    ohho_gateway = TimerAction(
         period=4.0,
         actions=[
-            Node(
-                package="foxglove_bridge",
-                executable="foxglove_bridge",
-                name="foxglove_bridge",
-                output="screen",
-                condition=IfCondition(LaunchConfiguration("foxglove")),
-                parameters=[{"port": 8765, "address": "0.0.0.0"}],
-            )
-        ],
-    )
-
-    # ── 18. web_video_server ──────────────────────────────────────────────────
-    web_video_server = TimerAction(
-        period=4.0,
-        actions=[
-            Node(
-                package="web_video_server",
-                executable="web_video_server",
-                name="web_video_server",
-                output="screen",
-                condition=IfCondition(LaunchConfiguration("web_video")),
-                parameters=[{"port": 8080, "address": "0.0.0.0"}],
-            )
-        ],
-    )
-
-    # ── 19. ROSBridge WebSocket (Android app) ─────────────────────────────────
-    rosbridge = TimerAction(
-        period=4.0,
-        actions=[
-            Node(
-                package="rosbridge_server",
-                executable="rosbridge_websocket",
-                name="rosbridge_websocket",
-                output="screen",
-                condition=IfCondition(LaunchConfiguration("rosbridge")),
-                parameters=[{"port": 9090}],
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(pkg_bringup, "launch", "ohho_gateway.launch.py")
+                ),
+                launch_arguments={
+                    "gateway": LaunchConfiguration("gateway"),
+                    "start_rosbridge": LaunchConfiguration("rosbridge"),
+                    "start_foxglove": LaunchConfiguration("foxglove"),
+                    "start_web_video": LaunchConfiguration("web_video"),
+                }.items(),
             )
         ],
     )
@@ -504,6 +495,7 @@ def generate_launch_description():
             declare_foxglove,
             declare_web_video,
             declare_rosbridge,
+            declare_gateway,
             declare_cam_front,
             declare_cam_rear,
             declare_cam_left,
@@ -537,9 +529,7 @@ def generate_launch_description():
             cmd_vel_mux,
             arm_cmd_mux,
             mission_planner,
-            # Connectivity (delayed to let DDS settle)
-            foxglove_bridge,
-            web_video_server,
-            rosbridge,
+            # Connectivity (delayed to let DDS settle). OHH-196 gateway.
+            ohho_gateway,
         ]
     )

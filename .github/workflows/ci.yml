@@ -5,12 +5,22 @@ on:
     branches: [main]
   pull_request:
 
+# contents: read so pull-request tests cannot push. The cpu job also
+# uploads a coverage artifact, which needs actions: write on that job.
+permissions:
+  contents: read
+
 jobs:
   cpu:
     name: CPU tests and ruff
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -22,7 +32,7 @@ jobs:
             -e omnibot-ai-engines/learning_engine \
             -e omnibot-ai-engines/agent_engine \
             -e yahboom-python-driver \
-            -e yahboom-python-driver \
+            -e ohho-gateway \
             ohho-os \
             pytest numpy pyarrow click pyyaml ruff coverage opencv-python-headless pandas aiortc \
             xacro trimesh fast-simplification
@@ -31,7 +41,7 @@ jobs:
         run: ruff check .
       - name: CPU suites
         run: |
-          pytest mecanum-kinematics/tests yahboom-python-driver/tests ros2-bev-stitcher/tests ohho-webrtc/tests omnibot-ros2/omnibot_arm/test omnibot-ai-ros2/omnibot_lerobot/test omnibot-ros2/omnibot_bringup/test/test_unbuilt_launch.py omnibot-ros2/omnibot_bringup/test/test_teleop_default.py omnibot-ros2/omnibot_bringup/test/test_teleop_safety.py omnibot-ros2/omnibot_bringup/test/test_pick_place_spawn.py omnibot-ros2/omnibot_bringup/test/test_descriptor.py omnibot-ros2/omnibot_bringup/test/test_sim_cameras.py omnibot-ros2/omnibot_bringup/test/test_sim_vr_launch.py omnibot-ros2/omnibot_bringup/test/test_docker_sim.py omnibot-ros2/omnibot_bringup/test/test_frame_launch_docs.py omnibot-ros2/omnibot_navigation/test omnibot-ros2/omnibot_description/test infra/observability/tests scripts/test_architecture_launch_table.py scripts/tests -q
+          pytest mecanum-kinematics/tests yahboom-python-driver/tests ros2-bev-stitcher/tests ohho-webrtc/tests omnibot-ros2/omnibot_arm/test omnibot-ai-ros2/omnibot_lerobot/test omnibot-ros2/omnibot_bringup/test/test_unbuilt_launch.py omnibot-ros2/omnibot_bringup/test/test_teleop_default.py omnibot-ros2/omnibot_bringup/test/test_teleop_safety.py omnibot-ros2/omnibot_bringup/test/test_pick_place_spawn.py omnibot-ros2/omnibot_bringup/test/test_descriptor.py omnibot-ros2/omnibot_bringup/test/test_sim_cameras.py omnibot-ros2/omnibot_bringup/test/test_sim_vr_launch.py omnibot-ros2/omnibot_bringup/test/test_docker_sim.py omnibot-ros2/omnibot_bringup/test/test_frame_launch_docs.py omnibot-ros2/omnibot_navigation/test omnibot-ros2/omnibot_description/test infra/observability/tests scripts/test_architecture_launch_table.py ohho-gateway/tests scripts/tests -q
           python -m unittest discover -s omnibot-ai-engines/learning_engine/tests -t omnibot-ai-engines
           python -m unittest discover -s omnibot-ai-engines/agent_engine/tests -t omnibot-ai-engines
           PYTHONPATH=omnibot-ai-engines pytest omnibot-ai-engines/data_engine/tests omnibot-ai-engines/lerobot_engine/tests -q

@@ -101,6 +101,12 @@ pip install -e "omnibot-ai-engines/vla_engine[serve,gpu]"
 pip install -r omnibot-ai-engines/rl_engine/requirements.txt
 ```
 
+## LAN and cloud transport (OHH-196)
+
+`sim.launch.py` binds rosbridge to `127.0.0.1` by default. `robot.launch.py` and `master/omnibot_pi.launch.py` include [`ohho_gateway.launch.py`](../omnibot-ros2/omnibot_bringup/launch/ohho_gateway.launch.py) by default. That snippet binds rosbridge, foxglove, and web_video_server to `127.0.0.1` and publishes them through the `ohho-gateway` process on `wss://<host>:8443/rosbridge` and `wss://<host>:8443/foxglove`, or on `https://<host>:8443/video/...` for video. The gateway accepts a bearer token or `?token=` and redacts both forms from logs. It also opens a plain `ws://`/`http://` listener on `127.0.0.1:9080` by default; `--tls-only` disables that listener. `gateway:=false` prints a warning and binds those three servers to every network interface with no authentication.
+
+Decision and the client changes for Quest, Android, and Connect: [ADR](adr/OHH-196-authenticated-gateway.md), [client follow-ups](security/OHH-196-client-followups.md). OHH-198 can include the same snippet from a `vr:=true` sim profile. Start `sim.launch.py` with `rosbridge:=false` when that profile starts rosbridge itself, so port 9090 is not claimed twice.
+
 ## Quest to a WSL2 sim on Windows (OHH-205)
 
 A Quest on Wi-Fi reaches rosbridge and `web_video_server` on the Windows LAN address. Docker inside WSL2 is behind NAT until mirrored networking or a TCP portproxy is in place. The choice is a Varun TODO. The script and the troubleshooting notes are [vr-sim-network-windows.md](vr-sim-network-windows.md) and [`scripts/windows/vr-sim-network.ps1`](../scripts/windows/vr-sim-network.ps1). `-WhatIf` prints the LAN IP, pairing code, and QR code and leaves the firewall, portproxy, and `.wslconfig` alone.
