@@ -31,6 +31,9 @@ REPO_ID = "local/omnibot-sim-vr-pick"
 RATE_HZ = 10.0
 # Under arm_safety / teleop_gate MAX_JOINT_DELTA_RAD (0.15).
 MAX_JOINT_STEP_RAD = 0.08
+# Below one scripted joint step. An episode that never leaves the pose
+# measured at the start is discarded.
+MIN_JOINT_MOTION_RAD = 0.02
 
 RAW_ARM_TOPIC = "/arm/joint_commands/teleop_raw"
 RAW_BASE_TOPIC = "/cmd_vel/teleop_raw"
@@ -95,19 +98,23 @@ class HeadsetSample:
 
 
 def isolation_failure(environ=None) -> str | None:
-    """Refuse unless this process cannot see the robot DDS domain."""
+    """Refuse unless this process cannot see the robot DDS domain.
+
+    ``ROS_DOMAIN_ID`` must be the canonical decimal spelling. ``"036"`` is
+    decimal 36 here and octal domain 30 in ROS, so it is refused.
+    """
     env = os.environ if environ is None else environ
     domain = env.get("ROS_DOMAIN_ID", "")
     localhost = env.get("ROS_LOCALHOST_ONLY", "")
-    if domain in ("", "30") or localhost != "1":
+    try:
+        domain_id = int(domain, 10)
+    except (TypeError, ValueError):
+        domain_id = -1
+    if domain != str(domain_id) or domain_id == 30 or localhost != "1":
         return (
             "Refusing to publish teleop topics. Set ROS_LOCALHOST_ONLY=1 and "
             "ROS_DOMAIN_ID to a value other than 30 before running this demo."
         )
-    try:
-        domain_id = int(domain)
-    except ValueError:
-        domain_id = -1
     # FastDDS multicast port is domain_id * 250 + 7400. Above 232 it overflows.
     if domain_id < 0 or domain_id > 232:
         return (
@@ -155,6 +162,13 @@ def write_collection_record(dataset_root, seed, episodes: int) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+def joint_motion_rad(start, current) -> float:
+    """Largest absolute joint delta from ``start`` to ``current``."""
+    if not start or not current or len(start) != len(current):
+        return 0.0
+    return max(abs(float(left) - float(right)) for left, right in zip(start, current))
 
 
 def step_toward(current, target, max_step: float = MAX_JOINT_STEP_RAD) -> tuple[float, ...]:

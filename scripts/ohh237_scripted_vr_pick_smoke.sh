@@ -16,12 +16,27 @@
 # are actually recorded. Does not push to the Hugging Face Hub.
 set -uo pipefail
 
-if [[ "${ROS_LOCALHOST_ONLY:-}" != "1" || -z "${ROS_DOMAIN_ID:-}" || "${ROS_DOMAIN_ID}" == "30" ]]; then
+domain="${ROS_DOMAIN_ID:-}"
+if [[ "${ROS_LOCALHOST_ONLY:-}" != "1" || -z "${domain}" ]]; then
   echo "Refusing to publish teleop topics. Set ROS_LOCALHOST_ONLY=1 and ROS_DOMAIN_ID to a value other than 30." >&2
   exit 2
 fi
-if [[ ! "${ROS_DOMAIN_ID}" =~ ^[0-9]+$ ]] || (( ROS_DOMAIN_ID > 232 )); then
-  echo "ROS_DOMAIN_ID=${ROS_DOMAIN_ID} is outside the FastDDS range 0-232. The multicast port overflows above 232, so 237 cannot be used." >&2
+# Decimal only. ROS Jazzy parses leading zeros as octal, so 036 is domain 30.
+if [[ ! "${domain}" =~ ^[0-9]+$ ]]; then
+  echo "ROS_DOMAIN_ID=${domain} is outside the FastDDS range 0-232. The multicast port overflows above 232, so 237 cannot be used." >&2
+  exit 2
+fi
+domain_id=$((10#${domain}))
+if [[ "${domain}" != "${domain_id}" ]]; then
+  echo "Refusing to publish teleop topics. ROS_DOMAIN_ID=${domain} is not canonical; leading zeros are octal in ROS (036 is domain 30)." >&2
+  exit 2
+fi
+if [[ "${domain_id}" -eq 30 ]]; then
+  echo "Refusing to publish teleop topics. Set ROS_LOCALHOST_ONLY=1 and ROS_DOMAIN_ID to a value other than 30." >&2
+  exit 2
+fi
+if [[ "${domain_id}" -gt 232 ]]; then
+  echo "ROS_DOMAIN_ID=${domain} is outside the FastDDS range 0-232. The multicast port overflows above 232, so 237 cannot be used." >&2
   exit 2
 fi
 
@@ -84,9 +99,13 @@ fi
 
 rm -rf "${OUT}"
 mkdir -p "${OUT}"
-echo "[ohh-237] launch episodes=${EPISODES} seed=${SEED}"
+# The open-loop script is 12.7s. Allow 20s per episode plus 360s of
+# bring-up, so the default 3-episode run keeps a 420s budget and larger
+# counts are not cut off. Override with OHH237_TIMEOUT (seconds).
+TIMEOUT="${OHH237_TIMEOUT:-$((360 + EPISODES * 20))}"
+echo "[ohh-237] launch episodes=${EPISODES} seed=${SEED} timeout=${TIMEOUT}"
 set +e
-timeout --signal=INT --kill-after=30 420 \
+timeout --signal=INT --kill-after=30 "${TIMEOUT}" \
   ros2 launch omnibot_lerobot scripted_vr_pick.launch.py \
     world:=apartment \
     pick_place:=true \
@@ -102,6 +121,15 @@ echo "[ohh-237] launch status ${launch_status}"
 
 if [[ ! -f "${OUT}/meta/episodes.jsonl" ]]; then
   echo "[ohh-237] no episodes were recorded" >&2
+  exit 1
+fi
+recorded=$(grep -cve '^[[:space:]]*$' "${OUT}/meta/episodes.jsonl" || true)
+if [[ "${recorded}" -ne "${EPISODES}" ]]; then
+  echo "[ohh-237] recorded ${recorded} episodes, expected ${EPISODES}" >&2
+  exit 1
+fi
+if [[ ! -f "${OUT}/meta/collection.json" ]]; then
+  echo "[ohh-237] collection sidecar missing; headset did not finish" >&2
   exit 1
 fi
 

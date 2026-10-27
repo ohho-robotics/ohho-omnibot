@@ -109,6 +109,8 @@ def test_default_world_file_has_no_task_props_and_launch_defaults_off():
     assert 'DeclareLaunchArgument(\n                "pick_place",\n                default_value="false",' in launch
     assert 'DeclareLaunchArgument(\n                "cmd_vel_from_mux",\n                default_value="false",' in launch
     assert 'if _enabled(LaunchConfiguration("pick_place").perform(context)):' in launch
+    assert "table_node, *objects = spawners" in launch
+    assert "OnProcessExit(target_action=table_node, on_exit=objects)" in launch
     assert 'bridge_name = "sim_bridge_mux.yaml" if from_mux else "sim_bridge.yaml"' in launch
 
 

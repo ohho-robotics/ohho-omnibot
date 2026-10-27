@@ -374,6 +374,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
             def __init__(self, name):
                 self._params = {}
                 self.subscriptions = []
+                self.callbacks = {}
                 self.warnings = []
             def declare_parameter(self, name, default):
                 self._params[name] = default
@@ -381,6 +382,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
                 return SimpleNamespace(value=self._params[name])
             def create_subscription(self, msg_type, topic, callback, qos):
                 self.subscriptions.append(topic)
+                self.callbacks[topic] = callback
                 return None
             def create_publisher(self, *a, **k):
                 return Pub()
@@ -434,9 +436,10 @@ def test_arm_cmd_mux_wrapper_without_ros():
         assert TOPIC_JOINT_COMMANDS_POLICY in node.subscriptions
         assert TOPIC_JOINT_COMMANDS_POLICY_ALIAS in node.subscriptions
         assert TOPIC_JOINT_COMMANDS_RL in node.subscriptions
+        teleop_cb = node.callbacks[TOPIC_JOINT_COMMANDS_TELEOP]
         cmd = JointState()
         cmd.position = [0.1]
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs[-1].position == [0.1]
         node._out_pub.msgs.clear()
         node._policy_cb(cmd)
@@ -448,7 +451,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
         mode = StringMsg()
         mode.data = "vla"
         node._control_mode_cb(mode)
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
         node._policy_cb(cmd)
         assert len(node._out_pub.msgs) == 1
@@ -462,7 +465,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
         nav.data = "nav2"
         node._control_mode_cb(nav)
         node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
         node._policy_cb(cmd)
         assert len(node._out_pub.msgs) == 1
@@ -475,13 +478,13 @@ def test_arm_cmd_mux_wrapper_without_ros():
         node._policy_alias_cb(cmd)
         node._rl_arm_cb(cmd)
         assert node._out_pub.msgs == []
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert len(node._out_pub.msgs) == 1
 
         mode.data = "rl_nav"
         node._control_mode_cb(mode)
         node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
         node._rl_arm_cb(cmd)
         assert len(node._out_pub.msgs) == 1
@@ -491,7 +494,7 @@ def test_arm_cmd_mux_wrapper_without_ros():
         node._out_pub.msgs.clear()
         node._rl_arm_cb(cmd)
         node._policy_cb(cmd)
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
 
         clear = BoolMsg()
@@ -499,12 +502,12 @@ def test_arm_cmd_mux_wrapper_without_ros():
         node._estop_cb(clear)
         node._control_mode_cb(back)
         node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert len(node._out_pub.msgs) == 1
         stop.data = True
         node._estop_cb(stop)
         node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
+        teleop_cb(cmd)
         assert node._out_pub.msgs == []
         """
     )
@@ -650,104 +653,6 @@ def test_teleop_joint_source_forwards_only_in_teleop_and_estop_blocks_it():
     assert arm.allows("teleop") is True
     assert arm.allows("policy") is False
 
-
-def test_arm_cmd_mux_forwards_teleop_topic_without_ros():
-    _run_stubbed(
-        """
-        import sys
-        from types import ModuleType, SimpleNamespace
-
-        def _pkg(name):
-            module = ModuleType(name)
-            sys.modules[name] = module
-            return module
-
-        rclpy = _pkg("rclpy")
-        rclpy.init = lambda *a, **k: None
-        rclpy.shutdown = lambda *a, **k: None
-        rclpy.spin = lambda *a, **k: None
-        node_mod = _pkg("rclpy.node")
-
-        class Pub:
-            def __init__(self):
-                self.msgs = []
-            def publish(self, msg):
-                self.msgs.append(msg)
-
-        class Node:
-            def __init__(self, name):
-                self._params = {}
-            def declare_parameter(self, name, default):
-                self._params[name] = default
-            def get_parameter(self, name):
-                return SimpleNamespace(value=self._params[name])
-            def create_subscription(self, *a, **k):
-                return None
-            def create_publisher(self, *a, **k):
-                return Pub()
-            def create_timer(self, *a, **k):
-                return None
-            def get_logger(self):
-                return SimpleNamespace(
-                    info=lambda *a, **k: None,
-                    warn=lambda *a, **k: None,
-                )
-            def destroy_node(self):
-                return None
-
-        node_mod.Node = Node
-        sensor = _pkg("sensor_msgs")
-        sensor_msg = _pkg("sensor_msgs.msg")
-        sensor.msg = sensor_msg
-
-        class JointState:
-            def __init__(self):
-                self.position = []
-
-        sensor_msg.JointState = JointState
-        std = _pkg("std_msgs")
-        std_msg = _pkg("std_msgs.msg")
-        std.msg = std_msg
-
-        class StringMsg:
-            def __init__(self):
-                self.data = ""
-
-        class BoolMsg:
-            def __init__(self):
-                self.data = False
-
-        std_msg.String = StringMsg
-        std_msg.Bool = BoolMsg
-
-        from omnibot_rl.arm_cmd_mux import ArmCmdMux
-
-        node = ArmCmdMux()
-        cmd = JointState()
-        cmd.position = [0.2, 0.1]
-        node._teleop_cb(cmd)
-        assert len(node._out_pub.msgs) == 1
-        node._policy_cb(cmd)
-        assert len(node._out_pub.msgs) == 1
-
-        mode = StringMsg()
-        mode.data = "vla"
-        node._control_mode_cb(mode)
-        node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
-        assert node._out_pub.msgs == []
-        node._policy_cb(cmd)
-        assert len(node._out_pub.msgs) == 1
-
-        stop = BoolMsg()
-        stop.data = True
-        node._estop_cb(stop)
-        node._out_pub.msgs.clear()
-        node._teleop_cb(cmd)
-        node._policy_cb(cmd)
-        assert node._out_pub.msgs == []
-        """
-    )
 
 def test_source_timeout_defaults_to_0_3_and_cannot_be_raised_or_disabled():
     assert DEFAULT_SOURCE_TIMEOUT_S == pytest.approx(0.3)

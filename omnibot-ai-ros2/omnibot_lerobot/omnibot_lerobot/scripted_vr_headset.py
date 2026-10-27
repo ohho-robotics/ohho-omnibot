@@ -8,10 +8,12 @@ episodes with action_source:=vr. Joint targets step at most 0.08 rad from
 the measured arm pose. The deadman is /ohho/heartbeat at 10 Hz.
 
 This process does not publish plant commands or an e-stop. teleop_safety
-and the muxes have to forward the client topics. If those gated topics stay
-silent, the episode is discarded and the process exits 1.
+and the muxes have to forward the client topics, and the measured arm has
+to move. If the gated topics stay silent or the joints do not leave the
+pose measured at the start, the episode is discarded and the process exits 1.
 
-Refuses to start unless ROS_LOCALHOST_ONLY=1 and ROS_DOMAIN_ID is not 30.
+Refuses to start unless ROS_LOCALHOST_ONLY=1 and ROS_DOMAIN_ID is a
+canonical integer from 0 to 232 other than 30.
 """
 
 from __future__ import annotations
@@ -25,11 +27,13 @@ from omnibot_lerobot.scripted_vr_pick import (
     GATED_BASE_TOPIC,
     HEARTBEAT_TOPIC,
     JOINT_NAMES,
+    MIN_JOINT_MOTION_RAD,
     OPERATOR,
     RATE_HZ,
     RAW_ARM_TOPIC,
     RAW_BASE_TOPIC,
     isolation_failure,
+    joint_motion_rad,
     step_toward,
     write_collection_record,
 )
@@ -134,6 +138,8 @@ def main(args=None) -> int:
         def _run_episode(self):
             self.gated_arm = 0
             self.gated_base = 0
+            origin = list(self.measured)
+            peak = 0.0
             commanded = list(self.measured)
             period = 1.0 / RATE_HZ
             for phase in PHASES:
@@ -143,7 +149,9 @@ def main(args=None) -> int:
                     self._publish_command(commanded, phase.twist)
                     while time.monotonic() - tick < period:
                         self._spin_once(0.02)
-            return self.gated_arm > 0 and self.gated_base > 0
+                    peak = max(peak, joint_motion_rad(origin, self.measured))
+            forwarded = self.gated_arm > 0 and self.gated_base > 0
+            return forwarded, peak > MIN_JOINT_MOTION_RAD
 
         def run(self) -> int:
             services = (self.start, self.stop, self.discard)
@@ -159,13 +167,18 @@ def main(args=None) -> int:
                     message = started.message if started is not None else "no response"
                     self.get_logger().error(f"record start failed: {message}")
                     return 1
-                forwarded = self._run_episode()
-                if not forwarded:
+                forwarded, moved = self._run_episode()
+                if not forwarded or not moved:
                     self._call(self.discard)
-                    self.get_logger().error(
-                        "teleop_safety did not forward headset commands on "
-                        f"{GATED_ARM_TOPIC} and {GATED_BASE_TOPIC}"
-                    )
+                    if not forwarded:
+                        self.get_logger().error(
+                            "teleop_safety did not forward headset commands on "
+                            f"{GATED_ARM_TOPIC} and {GATED_BASE_TOPIC}"
+                        )
+                    else:
+                        self.get_logger().error(
+                            "/arm/joint_states did not move during the episode"
+                        )
                     return 1
                 stopped = self._call(self.stop)
                 if stopped is None or not stopped.success:

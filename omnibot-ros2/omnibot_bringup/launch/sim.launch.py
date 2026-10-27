@@ -65,7 +65,14 @@ import os
 import sys
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, TimerAction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+    RegisterEventHandler,
+    TimerAction,
+)
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
@@ -278,18 +285,26 @@ def _launch_sim(context, *args, **kwargs):
         world_name = spawn_api.world_name_for(world_key, world_path)
         models_dir = os.path.join(bringup, "models")
         plan = spawn_api.spawn_plan(True, seed, models_dir, world_name)
+        spawners = [
+            Node(
+                package="ros_gz_sim",
+                executable="create",
+                name=f"spawn_{item['name']}",
+                output="screen",
+                arguments=item["arguments"],
+            )
+            for item in plan
+        ]
+        # plan order is table, cube, bin. Objects wait for the table.
+        table_node, *objects = spawners
         actions.append(
             TimerAction(
                 period=6.0,
                 actions=[
-                    Node(
-                        package="ros_gz_sim",
-                        executable="create",
-                        name=f"spawn_{item['name']}",
-                        output="screen",
-                        arguments=item["arguments"],
-                    )
-                    for item in plan
+                    table_node,
+                    RegisterEventHandler(
+                        OnProcessExit(target_action=table_node, on_exit=objects)
+                    ),
                 ],
             )
         )

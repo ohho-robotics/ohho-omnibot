@@ -23,12 +23,16 @@ from __future__ import annotations
 import json
 import math
 import os
-import sys
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence, Union
+
+from omnibot_lerobot.policy_guard import (
+    MAX_JOINT_DELTA_RAD,
+    clamp_joint_deltas,
+)
 
 # ohho.safety.OMNIBOT_PROFILE / CMD_TIMEOUT_S. Do not raise these.
 HARD_MAX_VX = 0.2  # m/s
@@ -74,40 +78,9 @@ _FIXED_PARAMETERS = frozenset(
 _ZERO = (0.0, 0.0, 0.0)
 
 
-def _load_clamp_joint_deltas():
-    """Return policy_guard.clamp_joint_deltas and its delta constant."""
-    try:
-        from omnibot_lerobot.policy_guard import (
-            MAX_JOINT_DELTA_RAD as policy_delta,
-            clamp_joint_deltas as clamp_deltas,
-        )
-
-        return float(policy_delta), clamp_deltas
-    except ImportError:
-        pass
-    package_dir = os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "..",
-            "omnibot-ai-ros2",
-            "omnibot_lerobot",
-        )
-    )
-    if package_dir not in sys.path:
-        sys.path.insert(0, package_dir)
-    from omnibot_lerobot.policy_guard import (  # noqa: WPS433
-        MAX_JOINT_DELTA_RAD as policy_delta,
-        clamp_joint_deltas as clamp_deltas,
-    )
-
-    return float(policy_delta), clamp_deltas
-
-
-_POLICY_JOINT_DELTA_RAD, clamp_joint_deltas = _load_clamp_joint_deltas()
+_POLICY_JOINT_DELTA_RAD = float(MAX_JOINT_DELTA_RAD)
 # Never step farther than the arm driver, even if the import drifts upward.
-MAX_JOINT_DELTA_RAD = min(float(_POLICY_JOINT_DELTA_RAD), HARD_MAX_JOINT_DELTA_RAD)
+MAX_JOINT_DELTA_RAD = min(_POLICY_JOINT_DELTA_RAD, HARD_MAX_JOINT_DELTA_RAD)
 
 
 def parameter_change_allowed(name: str, value: Any) -> bool:
@@ -282,6 +255,8 @@ class TeleopGate:
         self._reason = ""
         self._estop_asserted = False
         self._audit_blocked = False
+        self._block_zero_pending = False
+        self._last_audit_signature = None
         self._last_heartbeat: Optional[float] = None
         self._heartbeat_tripped = False
         self._last_cmd_t = float(self._clock())
@@ -546,6 +521,9 @@ class TeleopGate:
             stamp = self._now(now)
             self._sync(stamp)
             if self._latched or self._audit_blocked:
+                if self._block_zero_pending:
+                    self._block_zero_pending = False
+                    return Outcome(twist=_ZERO, log="audit log failed; velocity zeroed")
                 return Outcome()
             if not self._heartbeat_fresh(stamp):
                 if self._heartbeat_tripped:
@@ -612,14 +590,32 @@ class TeleopGate:
             return self._measured[name]
         return self._joint_cmd.get(name)
 
+    def _audit_signature(self, event: str, fields: Mapping[str, Any]) -> tuple:
+        """Identity of a repeated clamp or reject, ignoring sample values."""
+        command = fields.get("command")
+        if "reasons" in fields:
+            raw = fields["reasons"]
+            reasons = tuple(raw) if isinstance(raw, (list, tuple)) else (raw,)
+        elif "reason" in fields:
+            reasons = (fields["reason"],)
+        else:
+            reasons = ()
+        return (event, command, reasons)
+
     def _audit(self, event: str, **fields: Any) -> bool:
+        signature = self._audit_signature(event, fields)
+        if signature == self._last_audit_signature and not self._audit_blocked:
+            return True
         ok = self._audit_log.write(
             event, robot="omnibot", protocol="ros2", **fields
         )
         if ok:
+            self._last_audit_signature = signature
             self._audit_blocked = False
+            self._block_zero_pending = False
             return True
         self._audit_blocked = True
+        self._block_zero_pending = True
         self._reason = "audit_failure"
         self._stop_motion()
         self._armed_flag = False

@@ -13,10 +13,8 @@ cmd_vel_mux and arm_cmd_mux forward them. Gazebo's base command comes from
 and operator:=scripted-sim.
 
 This launch refuses to start unless ROS_LOCALHOST_ONLY=1 and ROS_DOMAIN_ID
-is set to something other than 30. It does not start foxglove.
+is a canonical integer from 0 to 232 other than 30. It does not start foxglove.
 """
-
-import os
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -31,31 +29,11 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
-
-def _isolation_failure():
-    domain = os.environ.get("ROS_DOMAIN_ID", "")
-    localhost = os.environ.get("ROS_LOCALHOST_ONLY", "")
-    if domain in ("", "30") or localhost != "1":
-        return (
-            "Refusing to publish teleop topics. Set ROS_LOCALHOST_ONLY=1 and "
-            "ROS_DOMAIN_ID to a value other than 30 before running this demo."
-        )
-    try:
-        domain_id = int(domain)
-    except ValueError:
-        domain_id = -1
-    # FastDDS multicast port is domain_id * 250 + 7400. Above 232 it overflows.
-    if domain_id < 0 or domain_id > 232:
-        return (
-            "Refusing to publish teleop topics. ROS_DOMAIN_ID must be an integer "
-            "from 0 to 232, other than 30. FastDDS cannot compute a multicast "
-            "port above 232."
-        )
-    return None
+from omnibot_lerobot.scripted_vr_pick import isolation_failure
 
 
 def generate_launch_description():
-    failure = _isolation_failure()
+    failure = isolation_failure()
     if failure:
         raise RuntimeError(failure)
 
@@ -65,6 +43,10 @@ def generate_launch_description():
     episodes = LaunchConfiguration("episodes")
     seed = LaunchConfiguration("pick_place_seed")
 
+    # North of the table, facing it. The table's north edge is y=1.425,
+    # the chassis half-length is 0.1325 m, and the approach moves 0.075 m,
+    # so y=1.6575 stays clear of the tabletop. vr publishes the wrist and
+    # synthetic BEV cameras the recorder subscribes to.
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(sim_launch),
         launch_arguments={
@@ -73,9 +55,13 @@ def generate_launch_description():
             "drive": "planar",
             "arm": "true",
             "rosbridge": "false",
+            "vr": "true",
             "pick_place": LaunchConfiguration("pick_place"),
             "pick_place_seed": seed,
             "cmd_vel_from_mux": "true",
+            "spawn_x": "0.20",
+            "spawn_y": "1.6575",
+            "spawn_yaw": "-1.5707963267948966",
         }.items(),
     )
 
@@ -110,7 +96,7 @@ def generate_launch_description():
                 "action_source": "vr",
                 "operator": "scripted-sim",
                 "robot_kind": "sim",
-                "sim_world": "apartment",
+                "sim_world": LaunchConfiguration("world"),
                 "task_name": "scripted-sim pick cube into bin",
                 "output_dir": output_dir,
                 "repo_id": "local/omnibot-sim-vr-pick",

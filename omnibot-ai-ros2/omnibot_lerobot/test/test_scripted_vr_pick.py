@@ -36,6 +36,7 @@ from omnibot_lerobot.scripted_vr_pick import (  # noqa: E402
     HEADSET_TOPICS,
     JOINT_NAMES,
     MAX_JOINT_STEP_RAD,
+    MIN_JOINT_MOTION_RAD,
     OPERATOR,
     PHASES,
     PLANT_TOPICS,
@@ -43,6 +44,7 @@ from omnibot_lerobot.scripted_vr_pick import (  # noqa: E402
     collection_record,
     isolation_failure,
     iter_open_loop,
+    joint_motion_rad,
     scripted_episode_metadata,
     write_reject_report,
 )
@@ -77,6 +79,8 @@ def test_headset_publishers_are_only_the_client_contract():
     assert set(HEADSET_TOPICS).isdisjoint(PLANT_TOPICS)
     assert 'declare_parameter("episodes", 3)' in text
     assert 'declare_parameter("pick_place_seed", 0)' in text
+    assert "joint_motion_rad" in text
+    assert "MIN_JOINT_MOTION_RAD" in text
 
 
 def test_launch_uses_safety_muxes_and_vr_recorder():
@@ -88,7 +92,14 @@ def test_launch_uses_safety_muxes_and_vr_recorder():
     assert '"action_source": "vr"' in text
     assert '"operator": "scripted-sim"' in text
     assert '"cmd_vel_from_mux": "true"' in text
-    assert "Refusing to publish teleop topics" in text
+    assert "from omnibot_lerobot.scripted_vr_pick import isolation_failure" in text
+    assert "def _isolation_failure" not in text
+    assert "isolation_failure()" in text
+    assert '"vr": "true"' in text
+    assert '"spawn_x": "0.20"' in text
+    assert '"spawn_y": "1.6575"' in text
+    assert '"spawn_yaw": "-1.5707963267948966"' in text
+    assert '"sim_world": LaunchConfiguration("world")' in text
 
 
 def test_isolation_refuses_the_robot_domain():
@@ -97,6 +108,22 @@ def test_isolation_refuses_the_robot_domain():
     assert isolation_failure({})
     assert isolation_failure({"ROS_DOMAIN_ID": "237", "ROS_LOCALHOST_ONLY": "1"})
     assert isolation_failure({"ROS_DOMAIN_ID": "88", "ROS_LOCALHOST_ONLY": "1"}) is None
+    assert isolation_failure({"ROS_DOMAIN_ID": "030", "ROS_LOCALHOST_ONLY": "1"})
+    assert isolation_failure({"ROS_DOMAIN_ID": "036", "ROS_LOCALHOST_ONLY": "1"})
+    assert isolation_failure({"ROS_DOMAIN_ID": " 30", "ROS_LOCALHOST_ONLY": "1"})
+    assert isolation_failure({"ROS_DOMAIN_ID": "+30", "ROS_LOCALHOST_ONLY": "1"})
+    assert isolation_failure({"ROS_DOMAIN_ID": "00", "ROS_LOCALHOST_ONLY": "1"})
+    assert isolation_failure({"ROS_DOMAIN_ID": "0", "ROS_LOCALHOST_ONLY": "1"}) is None
+    assert isolation_failure({"ROS_DOMAIN_ID": "232", "ROS_LOCALHOST_ONLY": "1"}) is None
+
+
+def test_joint_motion_rad_is_the_largest_absolute_delta():
+    assert joint_motion_rad(None, [0.0]) == 0.0
+    assert joint_motion_rad([0.0, 0.0], [0.0]) == 0.0
+    assert joint_motion_rad([0.0, 0.0], [0.0, 0.01]) == pytest.approx(0.01)
+    assert joint_motion_rad([0.0, 0.0], [0.0, MIN_JOINT_MOTION_RAD]) == pytest.approx(
+        MIN_JOINT_MOTION_RAD
+    )
 
 
 def test_script_stays_inside_joint_limits_and_lasts_long_enough():
@@ -172,6 +199,48 @@ def test_commands_pass_through_teleop_gate_and_muxes(tmp_path):
     assert arm.allows("teleop") is False
     assert arm.allows("policy") is False
     assert base.base_allows("teleop") is False
+
+
+def _audit_text(directory):
+    files = list(directory.glob("*.jsonl"))
+    assert len(files) == 1
+    return files[0].read_text(encoding="utf-8")
+
+
+def test_repeated_clamp_audits_collapse_until_the_reason_changes(tmp_path):
+    now = {"t": 5.0}
+
+    def clock():
+        return now["t"]
+
+    gate = TeleopGate(clock=clock, audit_dir=tmp_path)
+    gate.heartbeat(5.0)
+    gate.command_velocity(1.0, 0.0, 0.0, 5.0)
+    gate.command_velocity(1.0, 0.0, 0.0, 5.0)
+    assert _audit_text(tmp_path).count('"event": "clamp"') == 1
+    gate.command_velocity(0.05, 0.0, 0.0, 5.0)
+    assert _audit_text(tmp_path).count('"event": "clamp"') == 2
+
+    gate.note_joint_state(JOINT_NAMES, [0.0] * 6)
+    gate.command_joints(JOINT_NAMES, [0.4] * 6, 5.0)
+    gate.command_joints(JOINT_NAMES, [0.4] * 6, 5.0)
+    assert _audit_text(tmp_path).count('"command": "joints"') == 1
+
+    gate.set_emergency_stop(True, 5.0)
+    gate.command_velocity(0.1, 0.0, 0.0, 5.0)
+    gate.command_velocity(0.2, 0.0, 0.0, 5.0)
+    assert _audit_text(tmp_path).count('"reason": "estop_latched"') == 1
+
+
+def test_audit_failure_zeros_velocity_once_on_the_next_tick(tmp_path):
+    blocked = tmp_path / "not-a-directory"
+    blocked.write_text("x", encoding="utf-8")
+    gate = TeleopGate(clock=lambda: 0.0, audit_dir=blocked)
+    first = gate.tick(0.0)
+    assert first.twist == (0.0, 0.0, 0.0)
+    assert first.log == "audit log failed; velocity zeroed"
+    second = gate.tick(0.01)
+    assert second.twist is None
 
 
 def test_reject_report_uses_the_quality_filter(tmp_path):
