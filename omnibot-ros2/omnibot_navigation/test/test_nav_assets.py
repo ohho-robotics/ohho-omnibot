@@ -136,8 +136,7 @@ def _read_pgm(path):
     return pixels.reshape(int(height), int(width))
 
 
-@pytest.fixture(scope="module")
-def sim_map():
+def load_sim_map_grid():
     meta = _yaml(MAPS / "apartment.yaml")
     pixels = _read_pgm(MAPS / meta["image"])
     res = float(meta["resolution"])
@@ -166,6 +165,11 @@ def sim_map():
     Grid.meta = meta
     Grid.shape = (height, width)
     return Grid
+
+
+@pytest.fixture(scope="module")
+def sim_map():
+    return load_sim_map_grid()
 
 
 def test_map_files_checked_in():

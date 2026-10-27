@@ -1,4 +1,6 @@
-# Sim / real parity results (OHH-37)
+# Results
+
+## Sim / real parity results (OHH-37)
 
 Same launch, same typed goal, 10 trials per goal by default. This file is written by `scripts/run_parity_trials.py`. It does not invent a pass, a time, an intervention count, or a bag path.
 
@@ -79,3 +81,54 @@ No completed sim or real trial. No robot failure was observed, and none was inve
 ## Bags
 
 No raw bags were recorded. Sim bag and Real bag are empty. A completed sim kitchen trial 1 would be `~/rosbags/parity_sim_kitchen_trial01`.
+
+## OHH-52 — 20-trial real-robot eval
+
+**Needs Varun: budget + robot.**
+
+This section is a blank template. Fill it during the robot session described in
+[gpu-train-runbook.md](gpu-train-runbook.md), after Varun has agreed a GPU
+budget and a `best` ACT checkpoint exists. Leave the cells empty until then.
+
+| Field | Value |
+|---|---|
+| Date | |
+| Operator | |
+| Task | |
+| Checkpoint path | |
+| Policy | ACT (`model_type:=act`) |
+| `policy_hz` used | |
+
+Mark each cell `yes` or `no`.
+
+- **Success** and **Failure** are exclusive. One of them is `yes` on a finished trial.
+- **Intervention** is independent. Mark `yes` when a person used `/emergency_stop`, set `/policy/enable` false, or moved the robot during that trial.
+
+| Trial | Success | Failure | Intervention | Notes |
+|---|---|---|---|---|
+| 1 | | | | |
+| 2 | | | | |
+| 3 | | | | |
+| 4 | | | | |
+| 5 | | | | |
+| 6 | | | | |
+| 7 | | | | |
+| 8 | | | | |
+| 9 | | | | |
+| 10 | | | | |
+| 11 | | | | |
+| 12 | | | | |
+| 13 | | | | |
+| 14 | | | | |
+| 15 | | | | |
+| 16 | | | | |
+| 17 | | | | |
+| 18 | | | | |
+| 19 | | | | |
+| 20 | | | | |
+
+| Total | Success | Failure | Intervention |
+|---|---|---|---|
+| 20 | | | |
+
+**Needs Varun: budget + robot.**
