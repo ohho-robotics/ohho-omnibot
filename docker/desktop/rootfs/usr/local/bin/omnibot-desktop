@@ -1,0 +1,126 @@
+#!/bin/bash
+# Copyright 2026 OhhO Robotics
+# SPDX-License-Identifier: Apache-2.0
+#
+# Entrypoint of the browser desktop image (Dockerfile.sim, target "desktop").
+#
+#   1. Xtigervnc: virtual X display ${DISPLAY} with a VNC server on the
+#      container's loopback (5900 + display number).
+#   2. openbox window manager (right-click the desktop for the menu).
+#   3. websockify serves noVNC on ${NOVNC_PORT} (6080) and bridges to VNC.
+#   4. omnibot-desktop-sim opens Gazebo and RViz (OMNIBOT_AUTOSTART=true).
+#
+# Environment:
+#   OMNIBOT_VNC_PASSWORD  require this password in the browser (default: none)
+#   OMNIBOT_RESOLUTION    initial desktop size, e.g. 1920x1080 (default 1600x900);
+#                         the browser resizes it to the window afterwards
+#   OMNIBOT_WORLD         flat | apartment | path to an SDF (default flat)
+#   OMNIBOT_GUI           open the Gazebo client (default true)
+#   OMNIBOT_RVIZ          open RViz (default true)
+#   OMNIBOT_AUTOSTART     start the sim when the desktop is up (default true)
+#
+# Any arguments are run as a command once the desktop is up, instead of
+# waiting (used by CI: `docker run ... image some-check`).
+set -euo pipefail
+
+log() { printf '[omnibot-desktop] %s\n' "$*"; }
+
+set +u
+# shellcheck disable=SC1091
+source /opt/ros/jazzy/setup.bash
+# shellcheck disable=SC1091
+[ -f /opt/omnibot/install/setup.bash ] && source /opt/omnibot/install/setup.bash
+set -u
+
+export DISPLAY="${DISPLAY:-:1}"
+display_num="${DISPLAY#:}"
+display_num="${display_num%%.*}"
+rfb_port=$((5900 + display_num))
+novnc_port="${NOVNC_PORT:-6080}"
+geometry="${OMNIBOT_RESOLUTION:-1600x900}"
+export OMNIBOT_LOG_DIR="${OMNIBOT_LOG_DIR:-/tmp/omnibot-desktop}"
+mkdir -p "${OMNIBOT_LOG_DIR}" "${HOME}/shared"
+
+pids=()
+# shellcheck disable=SC2329  # invoked by the trap below
+shutdown() {
+    log "stopping"
+    pkill -INT -f "sim_desktop.launch.py" 2>/dev/null || true
+    sleep 2
+    for pid in "${pids[@]}"; do kill "${pid}" 2>/dev/null || true; done
+    exit 0
+}
+trap shutdown TERM INT
+
+security=(-SecurityTypes None)
+if [ -n "${OMNIBOT_VNC_PASSWORD:-}" ]; then
+    mkdir -p "${HOME}/.vnc"
+    printf '%s\n' "${OMNIBOT_VNC_PASSWORD}" | vncpasswd -f > "${HOME}/.vnc/passwd"
+    chmod 600 "${HOME}/.vnc/passwd"
+    # Every viewer arrives through websockify on 127.0.0.1; the blacklist
+    # would lock all of them out after a few wrong attempts.
+    security=(-SecurityTypes VncAuth -PasswordFile "${HOME}/.vnc/passwd" -UseBlacklist=0)
+    log "VNC password required"
+fi
+
+rm -f "/tmp/.X${display_num}-lock" "/tmp/.X11-unix/X${display_num}"
+log "starting the virtual display ${DISPLAY} (${geometry})"
+Xtigervnc "${DISPLAY}" \
+    -geometry "${geometry}" -depth 24 \
+    -desktop "OmniBot Sim" \
+    -rfbport "${rfb_port}" -localhost \
+    "${security[@]}" \
+    -AlwaysShared -AcceptSetDesktopSize -FrameRate 30 \
+    -nolisten tcp \
+    >"${OMNIBOT_LOG_DIR}/xvnc.log" 2>&1 &
+xvnc_pid=$!
+pids+=("${xvnc_pid}")
+
+for _ in $(seq 1 100); do
+    xdpyinfo >/dev/null 2>&1 && break
+    if ! kill -0 "${xvnc_pid}" 2>/dev/null; then
+        log "ERROR: the virtual display failed to start:"
+        cat "${OMNIBOT_LOG_DIR}/xvnc.log" >&2
+        exit 1
+    fi
+    sleep 0.1
+done
+xdpyinfo >/dev/null 2>&1 || { log "ERROR: the virtual display did not come up"; exit 1; }
+
+xsetroot -solid '#1f2a33' 2>/dev/null || true
+eval "$(dbus-launch --sh-syntax)" || true
+openbox >"${OMNIBOT_LOG_DIR}/openbox.log" 2>&1 &
+pids+=("$!")
+
+websockify --web /opt/novnc "${novnc_port}" "localhost:${rfb_port}" \
+    >"${OMNIBOT_LOG_DIR}/websockify.log" 2>&1 &
+ws_pid=$!
+pids+=("${ws_pid}")
+
+log "desktop ready: open ${OMNIBOT_URL:-http://localhost:${novnc_port}} in a browser"
+
+case "${OMNIBOT_AUTOSTART:-true}" in
+    1|true|yes)
+        log "starting the sim (world=${OMNIBOT_WORLD:-flat}, gui=${OMNIBOT_GUI:-true}, rviz=${OMNIBOT_RVIZ:-true})"
+        /usr/local/bin/omnibot-desktop-sim start ;;
+esac
+
+if [ "$#" -gt 0 ]; then
+    "$@" &
+    cmd_pid=$!
+    set +e
+    wait "${cmd_pid}"
+    rc=$?
+    set -e
+    shutdown_rc=${rc}
+    pkill -INT -f "sim_desktop.launch.py" 2>/dev/null || true
+    for pid in "${pids[@]}"; do kill "${pid}" 2>/dev/null || true; done
+    exit "${shutdown_rc}"
+fi
+
+# Stay up while the display and the web bridge run.
+set +e
+wait -n "${xvnc_pid}" "${ws_pid}"
+log "ERROR: the virtual display or websockify exited"
+for f in xvnc websockify; do tail -n 20 "${OMNIBOT_LOG_DIR}/${f}.log" >&2 || true; done
+exit 1

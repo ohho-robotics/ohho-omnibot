@@ -13,3 +13,11 @@ omnibot-vr/Packages/com.meta.xr.sdk.interaction/** linguist-vendored
 omnibot-ros2/omnibot_navigation/maps/*.pgm binary
 omnibot-ros2/omnibot_navigation/maps/*.posegraph binary linguist-generated
 omnibot-ros2/omnibot_navigation/maps/*.data binary linguist-generated
+
+# Printable PDF and tag textures must stay byte-exact. autocrlf would break them.
+omnibot-ros2/omnibot_description/apriltags/print/*.pdf binary
+omnibot-ros2/omnibot_description/meshes/apriltags/*.png binary
+
+# Files copied into the desktop image must keep LF; the Windows launcher keeps CRLF.
+docker/desktop/rootfs/** text eol=lf
+*.cmd text eol=crlf

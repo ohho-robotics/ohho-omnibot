@@ -84,6 +84,50 @@ def dumps_descriptor(document):
     return json.dumps(document, separators=(",", ":"), sort_keys=True)
 
 
+def _validate_tags(tags):
+    """Same apriltags contract as ohho-sdk RobotDescriptor v1."""
+    if not isinstance(tags, list):
+        raise ValueError("apriltags must be a list")
+    allowed = {"id", "size", "T_tag_base"}
+    for index, tag in enumerate(tags):
+        where = f"apriltags[{index}]"
+        if not isinstance(tag, dict):
+            raise ValueError(f"{where} must be an object")
+        missing = sorted(allowed.difference(tag))
+        extra = sorted(set(tag).difference(allowed))
+        if missing:
+            raise ValueError(f"{where} missing {missing}")
+        if extra:
+            raise ValueError(f"{where} unknown keys {extra}")
+        tag_id = tag["id"]
+        if isinstance(tag_id, bool) or not isinstance(tag_id, int) or tag_id < 0:
+            raise ValueError(f"{where}.id must be an integer >= 0")
+        _tag_size(f"{where}.size", tag["size"])
+        matrix = tag["T_tag_base"]
+        if not isinstance(matrix, list) or len(matrix) != 16:
+            raise ValueError(f"{where}.T_tag_base must have 16 numbers")
+        for mndex, value in enumerate(matrix):
+            _finite_number(f"{where}.T_tag_base[{mndex}]", value)
+
+
+def _finite_number(name, value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{name} must be finite")
+    return number
+
+
+def _tag_size(name, value):
+    number = _finite_number(name, value)
+    if number <= 0.0:
+        raise ValueError(f"{name} must be greater than 0.0")
+    if number > 1.0:
+        raise ValueError(f"{name} exceeds the hard ceiling 1.0")
+    return number
+
+
 def _validate(document):
     hard = document["safety"]["hard"]
     for key, ceiling in _HARD_CEILINGS.items():
@@ -101,8 +145,7 @@ def _validate(document):
         raise ValueError("telemetry.robot_id must match id")
     if document["telemetry"]["kind"] not in ("sim", "real"):
         raise ValueError("telemetry.kind is invalid")
-    if document["apriltags"] is None or not isinstance(document["apriltags"], list):
-        raise ValueError("apriltags must be a list")
+    _validate_tags(document["apriltags"])
     image_topics = set(document["topics"]["images"])
     for camera in document["cameras"]:
         if camera["topic"] not in image_topics:

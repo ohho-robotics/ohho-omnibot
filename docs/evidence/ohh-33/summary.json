@@ -1,0 +1,19 @@
+{
+  "issue": "OHH-33",
+  "title": "Docker/devcontainer for the sim demo (CPU-only), published to GHCR",
+  "claims_fixed": ["C140", "C143"],
+  "artifacts": [
+    "Dockerfile.sim",
+    "docker-compose.yml",
+    ".devcontainer/devcontainer.json",
+    ".dockerignore",
+    ".github/workflows/docker-sim.yml",
+    "omnibot-digital-twin/docker/Dockerfile.sim",
+    "omnibot-digital-twin/docker/docker-compose.yml",
+    "omnibot-digital-twin/docker/post_create.sh",
+    "omnibot-ros2/omnibot_navigation/launch/sim_navigation.launch.py",
+    "omnibot-ros2/omnibot_bringup/test/test_docker_sim.py"
+  ],
+  "unit_tests_passed": 243,
+  "human_check_pending": "Varun to run `docker compose up sim` on a fresh Ubuntu machine with Docker to confirm <10 min navigation."
+}

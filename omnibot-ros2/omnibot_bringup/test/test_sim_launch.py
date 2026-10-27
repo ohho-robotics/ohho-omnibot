@@ -4,7 +4,9 @@
 
 Asserts /odom and /scan publish within 30 s and that /cmd_vel moves the
 robot at least 0.2 m. Also waits for /imu and /camera/front/image_raw, the
-other topics the bridge is required to expose.
+other topics the bridge is required to expose. A second test runs
+arm_sim_scripted_move.py: each SO-101 joint reaches its target and an
+e-stop holds that pose.
 
 Set OMNIBOT_SIM_FRAME_DIR to a directory to save front-camera PPM frames
 while the robot moves (used to build the README GIF). The assertion does
@@ -13,6 +15,8 @@ not depend on that directory.
 
 import math
 import os
+import subprocess
+import sys
 import time
 import unittest
 
@@ -150,3 +154,30 @@ class TestSimSmoke(unittest.TestCase):
             f"x={pos.x:.4f} y={pos.y:.4f} displacement_m={dist:.4f}"
         )
         self.assertGreaterEqual(dist, 0.2)
+
+    def test_arm_scripted_move_and_estop_hold(self):
+        """Scripted publisher: each joint reaches its target, e-stop holds."""
+        from ament_index_python.packages import get_package_prefix
+
+        script = os.path.join(
+            get_package_prefix("omnibot_arm"),
+            "lib",
+            "omnibot_arm",
+            "arm_sim_scripted_move.py",
+        )
+        self.assertTrue(os.path.isfile(script), script)
+        completed = subprocess.run(
+            [sys.executable, script],
+            capture_output=True,
+            text=True,
+            timeout=160,
+            check=False,
+        )
+        _log(completed.stdout)
+        if completed.stderr:
+            _log(completed.stderr)
+        self.assertEqual(
+            completed.returncode,
+            0,
+            completed.stdout + "\n" + completed.stderr,
+        )

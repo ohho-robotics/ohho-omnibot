@@ -5,7 +5,7 @@
 # The Yahboom driver still clips commands to 0.12 m/s and 0.5 rad/s.
 # This file must not be used to raise that clip.
 # Joint ranges match omnibot_arm arm_params.yaml and ohho-os OMNIBOT_PROFILE.
-# No AprilTags are installed.
+# AprilTag poses are nominal CAD (docs/apriltags.md), not a measured calibration.
 
 v: "1.0.0"
 id: omnibot
@@ -43,7 +43,30 @@ cameras:
   - {name: depth, kind: depth, frame: depth_camera_optical_frame, topic: /camera/depth/image_raw}
   - {name: bev, kind: bev, frame: bev_frame, topic: /camera/bev/image_raw}
 urdf_url: package://omnibot_description/urdf/omnibot.urdf.xacro
-apriltags: []
+# Nominal, to be measured. Schema keys are id, size, T_tag_base (ohho-sdk v1).
+# T_tag_base is row-major: p_base = T * p_tag. Translation is the tag origin in base_link.
+apriltags:
+  - id: 0
+    size: 0.08
+    T_tag_base: [
+      0.0, 0.707106781, -0.707106781, 0.137855339,
+      1.0, 0.0, 0.0, 0.0,
+      0.0, -0.707106781, -0.707106781, 0.208355339,
+      0.0, 0.0, 0.0, 1.0]
+  - id: 1
+    size: 0.08
+    T_tag_base: [
+      0.0, -0.707106781, 0.707106781, -0.092144661,
+      -1.0, 0.0, 0.0, -0.07,
+      0.0, -0.707106781, -0.707106781, 0.208355339,
+      0.0, 0.0, 0.0, 1.0]
+  - id: 2
+    size: 0.08
+    T_tag_base: [
+      -1.0, 0.0, 0.0, -0.078,
+      0.0, 0.707106781, -0.707106781, 0.079855339,
+      0.0, -0.707106781, -0.707106781, 0.208355339,
+      0.0, 0.0, 0.0, 1.0]
 telemetry:
   schema_id: ohho.telemetry.v1
   robot_id: omnibot

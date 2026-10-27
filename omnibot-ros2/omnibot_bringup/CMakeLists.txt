@@ -25,6 +25,19 @@ if(BUILD_TESTING)
     test/test_teleop_default.py
     TIMEOUT 60
   )
+  ament_add_pytest_test(test_sim_cameras
+    test/test_sim_cameras.py
+    TIMEOUT 60
+  )
+  ament_add_pytest_test(test_sim_vr_launch
+    test/test_sim_vr_launch.py
+    TIMEOUT 60
+  )
+
+  ament_add_pytest_test(test_record_launch
+    test/test_record_launch.py
+    TIMEOUT 60
+  )
 
   # Headless Gazebo launch test. The sim-smoke CI job exports
   # OMNIBOT_SIM_SMOKE=1 before configure. The default colcon test job
@@ -33,7 +46,7 @@ if(BUILD_TESTING)
     find_package(launch_testing_ament_cmake REQUIRED)
     add_launch_test(
       test/test_sim_launch.py
-      TIMEOUT 240
+      TIMEOUT 420
     )
   endif()
 endif()

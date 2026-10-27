@@ -4,7 +4,7 @@
   <name>omnibot_bringup</name>
   <version>0.0.1</version>
   <description>Launch files for OmniBot mecanum wheel robot</description>
-  <maintainer email="varunvaidhiya@todo.todo">varunvaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">varunvaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
@@ -22,6 +22,7 @@
   <!-- Simulation -->
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>web_video_server</exec_depend>
   <exec_depend>omnibot_arm</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
@@ -41,6 +42,9 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <!-- MCAP recording (record.launch.py) -->
+  <exec_depend>rosbag2</exec_depend>
+  <exec_depend>rosbag2_storage_mcap</exec_depend>
 
   <!-- <test_depend>ament_lint_auto</test_depend> -->
   <!-- <test_depend>ament_lint_common</test_depend> -->
