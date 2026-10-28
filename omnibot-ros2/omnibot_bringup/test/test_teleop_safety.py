@@ -80,8 +80,13 @@ def test_ceilings_match_omnibot_profile_and_stop_budget():
     assert HEARTBEAT_TIMEOUT_S == 0.3
     assert MAX_JOINT_DELTA_RAD <= 0.15
     assert CMD_TIMEOUT_S + 0.01 <= 0.350
-    assert "TICK_PERIOD_S = 0.01" in NODE_SRC.read_text(encoding="utf-8")
-    assert "declare_parameter" not in NODE_SRC.read_text(encoding="utf-8")
+    source = NODE_SRC.read_text(encoding="utf-8")
+    assert "TICK_PERIOD_S = 0.01" in source
+    assert "declare_parameter" not in source
+    # Jazzy's rclpy.parameter does not export SetParametersResult. The callback
+    # result is the rcl_interfaces message.
+    assert "from rcl_interfaces.msg import SetParametersResult" in source
+    assert "from rclpy.parameter import SetParametersResult" not in source
 
 
 def test_callers_cannot_raise_caps_or_timeouts(tmp_path):
