@@ -2,12 +2,14 @@
 
 Ubuntu Noble's python3-jsonschema 4.10.3 has Draft202012Validator and
 RefResolver, and it does not ship the ``referencing`` package (that arrived
-with jsonschema 4.18). CI keeps the Debian package. Use ``referencing`` when
-it imports, and a local RefResolver store otherwise.
+with jsonschema 4.18). CI keeps the Debian package. Pip cannot replace it
+(no RECORD file). Use ``referencing`` when it imports, and a local
+RefResolver store otherwise.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 
@@ -35,14 +37,29 @@ def _load_documents() -> dict[str, dict]:
     return documents
 
 
-def _validators_with_referencing(documents: dict[str, dict]) -> dict[str, Draft202012Validator]:
-    from referencing import Registry, Resource
-
+def _registry_for(documents: dict[str, dict]):
+    """A referencing registry on jsonschema >= 4.18, else None (Debian 4.10)."""
+    try:
+        parameters = inspect.signature(Draft202012Validator).parameters
+    except (TypeError, ValueError):
+        return None
+    if "registry" not in parameters:
+        return None
+    try:
+        from referencing import Registry, Resource
+    except ImportError:
+        return None
     resources = [
         (document["$id"], Resource.from_contents(document))
         for document in documents.values()
     ]
-    registry = Registry().with_resources(resources)
+    return Registry().with_resources(resources)
+
+
+def _validators_with_referencing(documents: dict[str, dict]) -> dict[str, Draft202012Validator]:
+    registry = _registry_for(documents)
+    if registry is None:
+        raise RuntimeError("referencing registry is not available")
     return {
         name: Draft202012Validator(documents[name], registry=registry)
         for name in SCHEMA_FILES
@@ -66,9 +83,8 @@ def _validators_with_ref_resolver(documents: dict[str, dict]) -> dict[str, Draft
 
 def load_validators() -> dict[str, Draft202012Validator]:
     documents = _load_documents()
-    try:
-        import referencing  # noqa: F401
-    except ImportError:
+    # _registry_for is the hook the Noble fallback test replaces.
+    if _registry_for(documents) is None:
         return _validators_with_ref_resolver(documents)
     return _validators_with_referencing(documents)
 

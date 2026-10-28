@@ -3,7 +3,11 @@
 """Pure decisions for sim_vr.launch.py. No ROS imports.
 
 sim_vr.launch.py loads this file by path. The CPU test loads it the same way.
+The shared topic list is config/vr_topic_contract.yaml. Loading it checks
+that the ports and the front camera still match this profile.
 """
+
+import os
 
 LOOPBACK_ADDRESS = "127.0.0.1"
 
@@ -101,3 +105,31 @@ def upstream_address(gateway, gateway_launch_exists, rosbridge_address):
     if truthy(gateway):
         return LOOPBACK_ADDRESS
     return bind_address(rosbridge_address)
+
+
+def _load_contract_module():
+    import importlib.util
+
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vr_contract.py")
+    spec = importlib.util.spec_from_file_location("omnibot_vr_contract_sim", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_contract_mod = _load_contract_module()
+CONTRACT_PATH = _contract_mod.default_contract_path(__file__)
+_CONTRACT = _contract_mod.load_vr_contract(CONTRACT_PATH)
+if _CONTRACT["ports"]["bind"] != LOOPBACK_ADDRESS:
+    raise RuntimeError("vr_topic_contract.yaml bind drifted from the sim VR profile")
+if _CONTRACT["ports"]["web_video"] != VIDEO_PORT:
+    raise RuntimeError("vr_topic_contract.yaml web_video port drifted")
+if _CONTRACT["ports"]["rosbridge"] != ROSBRIDGE_PORT:
+    raise RuntimeError("vr_topic_contract.yaml rosbridge port drifted")
+if "/camera/front/image_raw" not in _contract_mod.video_topics(_CONTRACT):
+    raise RuntimeError("vr_topic_contract.yaml dropped the sim front camera")
+
+
+def video_stream_topics():
+    """Topics from the shared contract. sim_vr does not retarget its bridge."""
+    return _contract_mod.video_topics(_CONTRACT)
