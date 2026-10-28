@@ -24,7 +24,11 @@ gui:=false keeps `-s --headless-rendering` in sim.launch.py. On the GPU
 compose file that path is Ogre2 EGL (the NVIDIA vendor library), not a
 window and not llvmpipe. vr:=true is the wrist, BEV, and chase cameras
 at 960x540 and 30 Hz, plus web_video_server on port 8080.
-arm:=true starts arm_sim_driver inside sim.launch.py.
+The include above passes arm:=true, so arm_sim_driver starts inside
+sim.launch.py. The arm:= argument on this file also includes
+omnibot_arm/launch/sim_arm.launch.py when it is installed. That file
+mirrors /arm/joint_commands/out onto /arm/joint_states and does not start
+arm_sim_driver itself.
 
 rosbridge and web_video_server bind 0.0.0.0 inside the container so
 Docker can forward 9090 and 8080. Those sockets are not authenticated.
@@ -35,6 +39,11 @@ This file does not start teleop_safety, the cmd_vel mux, or the Feetech
 driver. The gate and the /cmd_vel/out bridge live in sim_teleop.launch.py.
 Extra camera, arm, Nav2, and telemetry include points stay off unless
 those arguments are set. gateway:=true does not bind 0.0.0.0.
+
+nav:=true starts the apartment Nav2 stack from omnibot_navigation without
+a second Gazebo. cameras:=extra and telemetry:=true include
+sim_cameras.launch.py and telemetry_aggregator.launch.py when those
+files are installed; a missing include is logged and the profile still starts.
 """
 
 import os
@@ -329,9 +338,10 @@ def generate_launch_description():
                 "arm",
                 default_value=_support.DEFAULT_ARM,
                 description=(
-                    "OHH-199 include point. When true, include the arm launch "
-                    "named by the support module if it is installed. "
-                    "sim.launch.py still starts arm_sim_driver."
+                    "When true, include omnibot_arm/launch/sim_arm.launch.py if it "
+                    "is installed. That file mirrors /arm/joint_commands/out "
+                    "onto /arm/joint_states and does not start arm_sim_driver "
+                    "itself. sim.launch.py still starts arm_sim_driver."
                 ),
             ),
             DeclareLaunchArgument(
