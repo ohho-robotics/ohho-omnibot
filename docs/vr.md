@@ -1,6 +1,6 @@
 # VR topic contract
 
-Shared by the real robot (`mobile_manipulation.launch.py`, `omnibot_pi.launch.py`, `hybrid_robot.launch.py`) and the Gazebo VR profile. Caps, the 300 ms heartbeat, and the e-stop latch live in [safety.md](safety.md). This page is the topic map those launches agree on.
+Shared by the real robot (`robot_vr.launch.py`, `mobile_manipulation.launch.py`, `omnibot_pi.launch.py`, `hybrid_robot.launch.py`) and the Gazebo VR profile. The machine-readable list is [`vr_topic_contract.yaml`](../omnibot-ros2/omnibot_bringup/config/vr_topic_contract.yaml). `sim_vr.launch.py` and `robot_vr.launch.py` both load it. Caps, the 300 ms heartbeat, and the e-stop latch live in [safety.md](safety.md). This page is the topic map those launches agree on.
 
 ```bash
 ros2 launch omnibot_bringup sim_vr.launch.py
@@ -44,6 +44,15 @@ On the robot, `yahboom_driver` reads `/cmd_vel/out` the same way. `teleop_safety
 | `/camera/front/image_raw` | `sensor_msgs/Image` | Gazebo bridge or the camera | MJPEG, clients | |
 | `/camera/front/camera_info` | `sensor_msgs/CameraInfo` | Gazebo bridge or the camera | clients | |
 | `/tf` | `tf2_msgs/TFMessage` | Gazebo bridge or robot_state_publisher | Nav2 | `odom` to `base_footprint` in sim |
+| `/imu/data` | `sensor_msgs/Imu` | base driver | EKF, telemetry | robot IMU |
+| `/camera/wrist/image_raw` | `sensor_msgs/Image` | wrist camera | MJPEG, clients | |
+| `/camera/wrist/camera_info` | `sensor_msgs/CameraInfo` | wrist camera | clients | |
+| `/camera/rear/image_raw` | `sensor_msgs/Image` | rear camera | BEV stitcher | |
+| `/camera/left/image_raw` | `sensor_msgs/Image` | left camera | BEV stitcher | |
+| `/camera/right/image_raw` | `sensor_msgs/Image` | right camera | BEV stitcher | |
+| `/camera/base/bev/image_raw` | `sensor_msgs/Image` | BEV stitcher | MJPEG, clients | |
+| `/ohho/telemetry` | `std_msgs/String` | `telemetry_aggregator` | VR HUD | 20 Hz, `sim:=false` on the robot |
+| `/ohho/descriptor` | `std_msgs/String` | `ohho_descriptor` | clients | latched JSON when OHH-214 is installed |
 
 Startup mode is `teleop`. Switching `/control_mode` publishes one zero Twist on `/cmd_vel/out` in that callback. A stale active source is zeroed by the mux watchdog (0.3 s, wall clock) described in [safety.md](safety.md).
 
@@ -80,3 +89,70 @@ Asking for a missing include point logs the path and the rest of the profile sti
 No Quest is in CI. `tests/vr_contract/virtual_headset.py` connects to rosbridge and does what the headset does: set `/control_mode` to `teleop`, publish `/ohho/heartbeat`, call `/ohho/estop_reset` to clear the startup latch, drive `/cmd_vel/teleop_raw` one metre forward, strafe, move three arm joints on `/arm/joint_commands/teleop_raw`, latch `/emergency_stop`, reset through `/ohho/estop_reset`, then stop the heartbeat. It asserts `/odom`, `/arm/joint_states`, and `/ohho/safety/state`.
 
 The `vr-contract` workflow runs that client against `sim_teleop.launch.py world:=flat arm:=true` (the safety gate and `sim_bridge_vr.yaml`) and starts `arm_joint_state_mirror` so `/arm/joint_states` follows `/arm/joint_commands/out`. It uploads the launch log plus an MCAP. Gazebo's `/cmd_vel` is fed from `/cmd_vel/out`. Pointing the bridge at `/cmd_vel` leaves the base still, so the job fails. `sim_vr.launch.py` stays the camera profile and does not start the gate.
+
+## Real robot
+
+One command on the Pi. It does not start SLAM or Nav2. Depth stays off unless `depth_camera:=true`. Wheels stay on blocks until Varun has run the contract check.
+
+```bash
+ros2 launch omnibot_bringup robot_vr.launch.py
+```
+
+`teleop_safety` is included with no arguments and starts before `cmd_vel_mux` and `arm_cmd_mux`. Both muxes start in `teleop` with `use_sim_time` false. The base driver remaps `cmd_vel` to `/cmd_vel/out`. The arm driver remaps `joint_commands` to `/arm/joint_commands/out`. Quest, Android, and the browser publish `/cmd_vel/teleop_raw` and `/arm/joint_commands/teleop_raw`. This profile does not start `joy_node` or `teleop_twist_joy`.
+
+`gateway:=true` is the default. When `omnibot_bringup/launch/ohho_gateway.launch.py` is installed, that snippet owns rosbridge, foxglove, and `web_video_server`, and this file does not start a second copy. Until that file is in the tree, the same three processes bind `127.0.0.1`. A `rosbridge_address` other than loopback is clamped to `127.0.0.1`. This profile does not bind rosbridge to `0.0.0.0`.
+
+MJPEG, all three contract streams, from the loopback server:
+
+```text
+http://127.0.0.1:8080/stream?topic=/camera/front/image_raw
+http://127.0.0.1:8080/stream?topic=/camera/wrist/image_raw
+http://127.0.0.1:8080/stream?topic=/camera/base/bev/image_raw
+```
+
+`video_backend:=webrtc` includes `webrtc_streamer.launch.py` when that file is installed (OHH-210). Otherwise `web_video_server` still serves the three topics. `telemetry:=true` includes `omnibot_hybrid/launch/telemetry.launch.py` with `sim:=false`. The sim profile's include point remains `telemetry_aggregator.launch.py`, which is still not in this tree. `descriptor:=true` starts `descriptor_node.py` only when that executable and `robot_descriptor.yaml` are installed.
+
+`virtual_headset.py` is not in this repository. Varun runs it against the robot on blocks.
+
+## systemd
+
+[`omnibot-robot-vr.service`](../omnibot-ros2/omnibot_bringup/config/systemd/omnibot-robot-vr.service) is the headless boot unit. Installing the ROS package does not copy it into `/etc/systemd/system` and does not enable it. Nothing in this repository runs `systemctl`.
+
+On the Pi, after the on-blocks check, edit `User` and the `setup.bash` paths, then:
+
+```bash
+sudo cp omnibot-ros2/omnibot_bringup/config/systemd/omnibot-robot-vr.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now omnibot-robot-vr.service
+```
+
+Keep `OHHO_GATEWAY_TOKEN` in `/etc/omnibot/robot-vr.env`. That file is not in git.
+
+## Pi CPU budget
+
+Capture this on the Raspberry Pi while `robot_vr.launch.py` is running and a client is reading front, wrist, and BEV. Use `top` and `htop`. Leave the cells blank. Do not invent measurements. This table has no results yet.
+
+```bash
+top -b -n 30 -d 2
+htop
+```
+
+Confirm the streams while the capture is running:
+
+```bash
+ros2 topic hz /camera/front/image_raw
+ros2 topic hz /camera/wrist/image_raw
+ros2 topic hz /camera/base/bev/image_raw
+ros2 topic hz /ohho/telemetry
+```
+
+| Stream | Process | %CPU | %MEM |
+|---|---|---|---|
+| front | | | |
+| wrist | | | |
+| BEV | | | |
+| rosbridge_websocket | | | |
+| web_video_server | | | |
+| telemetry_aggregator | | | |
+| teleop_safety | | | |
+| whole profile | | | |

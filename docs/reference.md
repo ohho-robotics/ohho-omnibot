@@ -44,7 +44,7 @@ ros2 launch omnibot_bringup sim.launch.py world:=flat
 ros2 run omnibot_arm arm_sim_scripted_move.py
 ```
 
-The VR profile is [`sim_vr.launch.py`](../omnibot-ros2/omnibot_bringup/launch/sim_vr.launch.py). It includes this launch with `world:=apartment` and `vr:=true`, so Gazebo follows `/cmd_vel/out`. rosbridge and `web_video_server` bind `127.0.0.1` unless `rosbridge_address` is set with the gateway off. The shared topic contract is [vr.md](vr.md).
+The VR profile is [`sim_vr.launch.py`](../omnibot-ros2/omnibot_bringup/launch/sim_vr.launch.py). It includes this launch with `world:=apartment` and `vr:=true`, so Gazebo follows `/cmd_vel/out`. rosbridge and `web_video_server` bind `127.0.0.1` unless `rosbridge_address` is set with the gateway off. The real-robot command is [`robot_vr.launch.py`](../omnibot-ros2/omnibot_bringup/launch/robot_vr.launch.py). Both load [`vr_topic_contract.yaml`](../omnibot-ros2/omnibot_bringup/config/vr_topic_contract.yaml). The Pi CPU table and the systemd unit are in [vr.md](vr.md). The unit is not enabled by this repo.
 
 `ros_gz_bridge` topics. `rosbridge:=true` (the default) also starts `rosbridge_websocket` on port 9090. The sim-smoke test passes `rosbridge:=false` and does not start rosbridge:
 

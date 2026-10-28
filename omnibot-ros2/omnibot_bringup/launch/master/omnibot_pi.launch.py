@@ -38,6 +38,10 @@ What this starts (in order):
 Usage:
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py
 
+Quest VR is a separate one-command profile. It does not start SLAM or Nav2,
+and it does not publish rosbridge on every interface:
+    ros2 launch omnibot_bringup robot_vr.launch.py
+
 Skip depth camera (save ~70% CPU):
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py depth_camera:=false
 

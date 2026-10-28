@@ -144,6 +144,7 @@ On the physical robot (docs-test skips this):
 <!-- docs-test: skip hardware -->
 ```bash
 ros2 launch omnibot_bringup robot_with_joy.launch.py
+ros2 launch omnibot_bringup robot_vr.launch.py
 ros2 launch omnibot_bringup perception.launch.py
 ros2 launch omnibot_arm arm.launch.py
 ros2 launch omnibot_lerobot teleop_record.launch.py

@@ -5,6 +5,10 @@
     ros2 launch omnibot_bringup sim_vr.launch.py
     ros2 launch omnibot_bringup sim_vr.launch.py nav:=true
 
+The topic list is config/vr_topic_contract.yaml, shared with
+robot_vr.launch.py. robot_vr.launch.py starts teleop_safety on the robot.
+This file does not.
+
 `docker compose -f docker-compose.gpu.yml up sim-vr` runs this file.
 It includes sim.launch.py once, with:
 
@@ -170,7 +174,14 @@ def _launch_vr(context, *args, **kwargs):
     plan = _support.connectivity(gateway, gateway_exists, "true", video)
     address = _support.upstream_address(gateway, gateway_exists, requested_address)
 
-    actions = []
+    actions = [
+        LogInfo(
+            msg=(
+                "VR topic contract video streams: "
+                + ", ".join(_support.video_stream_topics())
+            )
+        )
+    ]
     if plan["use_gateway_launch"]:
         actions.append(
             LogInfo(

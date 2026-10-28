@@ -14,6 +14,7 @@ from omnibot_hybrid.telemetry_snapshot import (
     parse_heartbeat,
     schema_body,
 )
+import schema_tools
 from schema_tools import FIXTURE_DIR, assert_valid_telemetry, load_validators
 
 VECTORS = FIXTURE_DIR / "vectors"
@@ -32,6 +33,26 @@ def test_fixture_source_commit():
     assert COMMIT in text
     assert "ohh-201-telemetry-schema" in text
     assert "ohho-sdk" in text
+
+
+def test_validators_resolve_refs_without_referencing(monkeypatch):
+    """Noble's jsonschema 4.10.3 resolves sibling $ref files via RefResolver."""
+    monkeypatch.setattr(schema_tools, "_registry_for", lambda _store: None)
+    validator = schema_tools.load_validators()["telemetry.json"]
+    validator.validate(
+        json.loads(
+            (VECTORS / "telemetry" / "valid" / "minimal.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+    invalid = json.loads(
+        (VECTORS / "telemetry" / "invalid" / "missing_v.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    with pytest.raises(ValidationError):
+        validator.validate(invalid)
 
 
 @pytest.mark.parametrize(
