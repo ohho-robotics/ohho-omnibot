@@ -271,17 +271,27 @@ class TestSimVrContract(unittest.TestCase):
         )
         self.assertTrue(moved, "/cmd_vel/teleop did not move the robot 0.2 m")
 
+        # The mux publishes one zero Twist in the mode callback, then
+        # /control_mode/active. spin_once can return on that string while
+        # the last teleop forward (still 0.2) is queued on /cmd_vel/out.
+        # Same-topic order puts that forward before the zero, so the hold
+        # window starts after the zero, not at the mode sample.
+        switch = len(self.out)
         self._publish_mode("nav2")
         self._wait_mode("nav2")
+        zeroed = self._spin_until(
+            2.0, lambda: self._peak_after_zero(switch)[0]
+        )
         mark = len(self.out)
         self._pump(2.0, lambda: self.teleop.publish(drive))
         held = self._max_out_since(mark)
         stopped = _speed(self.odom[-1]) < 0.05
         _log(
             "EVIDENCE sim_vr nav2_holds_teleop "
-            f"out_peak={held:.4f} stopped={stopped} "
+            f"zeroed={zeroed} out_peak={held:.4f} stopped={stopped} "
             f"speed={_speed(self.odom[-1]):.4f}"
         )
+        self.assertTrue(zeroed, "mode switch did not zero /cmd_vel/out")
         self.assertLess(held, 1e-3)
         self.assertTrue(stopped, "base kept moving after leaving teleop")
 
