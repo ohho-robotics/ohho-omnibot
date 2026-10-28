@@ -1,7 +1,7 @@
 # omnibot_hybrid
 
 Hybrid Nav2 + VLA control: `cmd_vel_mux`, `teleop_safety`, `mission_planner`,
-`rosbag_recorder`, and `telemetry_aggregator`.
+`rosbag_recorder`, `telemetry_aggregator`, and `vr_session_recorder`.
 
 `teleop_safety` and the muxes are unchanged by the telemetry node. The
 aggregator only reads topics and publishes a snapshot.
@@ -116,4 +116,75 @@ The 20 Hz test skips without ROS 2. With Jazzy sourced and this package on
 pytest omnibot-ros2/omnibot_hybrid/tests/test_telemetry_hz.py -q
 ros2 launch omnibot_hybrid telemetry.launch.py sim:=true
 ros2 topic hz /ohho/telemetry
+```
+
+## VR session MCAP (OHH-239)
+
+`vr_session_recorder` records one VR session to MCAP. It only subscribes. It does
+not publish `/cmd_vel` or joint commands, and it does not change `teleop_safety`.
+
+Topics, and nothing else:
+
+- `/cmd_vel/teleop*`
+- `/arm/joint_commands/teleop*`
+- `/ohho/heartbeat`
+- `/ohho/telemetry`
+- `/ohho/safety/state`
+- `/control_mode*`
+
+`/ohho/vr_session/start` (`std_msgs/String`, empty id uses the time) starts a
+session. `/ohho/vr_session/stop` (`std_msgs/Empty`) ends it. With
+`auto_session:=true` (the default) the first `std_msgs/Empty` on `/ohho/heartbeat` starts a session
+and `session_idle_sec` of silence (default 2 s) ends it. That idle timer is not
+the 300 ms deadman.
+
+Parts rotate into a new directory at `max_bag_size_bytes` (default 64 MiB).
+Oldest part directories under the output dir are deleted once their bytes exceed
+`max_total_bytes` (default 512 MiB). The part currently being written is kept.
+`max_bag_size_bytes` cannot be larger than `max_total_bytes`.
+
+```bash
+ros2 launch omnibot_hybrid vr_session_recorder.launch.py
+ros2 launch omnibot_bringup sim.launch.py vr:=true record_vr_session:=true
+```
+
+`record_vr_session` defaults to false, including on the `vr:=true` profile, so
+sim-smoke does not record. OHH-198 `sim_vr.launch.py` includes `sim.launch.py`.
+Forward the flag there and do not include `vr_session_recorder.launch.py` as
+well:
+
+```python
+DeclareLaunchArgument("record_vr_session", default_value="false")
+IncludeLaunchDescription(
+    PythonLaunchDescriptionSource(os.path.join(bringup, "launch", "sim.launch.py")),
+    launch_arguments={
+        "vr": "true",
+        "record_vr_session": LaunchConfiguration("record_vr_session"),
+    }.items(),
+)
+```
+
+Metrics for the Grafana dashboard are read-only, on `127.0.0.1:9188/metrics`:
+`ohho_vr_rtt_ms`, `ohho_vr_heartbeat_gap_seconds`, `ohho_vr_heartbeat_gaps_total`,
+`ohho_vr_safety_trips_total`. `link.rtt_ms` stays 0 until a telemetry sample
+carries the client RTT. The dashboard is
+`infra/observability/grafana/dashboards/vr-session.json`. OHH-64's Prometheus
+and Grafana stack is not on this branch; put that file beside `robot-health.json`
+when it is, and scrape `127.0.0.1:9188`. Foxglove layout:
+`foxglove/vr_session.json`.
+
+OHH-34's `record.launch.py` (not merged here) records a demo run (`/tf`, `/odom`,
+`/scan`, cameras, `/agent/trace`) for the whole launch. This recorder is a
+separate per-session bag. The MCAP storage flag and the Foxglove Studio layout
+shape follow that pattern and were reimplemented for these topics.
+
+A local topic check, when ROS 2 Jazzy is installed, publishes zero commands on
+localhost domain 42 and does not start Gazebo:
+
+```bash
+python3 scripts/ohh239_sim_mcap.py
+```
+
+```bash
+pytest omnibot-ros2/omnibot_hybrid/tests/test_vr_session_record.py -q
 ```

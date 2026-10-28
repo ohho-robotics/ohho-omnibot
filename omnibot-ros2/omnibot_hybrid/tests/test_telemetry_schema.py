@@ -15,7 +15,13 @@ from omnibot_hybrid.telemetry_snapshot import (
     schema_body,
 )
 import schema_tools
-from schema_tools import FIXTURE_DIR, assert_valid_telemetry, load_validators
+from schema_tools import (
+    FIXTURE_DIR,
+    _load_documents,
+    _validators_with_ref_resolver,
+    assert_valid_telemetry,
+    load_validators,
+)
 
 VECTORS = FIXTURE_DIR / "vectors"
 SOURCE = FIXTURE_DIR / "SOURCE.txt"
@@ -72,6 +78,24 @@ def test_golden_vectors(kind, schema_name):
         instance = json.loads(path.read_text(encoding="utf-8"))
         with pytest.raises(ValidationError):
             validator.validate(instance)
+
+
+def test_noble_ref_resolver_accepts_golden_vectors():
+    """jsonschema 4.10 resolves $ref without the referencing package."""
+    validators = _validators_with_ref_resolver(_load_documents())
+    for kind, schema_name in (
+        ("telemetry", "telemetry.json"),
+        ("safety_state", "safety_state.json"),
+        ("heartbeat", "heartbeat.json"),
+        ("heartbeat_echo", "heartbeat_echo.json"),
+    ):
+        validator = validators[schema_name]
+        for path in _vectors(kind, "valid"):
+            validator.validate(json.loads(path.read_text(encoding="utf-8")))
+        for path in _vectors(kind, "invalid"):
+            instance = json.loads(path.read_text(encoding="utf-8"))
+            with pytest.raises(ValidationError):
+                validator.validate(instance)
 
 
 def test_echo_matches_golden_typical():

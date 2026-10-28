@@ -126,3 +126,7 @@ A Quest on Wi-Fi reaches rosbridge and `web_video_server` on the Windows LAN add
 ## Flagship stack launch architecture
 
 The flagship single launch file (`hybrid_robot.launch.py`), physical bringup (`mobile_manipulation.launch.py`), topic routing, and Pi 5 vs GPU workstation node placement are documented in [docs/frame-launch.md](frame-launch.md). It also clarifies that the 20-trial evaluation (OHH-101) has not run yet.
+
+## VR session MCAP
+
+`vr:=true record_vr_session:=true` on [`sim.launch.py`](../omnibot-ros2/omnibot_bringup/launch/sim.launch.py) includes [`vr_session_recorder.launch.py`](../omnibot-ros2/omnibot_hybrid/launch/vr_session_recorder.launch.py). The flag defaults to false. The recorder writes `/cmd_vel/teleop*`, `/arm/joint_commands/teleop*`, `/ohho/heartbeat`, `/ohho/telemetry`, `/ohho/safety/state`, and `/control_mode*` to rotating MCAP parts under `~/.ohho/vr_sessions`, with a 64 MiB part size and a 512 MiB cap. It does not change `teleop_safety`. Replay a part in Foxglove with [`foxglove/vr_session.json`](../foxglove/vr_session.json). The Grafana panels for RTT, heartbeat gaps, and safety trips are [`infra/observability/grafana/dashboards/vr-session.json`](../infra/observability/grafana/dashboards/vr-session.json). OHH-198's `sim_vr.launch.py` should forward `record_vr_session` into `sim.launch.py` and should not start a second recorder. A real-robot bag and a Foxglove screenshot still need a person.

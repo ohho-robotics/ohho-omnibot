@@ -1,0 +1,107 @@
+{
+  "configById": {
+    "Plot!commands": {
+      "title": "Teleop commands",
+      "isSynced": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "xAxisVal": "timestamp",
+      "paths": [
+        {
+          "value": "/cmd_vel/teleop.linear.x",
+          "enabled": true,
+          "color": "#4e98e2",
+          "label": "gated vx"
+        },
+        {
+          "value": "/cmd_vel/teleop.angular.z",
+          "enabled": true,
+          "color": "#50c878",
+          "label": "gated wz"
+        },
+        {
+          "value": "/cmd_vel/teleop_raw.linear.x",
+          "enabled": true,
+          "color": "#e2904e",
+          "label": "raw vx"
+        },
+        {
+          "value": "/cmd_vel/teleop_raw.angular.z",
+          "enabled": true,
+          "color": "#e24e4e",
+          "label": "raw wz"
+        }
+      ]
+    },
+    "RawMessages!arm": {
+      "topicPath": "/arm/joint_commands/teleop",
+      "title": "Gated arm teleop"
+    },
+    "RawMessages!arm_raw": {
+      "topicPath": "/arm/joint_commands/teleop_raw",
+      "title": "Raw arm teleop"
+    },
+    "RawMessages!telemetry": {
+      "topicPath": "/ohho/telemetry",
+      "title": "Telemetry"
+    },
+    "RawMessages!safety": {
+      "topicPath": "/ohho/safety/state",
+      "title": "Safety state"
+    },
+    "RawMessages!heartbeat": {
+      "topicPath": "/ohho/heartbeat",
+      "title": "Heartbeat"
+    },
+    "RawMessages!mode": {
+      "topicPath": "/control_mode/active",
+      "title": "Active control mode"
+    },
+    "RawMessages!mode_cmd": {
+      "topicPath": "/control_mode",
+      "title": "Control mode command"
+    }
+  },
+  "layout": {
+    "direction": "row",
+    "splitPercentage": 58,
+    "first": {
+      "direction": "column",
+      "splitPercentage": 62,
+      "first": "Plot!commands",
+      "second": {
+        "direction": "row",
+        "splitPercentage": 50,
+        "first": "RawMessages!arm",
+        "second": "RawMessages!arm_raw"
+      }
+    },
+    "second": {
+      "direction": "column",
+      "splitPercentage": 40,
+      "first": {
+        "direction": "row",
+        "splitPercentage": 50,
+        "first": "RawMessages!telemetry",
+        "second": "RawMessages!safety"
+      },
+      "second": {
+        "direction": "column",
+        "splitPercentage": 50,
+        "first": {
+          "direction": "row",
+          "splitPercentage": 50,
+          "first": "RawMessages!heartbeat",
+          "second": "RawMessages!mode"
+        },
+        "second": "RawMessages!mode_cmd"
+      }
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "version": "foxglove.studio@1"
+}

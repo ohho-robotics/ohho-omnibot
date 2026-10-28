@@ -42,6 +42,12 @@ follows `/cmd_vel/out`. The default file still maps `/cmd_vel`, which
 sim-smoke drives directly. The Quest camera profile is `sim_vr.launch.py`.
 The safety gate is `sim_teleop.launch.py`, not this `vr` flag.
 
+`record_vr_session:=true` is opt-in and only applies with `vr:=true`. It includes
+omnibot_hybrid/launch/vr_session_recorder.launch.py, which records the VR
+session topics to MCAP. The default is false, so sim-smoke does not record.
+OHH-198 sim_vr.launch.py should forward `record_vr_session` into this file
+and should not include the recorder launch itself.
+
 `drive:=mecanum` selects the gz-sim MecanumDrive plugin instead of planar move.
 `gui:=true` opens the Gazebo client; the default is server-only so CI has no display.
 
@@ -148,6 +154,11 @@ def _launch_sim(context, *args, **kwargs):
     description = FindPackageShare("omnibot_description").perform(context)
     ros_gz_sim = FindPackageShare("ros_gz_sim").perform(context)
 
+    record_vr_session = LaunchConfiguration("record_vr_session").perform(context).lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     world_path = _world_path(bringup, world_key)
     xacro_file = os.path.join(description, "urdf", "omnibot.urdf.xacro")
     from_mux = _enabled(LaunchConfiguration("cmd_vel_from_mux").perform(context))
@@ -347,6 +358,7 @@ def _launch_sim(context, *args, **kwargs):
             )
         )
     if vr_on:
+        hybrid = FindPackageShare("omnibot_hybrid").perform(context)
         actions.append(
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -356,6 +368,23 @@ def _launch_sim(context, *args, **kwargs):
                     "video": LaunchConfiguration("video").perform(context),
                     "address": LaunchConfiguration("rosbridge_address").perform(context),
                 }.items(),
+            )
+        )
+        if record_vr_session:
+            actions.append(
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        os.path.join(hybrid, "launch", "vr_session_recorder.launch.py")
+                    )
+                )
+            )
+    elif record_vr_session:
+        actions.append(
+            LogInfo(
+                msg=(
+                    "record_vr_session is ignored unless vr:=true. "
+                    "Not recording."
+                )
             )
         )
     return actions
@@ -403,6 +432,17 @@ def generate_launch_description():
                 description=(
                     "Spawn a table, rigid cube, and bin. Default false leaves "
                     "the world SDF unchanged. Cube and bin poses use pick_place_seed."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "record_vr_session",
+                default_value="false",
+                description=(
+                    "With vr:=true, record the VR session topics to MCAP "
+                    "(teleop commands, heartbeat, telemetry, safety state, "
+                    "control mode) with file rotation and a size cap. "
+                    "Default false records nothing. OHH-198 sim_vr.launch.py "
+                    "should forward this argument into sim.launch.py."
                 ),
             ),
             DeclareLaunchArgument(

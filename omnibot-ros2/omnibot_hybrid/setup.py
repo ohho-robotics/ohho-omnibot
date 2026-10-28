@@ -28,6 +28,7 @@ setup(
             "mission_planner = omnibot_hybrid.mission_planner:main",
             "rosbag_recorder = omnibot_hybrid.rosbag_recorder:main",
             "telemetry_aggregator = omnibot_hybrid.telemetry_aggregator:main",
+            "vr_session_recorder = omnibot_hybrid.vr_session_recorder:main",
         ],
     },
 )
