@@ -17,6 +17,17 @@ MAX_JOINT_DELTA_RAD = 0.15
 COMMAND_TIMEOUT_SEC = 0.2
 
 
+def open_hardware_bus(simulate, lerobot_available):
+    """True only when this process should open the Feetech bus.
+
+    A simulation launch passes simulate=True. Lerobot being installed on
+    the same machine must not override that and touch a real arm.
+    """
+    if simulate:
+        return False
+    return bool(lerobot_available)
+
+
 class TorqueAction:
     """Bus write for Torque_Enable. value is 0, 1, or None (do not write)."""
 

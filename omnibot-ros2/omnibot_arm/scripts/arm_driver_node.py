@@ -35,6 +35,7 @@ from arm_math import ticks_to_radians as _ticks_to_radians
 from arm_safety import COMMAND_TIMEOUT_SEC
 from arm_safety import MAX_JOINT_DELTA_RAD
 from arm_safety import ArmSafety
+from arm_safety import open_hardware_bus
 from servo_offsets import FACTORY_HOME_TICKS
 from servo_offsets import home_ticks_for_node
 from servo_offsets import package_config_dir
@@ -96,6 +97,9 @@ class ArmDriverNode(Node):
         self.declare_parameter("command_timeout_sec", COMMAND_TIMEOUT_SEC)
         # Set True to publish rolling cycle-time stats to /diagnostics at 1 Hz.
         self.declare_parameter("publish_diagnostics", False)
+        # Simulation launches set this so the Feetech bus is never opened.
+        # Default False keeps the existing hardware-or-fallback behaviour.
+        self.declare_parameter("simulate", False)
 
         self.follower_port = self.get_parameter("follower_port").value
         self.leader_port = self.get_parameter("leader_port").value
@@ -133,6 +137,7 @@ class ArmDriverNode(Node):
         self.command_timeout_sec = float(
             self.get_parameter("command_timeout_sec").value
         )
+        self.simulate = bool(self.get_parameter("simulate").value)
 
         self.num_joints = len(self.joint_names)
         self.ticks_per_rad = self.ticks_per_rev / (2.0 * math.pi)
@@ -188,10 +193,16 @@ class ArmDriverNode(Node):
         # ------------------------------------------------------------------
         # Connect hardware
         # ------------------------------------------------------------------
-        if LEROBOT_AVAILABLE:
+        if open_hardware_bus(self.simulate, LEROBOT_AVAILABLE):
             self.connect_follower()
             if self.teleop_mode:
                 self.connect_leader()
+        elif self.simulate:
+            self.get_logger().info(
+                "simulate:=true — Feetech bus stays closed. "
+                "Joint states mirror commanded positions. "
+                "Joint clamps, command timeout, and e-stop still apply."
+            )
         else:
             self.get_logger().warn(
                 "lerobot not installed — running in simulation mode. "
