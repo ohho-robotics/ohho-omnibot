@@ -11,7 +11,7 @@ Unified 9-DOF action space: [arm(6), base_vx, base_vy, base_vz]
 
 Parameters
 ----------
-model_type           : str   — registry name: "smolvla" | "act" | "diffusion" | "openvla" | "serve"
+model_type           : str   — registry name: "smolvla" | "act" | "diffusion" | "openvla" | "serve" | "reference_linear" | "reference_mlp"
 checkpoint_path      : str   — HuggingFace hub ID or local path (``hf://…`` for Serve)
 serve_url            : str   — OhhO Serve base URL when model_type is "serve"
 serve_timeout_sec    : float — HTTP timeout for Serve /predict (default 0.5)
