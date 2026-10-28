@@ -77,6 +77,6 @@ Asking for a missing include point logs the path and the rest of the profile sti
 
 ## CI contract
 
-No Quest is in CI. `tests/vr_contract/virtual_headset.py` connects to rosbridge and does what the headset does: set `/control_mode` to `teleop`, publish `/ohho/heartbeat`, drive `/cmd_vel/teleop_raw` one metre forward, strafe, move three arm joints on `/arm/joint_commands/teleop_raw`, latch `/emergency_stop`, reset through `/ohho/estop_reset`, then stop the heartbeat. It asserts `/odom`, `/arm/joint_states`, and `/ohho/safety/state`.
+No Quest is in CI. `tests/vr_contract/virtual_headset.py` connects to rosbridge and does what the headset does: set `/control_mode` to `teleop`, publish `/ohho/heartbeat`, call `/ohho/estop_reset` to clear the startup latch, drive `/cmd_vel/teleop_raw` one metre forward, strafe, move three arm joints on `/arm/joint_commands/teleop_raw`, latch `/emergency_stop`, reset through `/ohho/estop_reset`, then stop the heartbeat. It asserts `/odom`, `/arm/joint_states`, and `/ohho/safety/state`.
 
 The `vr-contract` workflow runs that client against `sim_teleop.launch.py world:=flat arm:=true` (the safety gate and `sim_bridge_vr.yaml`) and starts `arm_joint_state_mirror` so `/arm/joint_states` follows `/arm/joint_commands/out`. It uploads the launch log plus an MCAP. Gazebo's `/cmd_vel` is fed from `/cmd_vel/out`. Pointing the bridge at `/cmd_vel` leaves the base still, so the job fails. `sim_vr.launch.py` stays the camera profile and does not start the gate.

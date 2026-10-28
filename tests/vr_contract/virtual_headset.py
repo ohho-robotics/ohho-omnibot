@@ -8,6 +8,8 @@ No headset and no robot. The Gazebo job launches sim_teleop.launch.py
 (the safety gate and the /cmd_vel/out bridge) and runs this file.
 Driving goes through /cmd_vel/teleop_raw, so the base moves only when
 the mux output /cmd_vel/out is what Gazebo consumes.
+teleop_safety starts latched, so this client calls /ohho/estop_reset
+before the first command.
 """
 
 from __future__ import annotations
@@ -345,10 +347,27 @@ async def _run(link, evidence):
     ):
         await link.subscribe(topic, type_name)
 
+    # Match scripted_vr_headset: the gate boots latched (reason startup)
+    # and a heartbeat does not arm it. Clear that latch before driving.
+    startup_reset = None
+    startup_error = "not called"
     ready_deadline = link.clock() + READY_TIMEOUT_S
     while link.clock() < ready_deadline:
         await _beat(link)
         await link.publish(MODE, {"data": "teleop"})
+        if startup_reset is None:
+            try:
+                response = await link.call_service(RESET, TRIGGER, {})
+            except ContractError as exc:
+                startup_error = str(exc)
+                await link.sleep(TICK_S)
+                continue
+            ok, message = service_ok(response)
+            if not ok:
+                startup_error = message or "refused"
+                await link.sleep(TICK_S)
+                continue
+            startup_reset = message
         await link.sleep(TICK_S)
         safety = safety_of(link.latest(SAFETY))
         joints = joint_positions(link.latest(JOINT_STATES))
@@ -364,13 +383,19 @@ async def _run(link, evidence):
             break
     else:
         safety = safety_of(link.latest(SAFETY))
+        evidence["startup_reset"] = startup_reset
         raise ContractError(
             "VR graph was not ready "
             f"odom={link.latest(ODOM) is not None} "
             f"joints={list(joint_positions(link.latest(JOINT_STATES)))} "
-            f"safety={safety} mode={(link.latest(MODE_ACTIVE) or {}).get('data')}"
+            f"safety={safety} mode={(link.latest(MODE_ACTIVE) or {}).get('data')} "
+            f"startup_reset={startup_reset!r} ({startup_error})"
         )
-    log(f"EVIDENCE vr_contract ready safety={safety_of(link.latest(SAFETY))}")
+    evidence["startup_reset"] = startup_reset
+    log(
+        "EVIDENCE vr_contract ready "
+        f"safety={safety_of(link.latest(SAFETY))} startup_reset={startup_reset}"
+    )
 
     start = pose_of(link.latest(ODOM))
     peak = 0.0

@@ -19,7 +19,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class World:
-    """Tiny stand-in for teleop_safety, the muxes, and the Gazebo bridge."""
+    """Tiny stand-in for teleop_safety, the muxes, and the Gazebo bridge.
+
+    The gate starts latched with reason ``startup``, matching teleop_safety.
+    """
 
     def __init__(self, gz_listens_to="/cmd_vel/out", arm_follows_mux=True, clear_latch_on_false=False):
         self.gz_listens_to = gz_listens_to
@@ -38,7 +41,8 @@ class World:
             "arm_wrist_roll": 0.0,
             "arm_gripper": 0.0,
         }
-        self.latched = False
+        self.latched = True
+        self.latch_reason = "startup"
         self.estop = False
         self.last_hb = None
         self.mode = "teleop"
@@ -52,11 +56,12 @@ class World:
         return (self.now - self.last_hb) < 0.3
 
     def safety(self):
-        reason = ""
         if self.latched:
-            reason = "estop"
+            reason = self.latch_reason
         elif self.last_hb is not None and (self.now - self.last_hb) >= 0.3:
             reason = "heartbeat_watchdog"
+        else:
+            reason = ""
         return {"armed": self.armed(), "latched": self.latched, "reason": reason}
 
     def on_publish(self, topic, msg):
@@ -71,10 +76,12 @@ class World:
             self.estop = bool(msg.get("data"))
             if self.estop:
                 self.latched = True
+                self.latch_reason = "estop"
                 self.vx = self.vy = 0.0
                 self.cmd_out = (0.0, 0.0)
             elif self.clear_latch_on_false:
                 self.latched = False
+                self.latch_reason = ""
             return
         if topic == headset.TELEOP_RAW:
             linear = msg.get("linear") or {}
@@ -169,6 +176,7 @@ class FakeLink:
                 "result": False,
             }
         self.world.latched = False
+        self.world.latch_reason = ""
         return {"values": {"success": True, "message": "e-stop reset"}, "result": True}
 
 
@@ -178,10 +186,13 @@ def _topics(world):
 
 def test_happy_path_drives_through_the_headset_topics():
     world = World()
+    assert world.latched is True
+    assert world.safety()["reason"] == "startup"
     link = FakeLink(world)
     evidence = asyncio.run(headset.execute(link))
 
     assert evidence["ok"] is True
+    assert evidence["startup_reset"] == "e-stop reset"
     assert evidence["forward_m"] >= headset.FORWARD_MIN_M
     assert abs(evidence["strafe_m"]) >= headset.STRAFE_MIN_M
     for name in headset.JOINTS:
@@ -200,7 +211,7 @@ def test_happy_path_drives_through_the_headset_topics():
     assert "/cmd_vel" not in topics
     assert "/cmd_vel/out" not in topics
     assert "/cmd_vel/teleop" not in topics
-    assert world.service_calls == [headset.RESET]
+    assert world.service_calls == [headset.RESET, headset.RESET]
     assert {headset.ODOM, headset.JOINT_STATES, headset.SAFETY, headset.CMD_OUT} <= set(
         link.subscriptions
     )
@@ -211,11 +222,15 @@ def test_happy_path_drives_through_the_headset_topics():
     assert True in estop_values
     assert False in estop_values
     assert estop_values.index(True) < estop_values.index(False)
-    service_at = topics.index(headset.RESET)
-    assert headset.ESTOP in topics[:service_at]
+    resets = [index for index, topic in enumerate(topics) if topic == headset.RESET]
+    assert len(resets) == 2
+    startup_at, release_at = resets
+    assert headset.ESTOP not in topics[:startup_at]
+    assert headset.TELEOP_RAW not in topics[:startup_at]
+    assert headset.ESTOP in topics[:release_at]
     assert any(
         topic == headset.ESTOP and msg.get("data") is False
-        for topic, msg, _stamp in world.events[:service_at]
+        for topic, msg, _stamp in world.events[:release_at]
     )
     last_heartbeat = max(
         index for index, topic in enumerate(topics) if topic == headset.HEARTBEAT
