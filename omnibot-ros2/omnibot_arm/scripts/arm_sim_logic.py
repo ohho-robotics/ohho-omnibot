@@ -13,8 +13,9 @@ from arm_safety import COMMAND_TIMEOUT_SEC
 from arm_safety import MAX_JOINT_DELTA_RAD
 from arm_safety import ArmSafety
 
-# Gazebo JointPositionController subscribes to each command topic.
-# JointStatePublisher publishes measured arm joints on FEEDBACK_TOPIC.
+# arm_sim_driver publishes each command topic. The ros2_control adapter
+# turns those samples into one trajectory and a gripper command.
+# Measured arm joints are republished on FEEDBACK_TOPIC.
 SIM_PREFIX = "/arm/sim"
 FEEDBACK_TOPIC = "/arm/sim/joint_states"
 

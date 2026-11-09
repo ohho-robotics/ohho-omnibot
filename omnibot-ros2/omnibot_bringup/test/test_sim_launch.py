@@ -22,13 +22,32 @@ import unittest
 
 import launch_testing
 import rclpy
+from control_msgs.action import FollowJointTrajectory
+from control_msgs.action import ParallelGripperCommand
 from geometry_msgs.msg import Twist
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Image, Imu, LaserScan
+from rclpy.action import ActionClient
+from sensor_msgs.msg import Image, Imu, JointState, LaserScan
+from trajectory_msgs.msg import JointTrajectoryPoint
+
+ARM_JOINTS = (
+    "arm_shoulder_pan",
+    "arm_shoulder_lift",
+    "arm_elbow_flex",
+    "arm_wrist_flex",
+    "arm_wrist_roll",
+)
+GRIPPER_JOINT = "arm_gripper"
+ACTIVE_CONTROLLERS = (
+    "joint_state_broadcaster",
+    "mecanum_drive_controller",
+    "arm_joint_trajectory_controller",
+    "gripper_controller",
+)
 
 
 def generate_test_description():
@@ -78,11 +97,23 @@ class TestSimSmoke(unittest.TestCase):
         cls.scan = []
         cls.imu = []
         cls.images = []
+        cls.joints = []
         cls.node.create_subscription(Odometry, "/odom", cls.odom.append, 10)
         cls.node.create_subscription(LaserScan, "/scan", cls.scan.append, 10)
         cls.node.create_subscription(Imu, "/imu", cls.imu.append, 10)
         cls.node.create_subscription(Image, "/camera/front/image_raw", cls.images.append, 10)
+        cls.node.create_subscription(JointState, "/joint_states", cls.joints.append, 10)
         cls.cmd = cls.node.create_publisher(Twist, "/cmd_vel", 10)
+        cls.arm = ActionClient(
+            cls.node,
+            FollowJointTrajectory,
+            "/arm_joint_trajectory_controller/follow_joint_trajectory",
+        )
+        cls.gripper = ActionClient(
+            cls.node,
+            ParallelGripperCommand,
+            "/gripper_controller/gripper_cmd",
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -155,8 +186,90 @@ class TestSimSmoke(unittest.TestCase):
         )
         self.assertGreaterEqual(dist, 0.2)
 
+    def _joint_position(self, name):
+        if not self.joints or name not in self.joints[-1].name:
+            return None
+        message = self.joints[-1]
+        return message.position[list(message.name).index(name)]
+
+    def _wait_for_positions(self, targets, timeout):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            rclpy.spin_once(self.node, timeout_sec=0.1)
+            if all(
+                (pos := self._joint_position(name)) is not None and abs(pos - goal) <= 0.08
+                for name, goal in targets.items()
+            ):
+                return True
+        return False
+
+    def _wait_controllers(self):
+        deadline = time.monotonic() + 60.0
+        last = ""
+        while time.monotonic() < deadline:
+            completed = subprocess.run(
+                ["ros2", "control", "list_controllers"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            last = completed.stdout + completed.stderr
+            if all(
+                any(name in line and "active" in line for line in last.splitlines())
+                for name in ACTIVE_CONTROLLERS
+            ):
+                _log("EVIDENCE controllers\n" + last)
+                return
+            time.sleep(2.0)
+        self.fail("controllers did not become active:\n" + last)
+
+    def _move_arm(self, positions):
+        self.assertTrue(self.arm.wait_for_server(timeout_sec=15.0))
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory.joint_names = list(ARM_JOINTS)
+        point = JointTrajectoryPoint()
+        point.positions = list(positions)
+        point.time_from_start.sec = 1
+        point.time_from_start.nanosec = 0
+        goal.trajectory.points = [point]
+        future = self.arm.send_goal_async(goal)
+        accepted_deadline = time.monotonic() + 10.0
+        while time.monotonic() < accepted_deadline and not future.done():
+            rclpy.spin_once(self.node, timeout_sec=0.1)
+        self.assertTrue(future.done() and future.result() is not None and future.result().accepted)
+        targets = dict(zip(ARM_JOINTS, positions))
+        self.assertTrue(
+            self._wait_for_positions(targets, 10.0),
+            f"arm did not reach {positions}",
+        )
+
+    def _move_gripper(self, position):
+        self.assertTrue(self.gripper.wait_for_server(timeout_sec=15.0))
+        goal = ParallelGripperCommand.Goal()
+        goal.command.name = [GRIPPER_JOINT]
+        goal.command.position = [position]
+        future = self.gripper.send_goal_async(goal)
+        accepted_deadline = time.monotonic() + 10.0
+        while time.monotonic() < accepted_deadline and not future.done():
+            rclpy.spin_once(self.node, timeout_sec=0.1)
+        self.assertTrue(future.done() and future.result() is not None and future.result().accepted)
+        self.assertTrue(
+            self._wait_for_positions({GRIPPER_JOINT: position}, 10.0),
+            f"gripper did not reach {position}",
+        )
+
     def test_arm_scripted_move_and_estop_hold(self):
-        """Scripted publisher: each joint reaches its target, e-stop holds."""
+        """Controllers, a trajectory, a gripper command, then the e-stop hold."""
+        self._wait_controllers()
+        for index in range(len(ARM_JOINTS)):
+            positions = [0.0] * len(ARM_JOINTS)
+            positions[index] = 0.30
+            self._move_arm(positions)
+        self._move_arm([0.0] * len(ARM_JOINTS))
+        self._move_gripper(0.40)
+        self._move_gripper(0.05)
+
         from ament_index_python.packages import get_package_prefix
 
         script = os.path.join(

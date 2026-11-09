@@ -21,6 +21,12 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_pytest REQUIRED)
+  find_package(launch_testing_ament_cmake REQUIRED)
+  # No Gazebo. ros2_control_node plus GenericSystem, same controllers.yaml.
+  add_launch_test(
+    test/test_mock_controllers.py
+    TIMEOUT 180
+  )
   ament_add_pytest_test(test_teleop_default
     test/test_teleop_default.py
     TIMEOUT 60
@@ -58,7 +64,6 @@ if(BUILD_TESTING)
   # OMNIBOT_SIM_SMOKE=1 before configure. The default colcon test job
   # does not, so it does not start Gazebo.
   if("$ENV{OMNIBOT_SIM_SMOKE}" STREQUAL "1")
-    find_package(launch_testing_ament_cmake REQUIRED)
     add_launch_test(
       test/test_sim_launch.py
       TIMEOUT 420
@@ -76,6 +81,12 @@ endif()
 
 install(PROGRAMS
   scripts/descriptor_node.py
+  scripts/ros2_control_adapter.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(FILES
+  scripts/ros2_control_adapter_logic.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -8,7 +8,11 @@
 
 Spawns omnibot_description (mecanum chassis) with a planar-move drive
 (gz-sim VelocityControl + OdometryPublisher on /cmd_vel and /odom), a 2D
-lidar, the front RGB camera, and the IMU. ros_gz_bridge bridges:
+lidar, the front RGB camera, and the IMU. use_sim:=true also loads
+gz_ros2_control and spawns the shared controllers.yaml. drive:=planar keeps
+VelocityControl for /cmd_vel so the bridge contract stays put; the mecanum
+controller is active on mock wheel interfaces and does not lock those
+wheels. ros_gz_bridge bridges:
 
     /cmd_vel  /odom  /scan  /imu  /camera/front/image_raw
     /camera/front/camera_info  /clock
@@ -34,7 +38,10 @@ bound to 127.0.0.1 so a browser on this machine can drive this stack.
 The sim-smoke test passes `rosbridge:=false` and does not start rosbridge.
 `arm:=true` (the default) starts arm_sim_driver, which consumes
 /arm/joint_commands/out, applies arm_safety, and publishes /arm/joint_states.
-This launch does not start foxglove, arm_cmd_mux, or the Feetech arm driver.
+ros2_control_adapter.py turns /arm/sim/<joint>/cmd_pos into one arm
+trajectory and a gripper command, and republishes the arm slice of
+/joint_states on /arm/sim/joint_states. This launch does not start
+foxglove, arm_cmd_mux, or the Feetech arm driver.
 
 `bridge_config` (default `sim_bridge.yaml`) is the ros_gz_bridge file in
 config/. `sim_teleop.launch.py` passes `sim_bridge_vr.yaml` so Gazebo
@@ -122,6 +129,24 @@ def _load_camera_support():
 _cameras = _load_camera_support()
 
 
+def _load_adapter_logic():
+    import importlib.util
+
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "scripts",
+        "ros2_control_adapter_logic.py",
+    )
+    spec = importlib.util.spec_from_file_location("omnibot_ros2_control_adapter_logic", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_adapter = _load_adapter_logic()
+
+
 def _world_path(bringup_share, world):
     known = {
         "flat": os.path.join(bringup_share, "worlds", "flat.sdf"),
@@ -174,6 +199,7 @@ def _launch_sim(context, *args, **kwargs):
                 "bridge_config must be a YAML file name in the bringup config directory"
             )
     bridge_config = os.path.join(bringup, "config", bridge_name)
+    controllers = os.path.join(bringup, "config", "controllers.yaml")
 
     robot_desc = ParameterValue(
         Command(
@@ -184,6 +210,9 @@ def _launch_sim(context, *args, **kwargs):
                 " lidar:=true",
                 " minimal_sensors:=true",
                 f" vr_cameras:={_cameras.xacro_flag(vr_on)}",
+                " use_sim:=true",
+                " use_mock:=false",
+                f" controllers_file:={controllers}",
             ]
         ),
         value_type=str,
@@ -387,6 +416,53 @@ def _launch_sim(context, *args, **kwargs):
                 )
             )
         )
+    planar = drive == "planar"
+    actions.append(
+        Node(
+            package="omnibot_bringup",
+            executable="ros2_control_adapter.py",
+            name="ros2_control_adapter",
+            output="screen",
+            parameters=[
+                {
+                    "command_source": "cmd_pos",
+                    "cmd_vel_topic": _adapter.cmd_vel_topic_for_bridge(bridge_name),
+                    "relay_odom": not planar,
+                    "publish_odom_tf": not planar,
+                    "publish_arm_feedback_topic": "/arm/sim/joint_states",
+                    "publish_arm_joint_states": False,
+                    "use_sim_time": True,
+                }
+            ],
+        )
+    )
+    # Spawner starts after the model create (period 2 s). Its own timeout
+    # is wall time; use_sim_time stays off here so a late /clock cannot
+    # freeze the wait.
+    actions.append(
+        TimerAction(
+            period=8.0,
+            actions=[
+                Node(
+                    package="controller_manager",
+                    executable="spawner",
+                    output="screen",
+                    arguments=[
+                        "joint_state_broadcaster",
+                        "mecanum_drive_controller",
+                        "arm_joint_trajectory_controller",
+                        "gripper_controller",
+                        "--controller-manager",
+                        "/controller_manager",
+                        "--controller-manager-timeout",
+                        "120",
+                        "--param-file",
+                        controllers,
+                    ],
+                )
+            ],
+        )
+    )
     return actions
 
 

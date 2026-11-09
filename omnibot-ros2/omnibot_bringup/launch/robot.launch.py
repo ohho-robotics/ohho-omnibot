@@ -3,21 +3,50 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration
+from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
 from omnibot_hybrid.optional_package import PackageAvailable
 
 
+def _legacy_base(ekf_on):
+    """Yahboom node only when ros2_control is off, so the port is opened once."""
+    ekf_test = "in" if ekf_on else "not in"
+    return IfCondition(
+        PythonExpression(
+            [
+                "'",
+                LaunchConfiguration("ros2_control"),
+                "'.lower() not in ('1', 'true', 'yes') and '",
+                LaunchConfiguration("ekf"),
+                f"'.lower() {ekf_test} ('1', 'true', 'yes')",
+            ]
+        )
+    )
+
+
 def generate_launch_description():
     pkg_desc = get_package_share_directory("omnibot_description")
     pkg_bringup = get_package_share_directory("omnibot_bringup")
+    pkg_arm = get_package_share_directory("omnibot_arm")
 
     xacro_file = os.path.join(pkg_desc, "urdf", "omnibot.urdf.xacro")
+    controllers_yaml = os.path.join(pkg_bringup, "config", "controllers.yaml")
+    arm_params = os.path.join(pkg_arm, "config", "arm_params.yaml")
     robot_description_config = ParameterValue(
-        Command(["xacro ", xacro_file]), value_type=str
+        Command(
+            [
+                "xacro ",
+                xacro_file,
+                " use_sim:=false",
+                " use_mock:=false",
+                " calibration_file:=",
+                LaunchConfiguration("calibration_file"),
+            ]
+        ),
+        value_type=str,
     )
 
     # ── Launch arguments ──────────────────────────────────────────────────────
@@ -69,6 +98,23 @@ def generate_launch_description():
         default_value="true",
         description="Publish the latched RobotDescriptor JSON on /ohho/descriptor",
     )
+    declare_ros2_control = DeclareLaunchArgument(
+        "ros2_control",
+        default_value="true",
+        description=(
+            "Start ros2_control_node, the shared controllers.yaml spawners, "
+            "and the command adapter. The Yahboom serial node stays off so "
+            "it does not open the base port. Set false for yahboom_controller_node."
+        ),
+    )
+    declare_calibration_file = DeclareLaunchArgument(
+        "calibration_file",
+        default_value="",
+        description=(
+            "OHH-94 SO-101 home-tick yaml passed to the hardware plugin. "
+            "Empty keeps the factory 2048 ticks."
+        ),
+    )
 
     use_rosbridge = LaunchConfiguration("use_rosbridge")
     use_foxglove = LaunchConfiguration("use_foxglove")
@@ -87,7 +133,7 @@ def generate_launch_description():
         executable="yahboom_controller_node.py",
         name="yahboom_driver",
         output="screen",
-        condition=IfCondition(use_ekf),
+        condition=_legacy_base(True),
         parameters=[
             {
                 "serial_port": "/dev/ttyUSB0",
@@ -106,7 +152,7 @@ def generate_launch_description():
         executable="yahboom_controller_node.py",
         name="yahboom_driver",
         output="screen",
-        condition=UnlessCondition(use_ekf),
+        condition=_legacy_base(False),
         parameters=[
             {
                 "serial_port": "/dev/ttyUSB0",
@@ -116,6 +162,67 @@ def generate_launch_description():
                 "wheel_radius": 0.04,
                 "publish_tf": True,  # driver broadcasts TF when EKF is off
                 "publish_diagnostics": True,  # Android app /diagnostics panel
+            }
+        ],
+    )
+
+    use_ros2_control = LaunchConfiguration("ros2_control")
+
+    ros2_control_node = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        name="controller_manager",
+        output="screen",
+        condition=IfCondition(use_ros2_control),
+        parameters=[
+            {"robot_description": robot_description_config},
+            controllers_yaml,
+            {"use_sim_time": False},
+        ],
+    )
+    ros2_control_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        output="screen",
+        condition=IfCondition(use_ros2_control),
+        arguments=[
+            "joint_state_broadcaster",
+            "mecanum_drive_controller",
+            "arm_joint_trajectory_controller",
+            "gripper_controller",
+            "--controller-manager",
+            "/controller_manager",
+            "--controller-manager-timeout",
+            "120",
+            "--param-file",
+            controllers_yaml,
+        ],
+    )
+    ros2_control_adapter = Node(
+        package="omnibot_bringup",
+        executable="ros2_control_adapter.py",
+        name="ros2_control_adapter",
+        output="screen",
+        condition=IfCondition(use_ros2_control),
+        parameters=[
+            {
+                "command_source": "joint_commands",
+                "cmd_vel_topic": "/cmd_vel/out",
+                "relay_odom": True,
+                "publish_odom_tf": ParameterValue(
+                    PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("ekf"),
+                            "'.lower() not in ('1', 'true', 'yes')",
+                        ]
+                    ),
+                    value_type=bool,
+                ),
+                "publish_arm_feedback_topic": "",
+                "publish_arm_joint_states": True,
+                "arm_params_file": arm_params,
+                "use_sim_time": False,
             }
         ],
     )
@@ -214,8 +321,13 @@ def generate_launch_description():
             declare_use_ota,
             declare_ota_manifest_url,
             declare_descriptor,
+            declare_ros2_control,
+            declare_calibration_file,
             driver_with_ekf,
             driver_without_ekf,
+            ros2_control_node,
+            ros2_control_spawner,
+            ros2_control_adapter,
             robot_state_publisher,
             ekf,
             rosbridge_node,

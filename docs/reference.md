@@ -47,9 +47,9 @@ ros2 launch omnibot_bringup sim.launch.py world:=flat
 
 `world:=apartment` loads a single room with a kitchen (counter, stove, fridge), a desk, and a door. A dynamic `grasp_cube` sits on the desk for dataset tasks. Launch file: [`omnibot-ros2/omnibot_bringup/launch/sim.launch.py`](../omnibot-ros2/omnibot_bringup/launch/sim.launch.py). The mecanum chassis is driven in the plane (`drive:=planar` by default; `drive:=mecanum` selects the MecanumDrive plugin). With `vr:=false` (the default, including sim-smoke) the sensors are a 2D lidar, a small front RGB camera, and the IMU.
 
-`arm:=true` (the default) starts [`arm_sim_driver_node`](../omnibot-ros2/omnibot_arm/scripts/arm_sim_driver_node.py). It reads [`arm_params.yaml`](../omnibot-ros2/omnibot_arm/config/arm_params.yaml) and applies `arm_safety.py` — the same joint limits, 0.15 rad per-command cap, 0.2 s command-timeout hold, and e-stop latch as the Feetech driver. Each arm joint, including `arm_gripper`, has a gz-sim `JointPositionController`. Measured joints are republished on `/arm/joint_states` with those URDF names. This launch does not start `arm_cmd_mux` or `arm_driver_node`, so command the arm on `/arm/joint_commands/out`. `/emergency_stop` true freezes the sim joints at the measured pose and rejects later commands until `/arm/enable` true while the stop is clear.
+`arm:=true` (the default) starts [`arm_sim_driver_node`](../omnibot-ros2/omnibot_arm/scripts/arm_sim_driver_node.py). It reads [`arm_params.yaml`](../omnibot-ros2/omnibot_arm/config/arm_params.yaml) and applies `arm_safety.py` — the same joint limits, 0.15 rad per-command cap, 0.2 s command-timeout hold, and e-stop latch as the Feetech driver. [`ros2_control_adapter.py`](../omnibot-ros2/omnibot_bringup/scripts/ros2_control_adapter.py) turns those `/arm/sim/<joint>/cmd_pos` samples into one arm trajectory and a gripper command, and republishes the arm slice of `/joint_states` on `/arm/sim/joint_states`. Measured joints are republished on `/arm/joint_states` with those URDF names. This launch does not start `arm_cmd_mux` or `arm_driver_node`, so command the arm on `/arm/joint_commands/out`. `/emergency_stop` true freezes the sim joints at the measured pose and rejects later commands until `/arm/enable` true while the stop is clear.
 
-`gz_ros2_control` is not used. The sim image already runs the gz-sim systems that ship with `ros_gz_sim`, including `JointPositionController` and `JointStatePublisher`. The URDF revolute stops stay the SO-101 calibration values and are not widened to the software limits.
+`drive:=planar` keeps gz-sim `VelocityControl` and `OdometryPublisher`, because the wheel collision is a cylinder and a wheel-velocity mecanum model already missed Nav2's map-frame timeout. In that mode the wheel command interfaces are `mock_components/GenericSystem`, so the mecanum controller can be active without locking the kinematic base. `drive:=mecanum` with `use_sim:=true` drops the gz `MecanumDrive` plugin and commands the wheel joints. The URDF revolute stops stay the SO-101 calibration values and are not widened to the software limits. `simulation.launch.py` does not pass `use_sim`, so it keeps the desktop gz drive plugins. The per-joint `JointPositionController` plugins are gone in every mode.
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -71,12 +71,57 @@ The VR profile is [`sim_vr.launch.py`](../omnibot-ros2/omnibot_bringup/launch/si
 | `/camera/front/image_raw` | `sensor_msgs/msg/Image` |
 | `/camera/front/camera_info` | `sensor_msgs/msg/CameraInfo` |
 | `/tf` (`odom` -> `base_footprint`, added for Nav2 and `slam_toolbox`) | `tf2_msgs/msg/TFMessage` |
-| `/arm/sim/joint_states` | `sensor_msgs/msg/JointState` (Gazebo arm joints) |
-| `/arm/sim/<joint>/cmd_pos` | `std_msgs/msg/Float64` (one topic per arm joint, ROS to Gazebo) |
+| `/arm/sim/joint_states` | `sensor_msgs/msg/JointState` (bridge entry kept; in `use_sim` the adapter publishes this from `/joint_states`) |
+| `/arm/sim/<joint>/cmd_pos` | `std_msgs/msg/Float64` (one topic per arm joint; the adapter subscribes, the gz side is idle) |
 
 ROS topics that are not bridged: `/arm/joint_commands/out` and `/arm/enable` and `/emergency_stop` go to `arm_sim_driver`, which publishes `/arm/joint_states`.
 
 Bridge config: [`omnibot-ros2/omnibot_bringup/config/sim_bridge.yaml`](../omnibot-ros2/omnibot_bringup/config/sim_bridge.yaml).
+
+## ros2_control
+
+Sim and the robot load the same [`controllers.yaml`](../omnibot-ros2/omnibot_bringup/config/controllers.yaml). `sim.launch.py` passes `use_sim:=true` and starts the manager inside `gz_ros2_control`. `robot.launch.py` (`ros2_control:=true`, the default) starts `controller_manager`'s `ros2_control_node` and does not start `yahboom_controller_node`, so the base serial port is opened once. `ros2_control:=false` is the previous Yahboom node. `robot_vr.launch.py` and `omnibot_pi.launch.py` still use the Python Yahboom and Feetech drivers.
+
+| Controller | Plugin | Command |
+|---|---|---|
+| `joint_state_broadcaster` | `joint_state_broadcaster/JointStateBroadcaster` | publishes `/joint_states` |
+| `mecanum_drive_controller` | `mecanum_drive_controller/MecanumDriveController` | `TwistStamped` on `/mecanum_drive_controller/reference` |
+| `arm_joint_trajectory_controller` | `joint_trajectory_controller/JointTrajectoryController` | `FollowJointTrajectory` for the five arm joints |
+| `gripper_controller` | `parallel_gripper_action_controller/GripperActionController` | `ParallelGripperCommand` on `/gripper_controller/gripper_cmd` |
+
+Humble's gripper plugin name was `position_controllers/GripperActionController`. This yaml uses the Jazzy name. The manager update rate is 50 Hz. `reference_timeout` is 0.5 s. `tf_frame_prefix_enable` is false and `base_frame_id` is `base_footprint`. `enable_odom_tf` is false because planar Gazebo and the robot EKF already publish `odom` → `base_footprint`. Wheel geometry is radius 0.04 m and `lx + ly = 0.19` (`wheel_separation_x` 0.165 and `wheel_separation_y` 0.215, each halved).
+
+The adapter keeps the old topics. It listens to `/cmd_vel` or `/cmd_vel/out` (the latter when the bridge file is `sim_bridge_mux.yaml` or `sim_bridge_vr.yaml`) and republishes a stamped twist. A twist older than 0.25 s, or `/emergency_stop` true, becomes zeros. On the robot it loads `arm_safety.py` and does not forward arm commands if that import fails.
+
+### Hardware interfaces
+
+| Joints | Command | State |
+|---|---|---|
+| `front_left_wheel_joint`, `front_right_wheel_joint`, `rear_left_wheel_joint`, `rear_right_wheel_joint` | velocity | position, velocity |
+| `arm_shoulder_pan`, `arm_shoulder_lift`, `arm_elbow_flex`, `arm_wrist_flex`, `arm_wrist_roll`, `arm_gripper` | position, limited to the URDF stops | position, velocity |
+
+`use_mock:=true` (the bringup launch test, no Gazebo) puts every joint on `mock_components/GenericSystem`. `use_sim:=true` with `drive:=planar` puts the arm on `gz_ros2_control/GazeboSimSystem` and the wheels on `GenericSystem`. Any other `use_sim` drive puts every joint on `GazeboSimSystem`. The gz plugin gain is `position_proportional_gain` 0.15 with `hold_joints` true.
+
+### `omnibot_hardware/OmniBotSystem`
+
+Plugin `omnibot_hardware/OmniBotSystem` (`hardware_interface::SystemInterface`). The base speaks the Yahboom frames in `yahboom-python-driver`: five `SET_CAR_TYPE` writes, then `FUNC_MOTION` body velocity. Wheel rad/s from the controller are converted with the same mecanum inverse kinematics the controller uses. There is no per-wheel encoder opcode. `TYPE_VELOCITY` is integrated into encoder-equivalent ticks (`encoder_ticks_per_revolution`, default 1440) and reported as wheel position. The arm speaks Feetech STS3215 protocol 0: `Torque_Enable` at address 40, `Goal_Position` at 42, `Present_Position` at 56, `Present_Speed` at 58. Tick conversion matches `arm_math.py`. `on_configure` opens the ports. `on_activate` reads the present positions and writes those goals before torque is enabled, so the first command is a hold. A failed read does not command tick 0. `on_deactivate` and `on_error` send a zero `FUNC_MOTION` and `Torque_Enable` 0. `/emergency_stop` true stops the base and drops arm torque. Clearing the stop does not re-enable torque. `/arm/enable` true re-enables it only while the stop is clear.
+
+| Parameter | Default |
+|---|---|
+| `base_port` | `/dev/ttyUSB0` |
+| `base_baud` | `115200` |
+| `wheel_radius` | `0.04` |
+| `wheel_separation_length` | `0.165` (full front-back; `lx` is half) |
+| `wheel_separation_width` | `0.215` (full left-right; `ly` is half) |
+| `encoder_ticks_per_revolution` | `1440` |
+| `arm_port` | `/dev/ttyACM0` |
+| `arm_baud` | `1000000` |
+| `servo_ids` | `1,2,3,4,5,6` |
+| `home_ticks` | `2048,2048,2048,2048,2048,2048` (factory half-turn, not this robot) |
+| `ticks_per_rev` | `4096` |
+| `calibration_file` | empty. An OHH-94 yaml replaces `home_ticks`. A `joints` list must agree with `home_ticks`. |
+
+`robot.launch.py` forwards `calibration_file:=`. The gtest covers framing, tick conversion, calibration mismatch, and a fake serial port. It does not open `/dev`.
 
 ### VR cameras (`vr:=true`)
 

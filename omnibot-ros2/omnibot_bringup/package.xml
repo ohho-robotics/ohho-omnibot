@@ -26,6 +26,22 @@
   <exec_depend>omnibot_arm</exec_depend>
   <exec_depend>omnibot_hybrid</exec_depend>
   <exec_depend>omnibot_rl</exec_depend>
+  <exec_depend>omnibot_hardware</exec_depend>
+
+  <!-- ros2_control. Same controllers.yaml in sim and on the robot. -->
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>mecanum_drive_controller</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+  <exec_depend>parallel_gripper_controller</exec_depend>
+  <exec_depend>gz_ros2_control</exec_depend>
+  <exec_depend>hardware_interface</exec_depend>
+  <exec_depend>mock_components</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>
@@ -35,6 +51,7 @@
   <test_depend>sensor_msgs</test_depend>
   <test_depend>std_msgs</test_depend>
   <test_depend>rcl_interfaces</test_depend>
+  <test_depend>ros2controlcli</test_depend>
 
   <!-- Digital twin extras (simulation.launch.py) -->
   <!-- /scan from Astra Pro depth (no physical lidar on OmniBot) -->
