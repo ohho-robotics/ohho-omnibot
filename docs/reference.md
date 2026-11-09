@@ -19,6 +19,20 @@ Detailed notes moved from the top-level README. Back to [README](../README.md).
 | Android controller | Robot | [omnibot-android/](../omnibot-android/). Building it needs the Android SDK and JDK 17 ([`build.gradle.kts`](../omnibot-android/build.gradle.kts)), which is separate from a desktop GPU. |
 | Quest teleop | Robot | [omnibot-vr/](../omnibot-vr/). Unity **6000.5.2f1** is pinned in [`ProjectSettings/ProjectVersion.txt`](../omnibot-vr/ProjectSettings/ProjectVersion.txt). |
 | ACT GPU fine-tune and 20-trial robot eval (OHH-52) | GPU and robot | [gpu-train-runbook.md](gpu-train-runbook.md) and [results.md](results.md). From the repo root: `python scripts/ohh52_act_train_dry_run.py`. Needs Varun: budget + robot. |
+| Optional perception, metrics, and OTA nodes | Separate packages, not in this repo | [Optional packages](#optional-packages-not-in-this-repository). A public `colcon` build skips each missing node with one warning. |
+
+
+## Optional packages not in this repository
+
+These nodes are referenced by the real-robot launches and are **off by default**. The package is not built from this tree. Launch checks the ament index, logs one warning that names the missing package, and does not start the node. Passing the flag without installing the package does not raise `PackageNotFoundError`.
+
+| Node | Package | Launch argument (default `false`) | What it needs |
+|---|---|---|---|
+| `object_perception_node` | `omnibot_perception` | `ai_perception` on [`perception.launch.py`](../omnibot-ros2/omnibot_bringup/launch/perception.launch.py) and [`master/omnibot_pi.launch.py`](../omnibot-ros2/omnibot_bringup/launch/master/omnibot_pi.launch.py). The Pi file documents `ai_perception:=false`. | Install `omnibot_perception`, then `ai_perception:=true`. The node uses the depth camera for object distance and pose. |
+| `metrics_bridge` (node name `ros2_prometheus_bridge`) | `omnibot_metrics` | `use_metrics` on [`robot.launch.py`](../omnibot-ros2/omnibot_bringup/launch/robot.launch.py). `metrics_port` defaults to `8888`. | Install `omnibot_metrics`, then `use_metrics:=true`. Prometheus job `omnibot_ros2_bridge` scrapes that port and stays down until the node is running. Nothing else is substituted for it. |
+| `ota_agent` (node name `ota_agent_node`) | `omnibot_ota` | `use_ota` on [`robot.launch.py`](../omnibot-ros2/omnibot_bringup/launch/robot.launch.py) and [`hybrid_robot.launch.py`](../omnibot-ros2/omnibot_hybrid/launch/hybrid_robot.launch.py). `ota_manifest_url` is the manifest location. | Install `omnibot_ota`, set `ota_manifest_url`, then `use_ota:=true`. |
+
+`astra_camera` (Orbbec Astra Pro) is also outside apt/rosdep. [`perception.launch.py`](../omnibot-ros2/omnibot_bringup/launch/perception.launch.py) and [`omnibot_pi.launch.py`](../omnibot-ros2/omnibot_bringup/launch/master/omnibot_pi.launch.py) keep `depth_camera:=true` and skip the driver with one warning when that package is missing. [`rtabmap.launch.py`](../omnibot-ros2/omnibot_navigation/launch/rtabmap.launch.py) documents the source build.
 
 
 ## Gazebo Harmonic simulation

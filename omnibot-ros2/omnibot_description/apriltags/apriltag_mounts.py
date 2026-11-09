@@ -71,7 +71,12 @@ MM_TO_PT = 72.0 / 25.4
 
 @dataclass(frozen=True)
 class Chassis:
-    """Literals copied from omnibot.urdf.xacro. Tests refuse a drift."""
+    """Numbers copied from omnibot.urdf.xacro. Tests refuse a drift.
+
+    arm_body and the waveshare sizes match the xacro properties of those
+    names. They are the AprilTag clearance envelope. Arm visuals are the
+    SO-101 STLs, not those boxes.
+    """
 
     length: float = 0.265
     width: float = 0.250

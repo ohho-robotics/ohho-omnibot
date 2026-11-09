@@ -152,6 +152,16 @@ ros2 launch omnibot_lerobot teleop_record.launch.py
 
 The Pi and the GPU workstation use one RMW, `rmw_cyclonedds_cpp`, and a Cyclone DDS profile with static peers. Domain id, peer addresses, firewall ports, WSL2, and the checks (`ros2 doctor --report`, `ros2 node list`, `ros2 topic hz`) are in [docs/network.md](docs/network.md).
 
+Three nodes stay off unless you opt in. Their packages are not in this repository. If the package is missing, launch logs one warning that names it and does not start the node.
+
+| Node | Package | How to enable | What it needs |
+|---|---|---|---|
+| `object_perception_node` | `omnibot_perception` | `ai_perception:=true` on [`perception.launch.py`](omnibot-ros2/omnibot_bringup/launch/perception.launch.py) and [`master/omnibot_pi.launch.py`](omnibot-ros2/omnibot_bringup/launch/master/omnibot_pi.launch.py) (default `false`) | The `omnibot_perception` package installed separately. It estimates object distance and pose from the depth camera. |
+| `metrics_bridge` (`ros2_prometheus_bridge`) | `omnibot_metrics` | `use_metrics:=true` on [`robot.launch.py`](omnibot-ros2/omnibot_bringup/launch/robot.launch.py) (default `false`). `metrics_port` defaults to `8888`. | The `omnibot_metrics` package installed separately. The Prometheus job `omnibot_ros2_bridge` scrapes that port only while this node is running. |
+| `ota_agent` (`ota_agent_node`) | `omnibot_ota` | `use_ota:=true` on [`robot.launch.py`](omnibot-ros2/omnibot_bringup/launch/robot.launch.py) and [`hybrid_robot.launch.py`](omnibot-ros2/omnibot_hybrid/launch/hybrid_robot.launch.py) (default `false`), plus `ota_manifest_url` | The `omnibot_ota` package installed separately, and a manifest URL. |
+
+`astra_camera` is not an apt package either. `perception.launch.py` and `omnibot_pi.launch.py` still default `depth_camera` to true, and skip that driver with one warning when the package is not installed. The Pi master launch documents `ai_perception:=false` as the default way to leave object perception off.
+
 ## Nav2 + slam_toolbox in Gazebo (OHH-30)
 
 Simulation only. The apartment world from `sim.launch.py` is mapped with `slam_toolbox`, the saved map is checked in, and Nav2 (DWB) drives the holonomic base to the named waypoints `kitchen`, `desk`, and `door`. Nothing here was run on the real robot.
