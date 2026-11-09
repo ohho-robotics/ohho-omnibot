@@ -39,6 +39,10 @@
   <!-- Digital twin extras (simulation.launch.py) -->
   <!-- /scan from Astra Pro depth (no physical lidar on OmniBot) -->
   <exec_depend>depthimage_to_laserscan</exec_depend>
+  <!-- USB cameras, Orbbec Gemini/Astra (apt), and the joint-state relay. -->
+  <exec_depend>usb_cam</exec_depend>
+  <exec_depend>orbbec_camera</exec_depend>
+  <exec_depend>topic_tools</exec_depend>
   <!-- Browser visualisation — ws://localhost:8765 -->
   <exec_depend>foxglove_bridge</exec_depend>
   <!-- Android app / web WebSocket bridge — ws://127.0.0.1:9090 -->

@@ -24,6 +24,16 @@ Skip web_video_server (save a little RAM when not needed):
 Run with local RViz (Pi has a screen):
     ros2 launch omnibot_bringup perception.launch.py rviz:=true
 
+Object perception is off by default. omnibot_perception is not in this
+repository. Launch logs one warning and skips object_perception_node
+until that package is installed:
+    ros2 launch omnibot_bringup perception.launch.py ai_perception:=true
+
+The Astra Pro driver (astra_camera) is not an apt package. depth_camera
+defaults to true, and a missing astra_camera package is skipped with one
+warning instead of failing the launch. Build ros2_astra_camera from source
+when the depth camera is required.
+
 View streams in browser (workstation):
     http://pi-ip:8080                                         — topic index
     http://pi-ip:8080/stream?topic=/camera/base/bev/image_raw — BEV (fused)
@@ -38,14 +48,12 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.conditions import IfCondition
-from launch.launch_description_sources import (
-    AnyLaunchDescriptionSource,
-)
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
+from omnibot_hybrid.optional_package import PackageAvailable, optional_include_launch
 
 
 def generate_launch_description():
@@ -85,9 +93,13 @@ def generate_launch_description():
     )
     declare_ai_perception = DeclareLaunchArgument(
         "ai_perception",
-        default_value="true",
-        description="Start object_perception_node (object distance + pose "
-        "estimation from depth camera; YOLO labels if ultralytics installed)",
+        default_value="false",
+        description=(
+            "Start object_perception_node from omnibot_perception. "
+            "Default false. That package is not in this repository; "
+            "if it is missing, launch logs one warning and skips the node. "
+            "Pass ai_perception:=true only after the package is installed."
+        ),
     )
 
     # Camera device paths — override for your hardware
@@ -224,14 +236,14 @@ def generate_launch_description():
     #   /camera/depth/camera_info
     #   /camera/depth/points         — PointCloud2
     # Udev rules must be installed: see infra/udev/99-obsensor-libusb.rules
-    astra_camera = IncludeLaunchDescription(
-        AnyLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("astra_camera"),
-                "launch",
-                "astra_pro.launch.xml",
-            )
-        ),
+    # astra_camera is not in rosdep. Look the share directory up only when
+    # the package is installed so a public checkout does not raise
+    # PackageNotFoundError while building this description.
+    astra_camera = optional_include_launch(
+        package="astra_camera",
+        relative_path=("launch", "astra_pro.launch.xml"),
+        when=LaunchConfiguration("depth_camera"),
+        warn_when_disabled=False,
         launch_arguments={
             "camera_name": "camera",
             "depth_registration": "true",
@@ -239,8 +251,7 @@ def generate_launch_description():
             "enable_colored_point_cloud": "false",
             "color_depth_synchronization": "false",
             "oni_log_level": "none",
-        }.items(),
-        condition=IfCondition(LaunchConfiguration("depth_camera")),
+        },
     )
 
     # ── 5. depth → /scan (required by SLAM toolbox) ───────────────────────────
@@ -331,7 +342,10 @@ def generate_launch_description():
         executable="object_perception_node",
         name="object_perception_node",
         output="screen",
-        condition=IfCondition(LaunchConfiguration("ai_perception")),
+        condition=PackageAvailable(
+            "omnibot_perception",
+            LaunchConfiguration("ai_perception"),
+        ),
     )
 
     return LaunchDescription(

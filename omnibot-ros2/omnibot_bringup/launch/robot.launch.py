@@ -8,6 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
+from omnibot_hybrid.optional_package import PackageAvailable
 
 
 def generate_launch_description():
@@ -38,7 +39,11 @@ def generate_launch_description():
     declare_use_metrics = DeclareLaunchArgument(
         "use_metrics",
         default_value="false",
-        description="Start Prometheus metrics bridge (port 8888) for Grafana observability",
+        description=(
+            "Start the Prometheus metrics bridge (port 8888) from omnibot_metrics. "
+            "Default false. That package is not in this repository; if it is "
+            "missing, launch logs one warning and skips the node."
+        ),
     )
     declare_metrics_port = DeclareLaunchArgument(
         "metrics_port",
@@ -48,7 +53,11 @@ def generate_launch_description():
     declare_use_ota = DeclareLaunchArgument(
         "use_ota",
         default_value="false",
-        description="Start OTA update agent (requires OTA_MANIFEST_URL in deployment.env)",
+        description=(
+            "Start the OTA update agent from omnibot_ota. Default false. "
+            "That package is not in this repository; if it is missing, launch "
+            "logs one warning and skips the node. Also set ota_manifest_url."
+        ),
     )
     declare_ota_manifest_url = DeclareLaunchArgument(
         "ota_manifest_url",
@@ -149,8 +158,9 @@ def generate_launch_description():
         condition=IfCondition(use_foxglove),
     )
 
-    # ── Prometheus metrics bridge — Grafana observability ─────────────────────
-    # Exposes /metrics on <metrics_port> for Prometheus to scrape.
+    # Prometheus metrics bridge. omnibot_metrics is not in this repository.
+    # Exposes /metrics on <metrics_port> when use_metrics:=true and the package
+    # is installed. A missing package logs one warning and skips the node.
     # Enable with: ros2 launch omnibot_bringup robot.launch.py use_metrics:=true
     metrics_bridge_node = Node(
         package="omnibot_metrics",
@@ -163,7 +173,7 @@ def generate_launch_description():
                 "machine_label": "raspberry_pi",
             }
         ],
-        condition=IfCondition(use_metrics),
+        condition=PackageAvailable("omnibot_metrics", use_metrics),
     )
 
     descriptor_node = Node(
@@ -182,7 +192,7 @@ def generate_launch_description():
         ],
     )
 
-    # ── OTA update agent ──────────────────────────────────────────────────────
+    # OTA update agent. omnibot_ota is not in this repository.
     # Polls manifest.json for updates; Android app calls /ota/* services.
     # Enable with: ros2 launch omnibot_bringup robot.launch.py use_ota:=true ota_manifest_url:=<URL>
     ota_agent_node = Node(
@@ -191,7 +201,7 @@ def generate_launch_description():
         name="ota_agent_node",
         output="screen",
         parameters=[{"manifest_url": ota_manifest_url}],
-        condition=IfCondition(use_ota),
+        condition=PackageAvailable("omnibot_ota", use_ota),
     )
 
     return LaunchDescription(
