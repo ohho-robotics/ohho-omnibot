@@ -59,6 +59,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
+from omnibot_hybrid.optional_package import PackageAvailable
 
 # RL inference nodes are included when use_rl:=true.
 # arm_driver reads /arm/joint_commands/out (routed via arm_cmd_mux)
@@ -429,7 +430,11 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "use_ota",
                 default_value="false",
-                description="Start OTA update agent — exposes /ota/* services for Android app",
+                description=(
+                    "Start the OTA update agent from omnibot_ota. Default false. "
+                    "That package is not in this repository; if it is missing, "
+                    "launch logs one warning and skips the node."
+                ),
             ),
             DeclareLaunchArgument(
                 "ota_manifest_url",
@@ -461,7 +466,7 @@ def generate_launch_description():
                 name="ota_agent_node",
                 output="screen",
                 parameters=[{"manifest_url": ota_manifest_url}],
-                condition=IfCondition(use_ota),
+                condition=PackageAvailable("omnibot_ota", use_ota),
             ),
         ]
     )

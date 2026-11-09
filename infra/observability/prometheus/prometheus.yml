@@ -22,9 +22,13 @@ scrape_configs:
     static_configs:
       - targets: ["host.docker.internal:8890"]
 
+  # Optional, and absent on a public checkout.
+  # omnibot_metrics is not part of this repository. robot.launch.py starts
+  # metrics_bridge only when use_metrics:=true (default false) and that package
+  # is installed. Until then nothing listens here. Do not point this job at
+  # another process.
   - job_name: "omnibot_ros2_bridge"
-    # HTTP endpoint exposed by omnibot_metrics / metrics_bridge (metrics_port:=8888)
-    # in omnibot-ros2/omnibot_bringup/launch/robot.launch.py
+    # metrics_bridge metrics_port:=8888. Down unless omnibot_metrics is installed.
     static_configs:
       - targets: ["host.docker.internal:8888"]
         labels:
