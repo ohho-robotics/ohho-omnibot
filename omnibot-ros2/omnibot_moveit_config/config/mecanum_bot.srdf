@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="mecanum_bot">
+  <!-- Arm-only planning. The mecanum base is a fixed virtual joint,
+       so the planning scene does not move the chassis. -->
+  <virtual_joint name="fixed_base" type="fixed" parent_frame="world" child_link="base_footprint"/>
+
+  <!-- Five revolute joints from the arm pedestal to the tool frame.
+       arm_gripper is the gripper group, not part of this chain. -->
+  <group name="arm">
+    <chain base_link="arm_base_link" tip_link="arm_gripper_frame_link"/>
+  </group>
+  <group name="gripper">
+    <joint name="arm_gripper"/>
+  </group>
+  <end_effector name="gripper_ee" parent_link="arm_gripper_frame_link" group="gripper" parent_group="arm"/>
+
+  <!-- home is the URDF zero pose. Factory STS3215 home ticks are 2048,
+       which the hardware plugin maps to 0 rad. -->
+  <group_state name="home" group="arm">
+    <joint name="arm_shoulder_pan" value="0"/>
+    <joint name="arm_shoulder_lift" value="0"/>
+    <joint name="arm_elbow_flex" value="0"/>
+    <joint name="arm_wrist_flex" value="0"/>
+    <joint name="arm_wrist_roll" value="0"/>
+  </group_state>
+  <group_state name="ready" group="arm">
+    <joint name="arm_shoulder_pan" value="0"/>
+    <joint name="arm_shoulder_lift" value="-0.5"/>
+    <joint name="arm_elbow_flex" value="0.9"/>
+    <joint name="arm_wrist_flex" value="0.6"/>
+    <joint name="arm_wrist_roll" value="0"/>
+  </group_state>
+  <group_state name="gripper_open" group="gripper">
+    <joint name="arm_gripper" value="0.8"/>
+  </group_state>
+  <group_state name="gripper_closed" group="gripper">
+    <joint name="arm_gripper" value="-0.1"/>
+  </group_state>
+
+  <!-- Adjacent: links joined by a joint (they overlap at the joint).
+       Default: volumes that touch in the zero pose (mounts, the wrist
+       camera body against the wrist link).
+       Never: chassis links with no relative motion. Wheel cylinders
+       spin about their axis and do not sweep into the chassis.
+       Moving arm links stay checked against the chassis and against
+       each other, except the pairs above. -->
+  <disable_collisions link1="apriltag_arm_base_link" link2="apriltag_front_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="apriltag_rear_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="arm_base_link" reason="Adjacent"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="base_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="depth_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="front_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="front_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="front_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_arm_base_link" link2="top_plate_link" reason="Default"/>
+  <disable_collisions link1="apriltag_front_link" link2="apriltag_rear_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="arm_base_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="base_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="depth_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="front_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="front_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="front_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_front_link" link2="top_plate_link" reason="Adjacent"/>
+  <disable_collisions link1="apriltag_rear_link" link2="arm_base_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="base_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="depth_camera_link" reason="Default"/>
+  <disable_collisions link1="apriltag_rear_link" link2="front_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="front_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="front_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="apriltag_rear_link" link2="top_plate_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_base_link" link2="arm_shoulder_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_base_link" link2="base_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="camera_link" reason="Default"/>
+  <disable_collisions link1="arm_base_link" link2="depth_camera_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="front_camera_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="front_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="front_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="top_plate_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_gripper_link" link2="arm_moving_jaw_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_gripper_link" link2="arm_wrist_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_gripper_link" link2="wrist_camera_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_lower_arm_link" link2="arm_upper_arm_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_lower_arm_link" link2="arm_wrist_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_shoulder_link" link2="arm_upper_arm_link" reason="Adjacent"/>
+  <disable_collisions link1="arm_wrist_link" link2="wrist_camera_link" reason="Default"/>
+  <disable_collisions link1="base_link" link2="camera_link" reason="Never"/>
+  <disable_collisions link1="base_link" link2="depth_camera_link" reason="Never"/>
+  <disable_collisions link1="base_link" link2="front_camera_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="front_left_wheel_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="front_right_wheel_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="imu_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="left_camera_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="rear_camera_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="rear_left_wheel_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="rear_right_wheel_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="right_camera_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="so_fl_a_standoff_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="so_fl_b_standoff_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="so_fr_a_standoff_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="so_fr_b_standoff_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="so_rl_a_standoff_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="so_rl_b_standoff_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="so_rr_a_standoff_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="so_rr_b_standoff_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="top_plate_link" reason="Adjacent"/>
+  <disable_collisions link1="camera_link" link2="depth_camera_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="front_camera_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="front_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="front_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="top_plate_link" reason="Adjacent"/>
+  <disable_collisions link1="depth_camera_link" link2="front_camera_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="front_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="front_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="depth_camera_link" link2="top_plate_link" reason="Adjacent"/>
+  <disable_collisions link1="front_camera_link" link2="front_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="front_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_camera_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="front_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="so_fl_a_standoff_link" reason="Default"/>
+  <disable_collisions link1="front_left_wheel_link" link2="so_fl_b_standoff_link" reason="Default"/>
+  <disable_collisions link1="front_left_wheel_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_left_wheel_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="imu_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="so_fr_a_standoff_link" reason="Default"/>
+  <disable_collisions link1="front_right_wheel_link" link2="so_fr_b_standoff_link" reason="Default"/>
+  <disable_collisions link1="front_right_wheel_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="front_right_wheel_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="left_camera_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="imu_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="rear_camera_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="left_camera_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="rear_left_wheel_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_camera_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="rear_right_wheel_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="so_rl_a_standoff_link" reason="Default"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="so_rl_b_standoff_link" reason="Default"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_left_wheel_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="right_camera_link" reason="Never"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="so_rr_a_standoff_link" reason="Default"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="so_rr_b_standoff_link" reason="Default"/>
+  <disable_collisions link1="rear_right_wheel_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="so_fl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="right_camera_link" link2="top_plate_link" reason="Never"/>
+  <disable_collisions link1="so_fl_a_standoff_link" link2="so_fl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_a_standoff_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_a_standoff_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_a_standoff_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_a_standoff_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_a_standoff_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_a_standoff_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_a_standoff_link" link2="top_plate_link" reason="Default"/>
+  <disable_collisions link1="so_fl_b_standoff_link" link2="so_fr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_b_standoff_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_b_standoff_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_b_standoff_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_b_standoff_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_b_standoff_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fl_b_standoff_link" link2="top_plate_link" reason="Default"/>
+  <disable_collisions link1="so_fr_a_standoff_link" link2="so_fr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_a_standoff_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_a_standoff_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_a_standoff_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_a_standoff_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_a_standoff_link" link2="top_plate_link" reason="Default"/>
+  <disable_collisions link1="so_fr_b_standoff_link" link2="so_rl_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_b_standoff_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_b_standoff_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_b_standoff_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_fr_b_standoff_link" link2="top_plate_link" reason="Default"/>
+  <disable_collisions link1="so_rl_a_standoff_link" link2="so_rl_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_rl_a_standoff_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_rl_a_standoff_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_rl_a_standoff_link" link2="top_plate_link" reason="Default"/>
+  <disable_collisions link1="so_rl_b_standoff_link" link2="so_rr_a_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_rl_b_standoff_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_rl_b_standoff_link" link2="top_plate_link" reason="Default"/>
+  <disable_collisions link1="so_rr_a_standoff_link" link2="so_rr_b_standoff_link" reason="Never"/>
+  <disable_collisions link1="so_rr_a_standoff_link" link2="top_plate_link" reason="Default"/>
+  <disable_collisions link1="so_rr_b_standoff_link" link2="top_plate_link" reason="Default"/>
+</robot>
