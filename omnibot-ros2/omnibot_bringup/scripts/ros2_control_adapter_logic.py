@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Pure helpers for the ros2_control topic adapter. No rclpy."""
 
+import re
+
 ARM_JOINTS = (
     "arm_shoulder_pan",
     "arm_shoulder_lift",
@@ -17,6 +19,28 @@ TRAJECTORY_SEC = 0.2
 TWIST_TIMEOUT_SEC = 0.25
 
 MUX_BRIDGE_NAMES = ("sim_bridge_mux.yaml", "sim_bridge_vr.yaml")
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_CONTROLLER_STATES = {"unconfigured", "inactive", "active", "finalized", "configured"}
+
+
+def controller_listing_active(text, names):
+    """True when each controller's state token is exactly ``active``.
+
+    ``ros2 control list_controllers`` prints either ``name[type] state`` or
+    ``name type state``, sometimes with ANSI color. ``inactive`` contains
+    the substring ``active``, so a line search is wrong.
+    """
+    found = {}
+    for line in _ANSI.sub("", text).splitlines():
+        stripped = line.strip()
+        parts = stripped.split()
+        if len(parts) < 2 or parts[-1] not in _CONTROLLER_STATES:
+            continue
+        name = stripped.split("[", 1)[0].strip() if "[" in stripped else parts[0]
+        found[name] = parts[-1]
+    return all(found.get(name) == "active" for name in names)
 
 
 def cmd_vel_topic_for_bridge(bridge_name):

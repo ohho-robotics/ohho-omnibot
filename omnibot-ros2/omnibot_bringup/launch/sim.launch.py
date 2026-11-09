@@ -11,8 +11,9 @@ Spawns omnibot_description (mecanum chassis) with a planar-move drive
 lidar, the front RGB camera, and the IMU. use_sim:=true also loads
 gz_ros2_control and spawns the shared controllers.yaml. drive:=planar keeps
 VelocityControl for /cmd_vel so the bridge contract stays put; the mecanum
-controller is active on PlanarWheelMock, which does not write wheel joint
-commands. ros_gz_bridge bridges:
+controller is active on PlanarWheelMock, which does not write a non-zero
+wheel velocity and brakes a claimed zero, then drops the brake when
+the command is non-zero. ros_gz_bridge bridges:
 
     /cmd_vel  /odom  /scan  /imu  /camera/front/image_raw
     /camera/front/camera_info  /clock

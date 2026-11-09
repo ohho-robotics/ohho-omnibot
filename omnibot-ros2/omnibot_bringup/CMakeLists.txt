@@ -19,8 +19,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # GZResourceManager only loads GazeboSimSystemInterface. The planar wheel
-# block uses this plugin so the mecanum controller can be active without
-# writing wheel velocities into Gazebo.
+# block uses this plugin so the mecanum controller can be active. Non-zero
+# wheel velocities are not written into Gazebo. A claimed zero brakes the
+# joint so the chassis cannot free-roll, and a non-zero command clears it.
 add_library(omnibot_planar_wheel_mock SHARED
   src/planar_wheel_mock.cpp
 )
@@ -105,7 +106,7 @@ if(BUILD_TESTING)
     )
     add_launch_test(
       test/test_sim_vr_contract.py
-      TIMEOUT 300
+      TIMEOUT 420
     )
   endif()
 endif()

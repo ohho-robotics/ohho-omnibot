@@ -51,6 +51,19 @@ def _xacro_text():
 def test_source_has_ros2_control_and_no_transmission():
     text = _xacro_text()
     assert "<transmission" not in text
+    assert text.count('<dynamics damping="4.0" friction="0.5"/>') == 6
+    assert text.count("<turnGravityOff>true</turnGravityOff>") == 7
+    assert "<gravity>" not in text
+    for link in (
+        "arm_base_link",
+        "arm_shoulder_link",
+        "arm_upper_arm_link",
+        "arm_lower_arm_link",
+        "arm_wrist_link",
+        "arm_gripper_link",
+        "arm_moving_jaw_link",
+    ):
+        assert f'reference="{link}"' in text
     assert 'name="use_sim"' in text
     assert 'name="use_mock"' in text
     assert 'name="controllers_file"' in text
@@ -192,6 +205,22 @@ def test_ros2_control_adapter_is_executable():
 
 def test_adapter_waits_for_arm_joints_and_times_out_twists():
     logic = _logic()
+    names = ("joint_state_broadcaster", "mecanum_drive_controller")
+    assert logic.controller_listing_active(
+        "joint_state_broadcaster joint_state_broadcaster/JointStateBroadcaster active\n"
+        "mecanum_drive_controller mecanum_drive_controller/MecanumDriveController active\n",
+        names,
+    )
+    assert logic.controller_listing_active(
+        "joint_state_broadcaster[joint_state_broadcaster/JointStateBroadcaster] \x1b[32mactive\x1b[0m\n"
+        "mecanum_drive_controller[mecanum_drive_controller/MecanumDriveController] active\n",
+        names,
+    )
+    assert not logic.controller_listing_active(
+        "joint_state_broadcaster joint_state_broadcaster/JointStateBroadcaster inactive\n"
+        "mecanum_drive_controller mecanum_drive_controller/MecanumDriveController active\n",
+        names,
+    )
     assert logic.cmd_vel_topic_for_bridge("sim_bridge.yaml") == "/cmd_vel"
     assert logic.cmd_vel_topic_for_bridge("sim_bridge_vr.yaml") == "/cmd_vel/out"
     assert logic.cmd_vel_topic_for_bridge("sim_bridge_mux.yaml") == "/cmd_vel/out"

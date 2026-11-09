@@ -6,8 +6,9 @@
        use_sim with drive:=planar puts the arm on GazeboSimSystem and the
        wheels on omnibot_bringup/PlanarWheelMock. That plugin is a
        GazeboSimSystemInterface, which is the only type the gz resource
-       manager can load, and it does not write joint commands, so
-       VelocityControl is not locked. use_sim with any other drive puts
+       manager can load. It does not write a non-zero wheel velocity, so
+       VelocityControl is not locked, and it brakes a claimed zero so the
+       wheels cannot free-roll. A non-zero command removes that brake. use_sim with any other drive puts
        every joint on GazeboSimSystem. Otherwise this is the robot plugin. -->
 
   <xacro:macro name="wheel_control_joint" params="name">
