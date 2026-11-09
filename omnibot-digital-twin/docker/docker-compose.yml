@@ -22,6 +22,11 @@ x-ros-base: &ros-base
   network_mode: host
   environment:
     - ROS_DOMAIN_ID=30
+    - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    - CYCLONEDDS_URI=file:///workspaces/OmniBot/omnibot-ros2/omnibot_bringup/config/dds/cyclonedds.xml
+    - OMNIBOT_PI_IP=${OMNIBOT_PI_IP:-192.0.2.10}
+    - OMNIBOT_WS_IP=${OMNIBOT_WS_IP:-192.0.2.20}
+    - OMNIBOT_WORKSTATION_IP=${OMNIBOT_WORKSTATION_IP:-192.0.2.20}
     - LIBGL_ALWAYS_SOFTWARE=1
     - GALLIUM_DRIVER=llvmpipe
     - MESA_GL_VERSION_OVERRIDE=3.3

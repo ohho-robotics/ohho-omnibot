@@ -35,6 +35,11 @@ What this starts (in order):
   │  rosbridge_websocket     ws://pi-ip:9090  (Android app)                   │
   └─────────────────────────────────────────────────────────────────────────┘
 
+DDS (same RMW on the Pi, the workstation, and the sim containers):
+    source omnibot-ros2/omnibot_bringup/config/ros_domain.env
+    rmw_cyclonedds_cpp and the static-peer profile. See docs/network.md.
+    This launch sets that environment on every child process.
+
 Usage:
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py
 
@@ -66,6 +71,7 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    SetEnvironmentVariable,
     TimerAction,
 )
 from launch.conditions import IfCondition
@@ -76,6 +82,19 @@ from launch.launch_description_sources import (
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
+
+
+def _cell_dds_actions():
+    """Pi nodes inherit the cell RMW and cyclonedds.xml."""
+    import importlib.util
+
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dds_env.py")
+    spec = importlib.util.spec_from_file_location("omnibot_dds_env", helper)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"missing DDS helper: {helper}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.environment_actions(SetEnvironmentVariable)
 
 
 def generate_launch_description():
@@ -498,6 +517,7 @@ def generate_launch_description():
     # ── Assemble ──────────────────────────────────────────────────────────────
     return LaunchDescription(
         [
+            *_cell_dds_actions(),
             # Arguments
             declare_depth_camera,
             declare_slam,

@@ -150,6 +150,8 @@ ros2 launch omnibot_arm arm.launch.py
 ros2 launch omnibot_lerobot teleop_record.launch.py
 ```
 
+The Pi and the GPU workstation use one RMW, `rmw_cyclonedds_cpp`, and a Cyclone DDS profile with static peers. Domain id, peer addresses, firewall ports, WSL2, and the checks (`ros2 doctor --report`, `ros2 node list`, `ros2 topic hz`) are in [docs/network.md](docs/network.md).
+
 ## Nav2 + slam_toolbox in Gazebo (OHH-30)
 
 Simulation only. The apartment world from `sim.launch.py` is mapped with `slam_toolbox`, the saved map is checked in, and Nav2 (DWB) drives the holonomic base to the named waypoints `kitchen`, `desk`, and `door`. Nothing here was run on the real robot.
@@ -302,7 +304,7 @@ flowchart LR
   AD --> LR
 ```
 
-Details: control-mode gating in [docs/reference.md](docs/reference.md#bring-up-control-mode), arm and policy safety in [docs/safety.md](docs/safety.md), and the model adapter interface in [docs/model-adapter.md](docs/model-adapter.md). October pick-and-place fill-in: [docs/october-task.md](docs/october-task.md).
+Details: control-mode gating in [docs/reference.md](docs/reference.md#bring-up-control-mode), arm and policy safety in [docs/safety.md](docs/safety.md), the model adapter interface in [docs/model-adapter.md](docs/model-adapter.md), and Pi/workstation DDS in [docs/network.md](docs/network.md). October pick-and-place fill-in: [docs/october-task.md](docs/october-task.md).
 
 ## Observability (1 robot)
 

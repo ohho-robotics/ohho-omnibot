@@ -44,6 +44,11 @@ services:
               capabilities: [gpu]
     environment:
       ROS_DOMAIN_ID: "30"
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: file:///workspaces/OmniBot/omnibot-ros2/omnibot_bringup/config/dds/cyclonedds.xml
+      OMNIBOT_PI_IP: "${OMNIBOT_PI_IP:-192.0.2.10}"
+      OMNIBOT_WS_IP: "${OMNIBOT_WS_IP:-192.0.2.20}"
+      OMNIBOT_WORKSTATION_IP: "${OMNIBOT_WORKSTATION_IP:-192.0.2.20}"
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: graphics,utility,compute
       LIBGL_ALWAYS_SOFTWARE: "0"
