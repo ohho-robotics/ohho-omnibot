@@ -8,7 +8,7 @@
        GazeboSimSystemInterface, which is the only type the gz resource
        manager can load. It does not write a non-zero wheel velocity, so
        VelocityControl is not locked, and it brakes a claimed zero so the
-       wheels cannot free-roll. A non-zero command removes that brake. use_sim with any other drive puts
+       wheels cannot free-roll. A non-zero command clears that brake with a zero joint force, because a Harmonic velocity command latches a DART servo. use_sim with any other drive puts
        every joint on GazeboSimSystem. Otherwise this is the robot plugin. -->
 
   <xacro:macro name="wheel_control_joint" params="name">

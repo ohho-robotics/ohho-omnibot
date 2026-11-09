@@ -147,10 +147,18 @@ class TestSimVrContract(unittest.TestCase):
         cls.node.destroy_node()
         rclpy.shutdown()
 
+    def _spin_once(self, timeout_sec):
+        # /odom arrives much faster than this loop. spin_once runs a single
+        # callback, so a burst of odometry hides /cmd_vel/out and a real
+        # command is measured as 0. Drain what is already ready.
+        rclpy.spin_once(self.node, timeout_sec=timeout_sec)
+        for _ in range(30):
+            rclpy.spin_once(self.node, timeout_sec=0.0)
+
     def _spin_until(self, seconds, ready):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
             if ready():
                 return True
         return False
@@ -182,13 +190,13 @@ class TestSimVrContract(unittest.TestCase):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             tick()
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
 
     def _until_tick(self, seconds, tick, ready):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             tick()
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
             if ready():
                 return True
         return False
@@ -326,7 +334,7 @@ class TestSimVrContract(unittest.TestCase):
         deadline = time.monotonic() + 20.0
         while time.monotonic() < deadline:
             self.teleop.publish(drive)
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
             if self._dist(start) >= 0.2:
                 moved = True
                 break
@@ -367,7 +375,7 @@ class TestSimVrContract(unittest.TestCase):
         deadline = time.monotonic() + 20.0
         while time.monotonic() < deadline:
             self.nav.publish(nav_only)
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
             if self._dist(start) >= 0.1:
                 moved_nav = True
                 break
