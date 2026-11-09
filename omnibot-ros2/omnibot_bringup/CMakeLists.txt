@@ -8,6 +8,37 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
+find_package(hardware_interface REQUIRED)
+find_package(pluginlib REQUIRED)
+find_package(gz_ros2_control REQUIRED)
+find_package(gz_sim_vendor REQUIRED)
+find_package(gz-sim REQUIRED)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# GZResourceManager only loads GazeboSimSystemInterface. The planar wheel
+# block uses this plugin so the mecanum controller can be active without
+# writing wheel velocities into Gazebo.
+add_library(omnibot_planar_wheel_mock SHARED
+  src/planar_wheel_mock.cpp
+)
+target_link_libraries(omnibot_planar_wheel_mock gz-sim::gz-sim)
+ament_target_dependencies(omnibot_planar_wheel_mock
+  rclcpp
+  rclcpp_lifecycle
+  hardware_interface
+  pluginlib
+  gz_ros2_control
+)
+pluginlib_export_plugin_description_file(gz_ros2_control omnibot_planar_wheel_mock.xml)
+
+install(TARGETS omnibot_planar_wheel_mock
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

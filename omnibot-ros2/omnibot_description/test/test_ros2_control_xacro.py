@@ -27,6 +27,7 @@ PLUGINS = (
     "omnibot_hardware/OmniBotSystem",
     "gz_ros2_control/GazeboSimSystem",
     "mock_components/GenericSystem",
+    "omnibot_bringup/PlanarWheelMock",
 )
 CONTROLLER_TYPES = (
     "joint_state_broadcaster/JointStateBroadcaster",
@@ -134,6 +135,8 @@ def test_xacro_expands_sim_robot_and_mock_when_available():
     assert 'name="OmniBotArmSim"' in planar
     assert 'name="OmniBotWheelMock"' in planar
     assert 'name="OmniBotGazebo"' not in planar
+    assert "<plugin>omnibot_bringup/PlanarWheelMock</plugin>" in planar
+    assert "<plugin>mock_components/GenericSystem</plugin>" not in planar
     assert "gz-sim-velocity-control-system" in planar
     mecanum = expand(
         ["use_sim:=true", "use_mock:=false", "drive:=mecanum",
@@ -152,6 +155,39 @@ def test_xacro_expands_sim_robot_and_mock_when_available():
     assert 'name="OmniBotMock"' in mock
     assert "omnibot_hardware/OmniBotSystem" not in mock
     assert 'name="OmniBotSystem"' not in mock
+    assert "<plugin>mock_components/GenericSystem</plugin>" in mock
+    assert "<plugin>omnibot_bringup/PlanarWheelMock</plugin>" not in mock
+
+
+def test_controller_manager_reads_robot_description_topic():
+    robot = ROBOT_LAUNCH.read_text(encoding="utf-8")
+    sim = SIM_LAUNCH.read_text(encoding="utf-8")
+    mock = (
+        REPO / "omnibot-ros2" / "omnibot_bringup" / "test" / "test_mock_controllers.py"
+    ).read_text(encoding="utf-8")
+    for text in (robot, sim, mock):
+        assert 'package="robot_state_publisher"' in text
+        assert 'executable="robot_state_publisher"' in text
+    assert robot.count('{"robot_description": robot_description_config}') == 1
+    assert '{"robot_description": robot_description}' not in mock
+    assert '"robot_description": robot_description' in mock
+
+
+def test_ros2_control_adapter_is_executable():
+    # colcon --symlink-install keeps this mode. launch's which() skips a
+    # non-executable file and reports it missing from libexec.
+    listed = subprocess.check_output(
+        [
+            "git",
+            "ls-files",
+            "-s",
+            "--",
+            "omnibot-ros2/omnibot_bringup/scripts/ros2_control_adapter.py",
+        ],
+        cwd=REPO,
+        text=True,
+    )
+    assert listed.startswith("100755")
 
 
 def test_adapter_waits_for_arm_joints_and_times_out_twists():

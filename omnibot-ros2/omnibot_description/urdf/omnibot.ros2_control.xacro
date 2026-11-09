@@ -4,8 +4,10 @@
        Command limits copy the URDF revolute stops. Do not widen them.
        use_mock wins: GenericSystem, no serial port and no Gazebo hardware.
        use_sim with drive:=planar puts the arm on GazeboSimSystem and the
-       wheels on GenericSystem, so a kinematic VelocityControl base is not
-       locked by wheel-velocity commands. use_sim with any other drive puts
+       wheels on omnibot_bringup/PlanarWheelMock. That plugin is a
+       GazeboSimSystemInterface, which is the only type the gz resource
+       manager can load, and it does not write joint commands, so
+       VelocityControl is not locked. use_sim with any other drive puts
        every joint on GazeboSimSystem. Otherwise this is the robot plugin. -->
 
   <xacro:macro name="wheel_control_joint" params="name">
@@ -88,7 +90,7 @@
         </ros2_control>
         <ros2_control name="OmniBotWheelMock" type="system">
           <hardware>
-            <plugin>mock_components/GenericSystem</plugin>
+            <plugin>omnibot_bringup/PlanarWheelMock</plugin>
           </hardware>
           <xacro:omnibot_wheel_interfaces/>
         </ros2_control>
