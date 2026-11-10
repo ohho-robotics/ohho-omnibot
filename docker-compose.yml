@@ -26,8 +26,10 @@ x-ros-base: &ros-base
     - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
     - CYCLONEDDS_URI=file:///workspaces/OmniBot/omnibot-ros2/omnibot_bringup/config/dds/cyclonedds.xml
     - OMNIBOT_PI_IP=${OMNIBOT_PI_IP:-192.0.2.10}
-    - OMNIBOT_WS_IP=${OMNIBOT_WS_IP:-192.0.2.20}
-    - OMNIBOT_WORKSTATION_IP=${OMNIBOT_WORKSTATION_IP:-192.0.2.20}
+    # One workstation address. XML reads OMNIBOT_WS_IP. The documented
+    # name wins when set; TEST-NET is only the fallback.
+    - OMNIBOT_WS_IP=${OMNIBOT_WORKSTATION_IP:-${OMNIBOT_WS_IP:-192.0.2.20}}
+    - OMNIBOT_WORKSTATION_IP=${OMNIBOT_WORKSTATION_IP:-${OMNIBOT_WS_IP:-192.0.2.20}}
     - LIBGL_ALWAYS_SOFTWARE=1
     - GALLIUM_DRIVER=llvmpipe
     - MESA_GL_VERSION_OVERRIDE=3.3
@@ -94,8 +96,8 @@ services:
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=file:///workspaces/OmniBot/omnibot-ros2/omnibot_bringup/config/dds/cyclonedds.xml
       - OMNIBOT_PI_IP=${OMNIBOT_PI_IP:-192.0.2.10}
-      - OMNIBOT_WS_IP=${OMNIBOT_WS_IP:-192.0.2.20}
-      - OMNIBOT_WORKSTATION_IP=${OMNIBOT_WORKSTATION_IP:-192.0.2.20}
+      - OMNIBOT_WS_IP=${OMNIBOT_WORKSTATION_IP:-${OMNIBOT_WS_IP:-192.0.2.20}}
+      - OMNIBOT_WORKSTATION_IP=${OMNIBOT_WORKSTATION_IP:-${OMNIBOT_WS_IP:-192.0.2.20}}
       - OMNIBOT_URL=http://localhost:${OMNIBOT_PORT:-6080}
       - OMNIBOT_VNC_PASSWORD=${OMNIBOT_VNC_PASSWORD:-}
       - OMNIBOT_WORLD=${OMNIBOT_WORLD:-flat}

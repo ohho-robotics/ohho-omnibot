@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import shutil
 import subprocess
@@ -108,6 +109,7 @@ def test_dds_environment_defaults(monkeypatch: pytest.MonkeyPatch):
     assert env["ROS_DOMAIN_ID"] == "30"
     assert env["OMNIBOT_PI_IP"] == "192.0.2.10"
     assert env["OMNIBOT_WS_IP"] == "192.0.2.20"
+    assert env["OMNIBOT_WORKSTATION_IP"] == "192.0.2.20"
     assert env["ROS_STATIC_PEERS"] == "192.0.2.10;192.0.2.20"
     assert env["CYCLONEDDS_URI"].startswith("file://")
     assert env["CYCLONEDDS_URI"].endswith("/cyclonedds.xml")
@@ -126,7 +128,25 @@ def test_dds_environment_keeps_explicit_overrides(monkeypatch: pytest.MonkeyPatc
     assert env["ROS_DOMAIN_ID"] == "7"
     assert env["OMNIBOT_PI_IP"] == "192.0.2.50"
     assert env["OMNIBOT_WS_IP"] == "192.0.2.60"
+    assert env["OMNIBOT_WORKSTATION_IP"] == "192.0.2.60"
     assert env["CYCLONEDDS_URI"] == "file:///tmp/omnibot-cyclonedds.xml"
+
+
+def test_dds_environment_unifies_workstation_aliases(monkeypatch: pytest.MonkeyPatch):
+    module = _load_dds_env()
+    _clear_dds_env(monkeypatch)
+    monkeypatch.setenv("OMNIBOT_WS_IP", "192.0.2.70")
+    env = module.dds_environment()
+    assert env["OMNIBOT_WS_IP"] == "192.0.2.70"
+    assert env["OMNIBOT_WORKSTATION_IP"] == "192.0.2.70"
+    assert env["ROS_STATIC_PEERS"] == "192.0.2.10;192.0.2.70"
+
+    # Documented name wins when both are set, including over a TEST-NET alias.
+    monkeypatch.setenv("OMNIBOT_WORKSTATION_IP", "192.0.2.60")
+    env = module.dds_environment()
+    assert env["OMNIBOT_WS_IP"] == "192.0.2.60"
+    assert env["OMNIBOT_WORKSTATION_IP"] == "192.0.2.60"
+    assert env["ROS_STATIC_PEERS"] == "192.0.2.10;192.0.2.60"
 
 
 def test_master_launches_apply_the_dds_environment():
@@ -225,20 +245,139 @@ def test_shell_scripts_pass_bash_n():
         assert proc.returncode == 0, proc.stderr
 
 
-def test_net_env_sh_prints_the_peer_list():
+# Compose interpolation. Both workstation names use this expression so a
+# host that sets only the documented variable does not leave the XML peer
+# on the TEST-NET fallback.
+_WS_FALLBACK = "${OMNIBOT_WORKSTATION_IP:-${OMNIBOT_WS_IP:-192.0.2.20}}"
+_PEER_ENV_KEYS = (
+    "OMNIBOT_PI_IP",
+    "OMNIBOT_WS_IP",
+    "OMNIBOT_WORKSTATION_IP",
+    "ROS_STATIC_PEERS",
+    "CYCLONEDDS_URI",
+    "OMNIBOT_DDS_INTERFACE",
+    "ROS_DOMAIN_ID",
+    "RMW_IMPLEMENTATION",
+)
+
+
+def _dds_shell_env(**overrides: str) -> dict[str, str]:
+    env = os.environ.copy()
+    for name in _PEER_ENV_KEYS:
+        env.pop(name, None)
+    env.update(overrides)
+    # system32\bash.exe is WSL and only forwards names listed in WSLENV.
+    # Linux bash ignores WSLENV and inherits the process environment.
+    forwarded = [name for name in _PEER_ENV_KEYS if name in env]
+    if forwarded:
+        existing = env.get("WSLENV", "")
+        extra = ":".join(forwarded)
+        env["WSLENV"] = f"{existing}:{extra}" if existing else extra
+    return env
+
+
+def _run_net_env(extra: dict[str, str]) -> subprocess.CompletedProcess[str]:
     bash = shutil.which("bash")
-    if bash is None:
-        pytest.skip("bash is not installed")
-    proc = subprocess.run(
+    assert bash is not None
+    return subprocess.run(
         [bash, _bash_script_arg(bash, REPO / "scripts" / "net_env.sh")],
         check=False,
         capture_output=True,
         text=True,
+        env=_dds_shell_env(**extra),
     )
+
+
+def test_compose_workstation_aliases_share_one_address():
+    files = {
+        REPO / "docker-compose.yml": 4,
+        REPO / "docker-compose.gpu.yml": 2,
+        REPO / "omnibot-digital-twin" / "docker" / "docker-compose.yml": 2,
+        REPO / "omnibot-digital-twin" / "docker" / "docker-compose.gpu.yml": 2,
+    }
+    for path, count in files.items():
+        text = _text(path)
+        assert text.count(_WS_FALLBACK) == count, path
+        assert "OMNIBOT_WS_IP=${OMNIBOT_WS_IP:-" not in text, path
+        assert 'OMNIBOT_WS_IP: "${OMNIBOT_WS_IP:-' not in text, path
+        assert "OMNIBOT_WORKSTATION_IP=${OMNIBOT_WORKSTATION_IP:-192.0.2.20}" not in text, path
+        assert 'OMNIBOT_WORKSTATION_IP: "${OMNIBOT_WORKSTATION_IP:-192.0.2.20}"' not in text, path
+
+
+def test_env_file_peer_defaults_are_fallbacks():
+    text = _text(ENV_FILE)
+    assert '${OMNIBOT_PI_IP:-192.0.2.10}' in text
+    assert '${OMNIBOT_WORKSTATION_IP:-${OMNIBOT_WS_IP:-192.0.2.20}}' in text
+    assert "export OMNIBOT_PI_IP=192.0.2.10" not in text
+    assert "export OMNIBOT_WORKSTATION_IP=192.0.2.20" not in text
+
+
+def test_net_env_sh_prints_the_peer_list():
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash is not installed")
+    proc = _run_net_env({})
     assert proc.returncode == 0, proc.stderr
     assert "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" in proc.stdout
     assert "ROS_DOMAIN_ID=30" in proc.stdout
     assert "OMNIBOT_PI_IP=192.0.2.10" in proc.stdout
     assert "OMNIBOT_WS_IP=192.0.2.20" in proc.stdout
+    assert "OMNIBOT_WORKSTATION_IP=192.0.2.20" in proc.stdout
     assert "cyclonedds.xml" in proc.stdout
+    assert RFC1918.search(proc.stdout) is None
+
+
+def test_net_env_sh_keeps_caller_peer_ips():
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash is not installed")
+
+    proc = _run_net_env(
+        {"OMNIBOT_PI_IP": "192.0.2.50", "OMNIBOT_WORKSTATION_IP": "192.0.2.60"}
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "OMNIBOT_PI_IP=192.0.2.50" in proc.stdout
+    assert "OMNIBOT_WS_IP=192.0.2.60" in proc.stdout
+    assert "OMNIBOT_WORKSTATION_IP=192.0.2.60" in proc.stdout
+    assert "ROS_STATIC_PEERS=192.0.2.50;192.0.2.60" in proc.stdout
+    assert RFC1918.search(proc.stdout) is None
+
+    proc = _run_net_env({"OMNIBOT_WS_IP": "192.0.2.70"})
+    assert proc.returncode == 0, proc.stderr
+    assert "OMNIBOT_PI_IP=192.0.2.10" in proc.stdout
+    assert "OMNIBOT_WS_IP=192.0.2.70" in proc.stdout
+    assert "OMNIBOT_WORKSTATION_IP=192.0.2.70" in proc.stdout
+
+    proc = _run_net_env(
+        {
+            "OMNIBOT_PI_IP": "192.0.2.50",
+            "OMNIBOT_WS_IP": "192.0.2.70",
+            "OMNIBOT_WORKSTATION_IP": "192.0.2.60",
+            "CYCLONEDDS_URI": "file:///tmp/omnibot-keep.xml",
+        }
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "OMNIBOT_PI_IP=192.0.2.50" in proc.stdout
+    assert "OMNIBOT_WS_IP=192.0.2.60" in proc.stdout
+    assert "OMNIBOT_WORKSTATION_IP=192.0.2.60" in proc.stdout
+    assert "CYCLONEDDS_URI=file:///tmp/omnibot-keep.xml" in proc.stdout
+
+
+def test_net_env_sh_pin_keeps_caller_peer_ips():
+    bash = shutil.which("bash")
+    python3 = shutil.which("python3")
+    if bash is None or python3 is None:
+        pytest.skip("bash and python3 are required")
+    proc = _run_net_env(
+        {
+            "OMNIBOT_DDS_INTERFACE": "eth0",
+            "OMNIBOT_PI_IP": "192.0.2.50",
+            "OMNIBOT_WORKSTATION_IP": "192.0.2.60",
+        }
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "OMNIBOT_PI_IP=192.0.2.50" in proc.stdout
+    assert "OMNIBOT_WS_IP=192.0.2.60" in proc.stdout
+    assert "OMNIBOT_WORKSTATION_IP=192.0.2.60" in proc.stdout
+    assert "omnibot-cyclonedds." in proc.stdout
     assert RFC1918.search(proc.stdout) is None

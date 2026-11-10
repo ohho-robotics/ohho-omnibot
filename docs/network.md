@@ -51,8 +51,11 @@ apply: Fast DDS cannot compute a multicast port above domain 232.
 
 `OMNIBOT_WORKSTATION_IP` is the name kept from the earlier domain file.
 `OMNIBOT_WS_IP` is the same address and is what the XML reads. The checked-in
-values `192.0.2.10` and `192.0.2.20` are documentation addresses (TEST-NET-1).
-Replace them locally. Do not commit LAN addresses.
+values `192.0.2.10` and `192.0.2.20` are documentation addresses (TEST-NET-1),
+used only when the variables are unset. Export the LAN addresses before
+sourcing the env file or starting compose. A value already set is kept.
+When both workstation names are set, `OMNIBOT_WORKSTATION_IP` wins and
+`OMNIBOT_WS_IP` is set to the same address. Do not commit LAN addresses.
 
 There is no second env file. Sim containers set the same variables in
 `Dockerfile.sim` and the compose files.
@@ -62,7 +65,9 @@ There is no second env file. Sim containers set the same variables in
 On the Pi and on the workstation, from a checkout of this repo:
 
 ```bash
-# Edit the two documentation addresses, then:
+# Export LAN addresses first. TEST-NET values in the file are fallbacks.
+#   export OMNIBOT_PI_IP=<pi-address>
+#   export OMNIBOT_WORKSTATION_IP=<workstation-address>
 source omnibot-ros2/omnibot_bringup/config/ros_domain.env
 # equivalent, and prints the peer list:
 # source scripts/net_env.sh
@@ -153,7 +158,8 @@ DDS is UDP, so the TCP portproxy in
 Pi to a stack that is only on the WSL virtual NIC.
 
 Use mirrored networking from that guide when the workstation stack runs in
-WSL and must see the Pi. `OMNIBOT_WS_IP` is then the PC LAN address. In
+WSL and must see the Pi. Set `OMNIBOT_WORKSTATION_IP` to the PC LAN address
+(`OMNIBOT_WS_IP` is the same address). In
 default NAT mode, run the workstation DDS processes on an address the Pi
 can reach, or keep them off the robot domain.
 

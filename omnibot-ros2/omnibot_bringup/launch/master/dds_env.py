@@ -5,7 +5,8 @@
 The checked-in profile is config/dds/cyclonedds.xml. Child processes must
 see RMW_IMPLEMENTATION, CYCLONEDDS_URI, ROS_DOMAIN_ID, and the peer
 addresses. Values already in the environment win, so sourcing
-config/ros_domain.env before launch is preserved.
+config/ros_domain.env before launch is preserved. OMNIBOT_WORKSTATION_IP
+and OMNIBOT_WS_IP are one address; the documented name wins when set.
 """
 
 from __future__ import annotations
@@ -45,8 +46,12 @@ def _set(name: str) -> str:
 def dds_environment() -> dict[str, str]:
     """Environment the Pi and workstation nodes should inherit."""
     pi = _set("OMNIBOT_PI_IP") or DEFAULT_PI_IP
-    ws = _set("OMNIBOT_WS_IP") or _set("OMNIBOT_WORKSTATION_IP") or DEFAULT_WS_IP
-    workstation = _set("OMNIBOT_WORKSTATION_IP") or ws
+    # Same order as ros_domain.env: documented name, XML alias, TEST-NET.
+    ws = (
+        _set("OMNIBOT_WORKSTATION_IP")
+        or _set("OMNIBOT_WS_IP")
+        or DEFAULT_WS_IP
+    )
     uri = _set("CYCLONEDDS_URI") or _file_uri(cyclonedds_xml_path())
     peers = _set("ROS_STATIC_PEERS") or f"{pi};{ws}"
     return {
@@ -55,7 +60,7 @@ def dds_environment() -> dict[str, str]:
         "CYCLONEDDS_URI": uri,
         "OMNIBOT_PI_IP": pi,
         "OMNIBOT_WS_IP": ws,
-        "OMNIBOT_WORKSTATION_IP": workstation,
+        "OMNIBOT_WORKSTATION_IP": ws,
         "ROS_STATIC_PEERS": peers,
     }
 
