@@ -5,12 +5,14 @@
 Colcon runs this. It is not in the CPU pytest list. Without ROS the module skips.
 """
 
+import importlib.util
 import math
 import os
 import subprocess
 import time
 import unittest
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import pytest
 
@@ -76,6 +78,14 @@ ERROR_NAMES = {
     )
     if hasattr(MoveItErrorCodes, name)
 }
+
+
+def _state_validity():
+    path = Path(__file__).resolve().parent / "state_validity.py"
+    spec = importlib.util.spec_from_file_location("omnibot_state_validity", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def generate_test_description():
@@ -370,14 +380,11 @@ class TestMoveItPlanExecute(unittest.TestCase):
         future = self.validity.call_async(request)
         self._wait_future(future, 15.0, label + " validity")
         response = future.result()
-        contacts = [
-            f"{contact.contact_body_1}/{contact.contact_body_2}"
-            for contact in response.contacts
-        ]
-        self.assertTrue(
-            response.valid,
-            f"{label} self-collision {contacts} error {response.error_code.val}",
-        )
+        self.assertIsNotNone(response, label + " validity returned nothing")
+        # Jazzy GetStateValidity.Response is valid, contacts, cost_sources,
+        # and constraint_result. It has no error_code. valid is the check.
+        detail = _state_validity().failure_detail(response)
+        self.assertTrue(response.valid, f"{label} {detail}")
 
     def _wait_joints(self, targets, tolerance):
         def _done():

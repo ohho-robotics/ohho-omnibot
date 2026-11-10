@@ -186,21 +186,100 @@ def test_controller_manager_reads_robot_description_topic():
     assert '"robot_description": robot_description' in mock
 
 
+_ADAPTER_REL = "omnibot-ros2/omnibot_bringup/scripts/ros2_control_adapter.py"
+
+
+def _ancestor_dirs(start):
+    path = Path(start)
+    if path.suffix == ".py" or (path.exists() and path.is_file()):
+        path = path.parent
+    yield path
+    yield from path.parents
+
+
+def _source_checkout_root(starts=None):
+    """Git checkout that contains the adapter, or None.
+
+    colcon runs this file with cwd in the package build directory. That
+    path is not always three parents above the test, and a symlink under
+    src/ can make parents[3] land outside the checkout. git then exits 128.
+    An installed copy of the package has no checkout at all.
+    """
+    if starts is None:
+        raw = Path(__file__)
+        cwd = Path.cwd().resolve()
+        starts = (
+            raw.resolve(),
+            raw if raw.is_absolute() else cwd / raw,
+            REPO,
+            cwd,
+        )
+    seen = set()
+    for start in starts:
+        for directory in _ancestor_dirs(start):
+            key = str(directory)
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                checkout = (directory / ".git").exists() and (
+                    directory / _ADAPTER_REL
+                ).is_file()
+            except OSError:
+                continue
+            if checkout:
+                return directory.resolve()
+    return None
+
+
 def test_ros2_control_adapter_is_executable():
-    # colcon --symlink-install keeps this mode. launch's which() skips a
-    # non-executable file and reports it missing from libexec.
-    listed = subprocess.check_output(
+    # colcon --symlink-install keeps the git index mode. launch's which()
+    # skips a non-executable file and reports it missing from libexec.
+    root = _source_checkout_root()
+    if root is None:
+        pytest.skip(
+            "no git checkout containing ros2_control_adapter.py; "
+            "the executable bit is asserted from the git index of a source "
+            "checkout, not from an installed package"
+        )
+    # parents[3] of a test copied into build/<pkg>/ is above the checkout.
+    # The index path has to be relative to the checkout, not that cwd.
+    build_copy = root / "build" / "omnibot_description" / "test_ros2_control_xacro.py"
+    nested_copy = (
+        root / "build" / "omnibot_description" / "test" / "test_ros2_control_xacro.py"
+    )
+    src_copy = root / "src" / "omnibot_description" / "test" / "test_ros2_control_xacro.py"
+    assert _source_checkout_root([build_copy]) == root
+    assert _source_checkout_root([nested_copy]) == root
+    assert _source_checkout_root([src_copy]) == root
+    # The old parents[3] of build/<pkg>/<test>.py is the directory above the
+    # checkout. That directory is not a checkout, so it must not be used.
+    assert _source_checkout_root([root.parent]) is None
+    installed = Path(
+        "/opt/ros/jazzy/share/omnibot_description/test/test_ros2_control_xacro.py"
+    )
+    assert _source_checkout_root([installed]) is None
+    # A container job often checks out as a different uid than the user
+    # that runs the test. -c applies only to this command.
+    completed = subprocess.run(
         [
             "git",
+            "-c",
+            "safe.directory=*",
             "ls-files",
             "-s",
             "--",
-            "omnibot-ros2/omnibot_bringup/scripts/ros2_control_adapter.py",
+            _ADAPTER_REL,
         ],
-        cwd=REPO,
+        cwd=root,
+        capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
-    assert listed.startswith("100755")
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.startswith("100755"), completed.stdout
 
 
 def test_adapter_waits_for_arm_joints_and_times_out_twists():

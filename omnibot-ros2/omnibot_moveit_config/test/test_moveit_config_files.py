@@ -5,9 +5,11 @@
 The colcon job runs test_moveit_plan_execute.py. This file is the CPU check.
 """
 
+import importlib.util
 import itertools
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -358,3 +360,51 @@ def test_launches_and_package_manifest():
     assert "RRTConnect" in readme
     assert "pilz_industrial_motion_planner" in readme
     assert "position_only_ik" in readme
+
+
+def _load_state_validity():
+    path = Path(__file__).resolve().parent / "state_validity.py"
+    spec = importlib.util.spec_from_file_location("omnibot_state_validity", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_get_state_validity_uses_jazzy_response_fields():
+    """The plan test must keep checking valid, not MoveItErrorCodes.
+
+    Jazzy removed error_code from GetStateValidity.Response. The launch
+    test still runs only under colcon; this checks the same formatter.
+    """
+    module = _load_state_validity()
+    blocked = SimpleNamespace(
+        valid=False,
+        contacts=[
+            SimpleNamespace(
+                contact_body_1="arm_lower_arm_link",
+                contact_body_2="top_plate_link",
+            )
+        ],
+        constraint_result=[SimpleNamespace(result=False, distance=0.02)],
+        cost_sources=[SimpleNamespace(cost_density=1.5)],
+    )
+    detail = module.failure_detail(blocked)
+    assert blocked.valid is False
+    assert "arm_lower_arm_link/top_plate_link" in detail
+    assert "result=False" in detail
+    assert "0.02" in detail
+    assert "1.5" in detail
+    assert "error_code" not in detail
+    clear = SimpleNamespace(
+        valid=True,
+        contacts=[],
+        constraint_result=[],
+        cost_sources=[],
+    )
+    assert "valid=True" in module.failure_detail(clear)
+    launch = (
+        Path(__file__).resolve().parent / "test_moveit_plan_execute.py"
+    ).read_text(encoding="utf-8")
+    assert "response.error_code" not in launch
+    assert "self.assertTrue(response.valid," in launch
+    assert "failure_detail(response)" in launch
