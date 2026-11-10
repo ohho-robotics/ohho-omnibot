@@ -46,6 +46,7 @@ def main() -> int:
         "omnibot-ros2/omnibot_bringup/test/test_frame_launch_docs.py",
         "omnibot-ros2/omnibot_navigation/test",
         "omnibot-ros2/omnibot_description/test",
+        "omnibot-ros2/omnibot_moveit_config/test/test_moveit_config_files.py",
         "infra/observability/tests",
         "scripts/test_architecture_launch_table.py",
         "scripts/tests",

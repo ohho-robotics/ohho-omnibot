@@ -112,12 +112,15 @@ public:
       }
       brake_wheel(joint.name);
     }
-    // Same brake as a plain stop. Also clear a coasting body twist, but not
-    // while VelocityControl is driving: a zero wheel command is the mecanum
-    // controller's idle value and must not cancel /cmd_vel.
-    // A stop writes a zero command on the canonical link. Leaving that in
-    // place pins the body after VelocityControl drives the model again.
-    if (stopped && !planar_velocity_commanded(sample_joint)) {
+    // A claimed zero is a hold. VelocityControl latches the last gz twist and
+    // writes it every PreUpdate, and the mecanum controller's idle command is
+    // also zero. Leaving that latch in place drives the chassis while
+    // /cmd_vel/out is silent (the nav source must not move the base in teleop).
+    // A live wheel command does not clear it: the adapter mirrors a real drive
+    // twist onto the wheel reference, and clearing the body would stop planar
+    // teleop. The canonical-link zero from a previous hold is removed on that
+    // path so it cannot pin the next command.
+    if (stopped) {
       zero_base(sample_joint);
     } else {
       drop_link_velocity_cmd(sample_joint);
@@ -216,32 +219,6 @@ private:
       return;
     }
     cmd->Data() = gz::math::Vector3d::Zero;
-  }
-
-  bool twist_commanded(sim::Entity entity) const
-  {
-    if (entity == sim::kNullEntity || ecm_ == nullptr) {
-      return false;
-    }
-    const auto * linear = ecm_->Component<sim::components::LinearVelocityCmd>(entity);
-    if (linear != nullptr && linear->Data().Length() >= 1e-3) {
-      return true;
-    }
-    const auto * angular = ecm_->Component<sim::components::AngularVelocityCmd>(entity);
-    return angular != nullptr && angular->Data().Length() >= 1e-3;
-  }
-
-  bool planar_velocity_commanded(sim::Entity joint)
-  {
-    const sim::Entity model = model_entity(joint);
-    if (twist_commanded(model)) {
-      return true;
-    }
-    if (model == sim::kNullEntity || ecm_ == nullptr) {
-      return false;
-    }
-    const sim::Entity link = sim::Model(model).CanonicalLink(*ecm_);
-    return link != model && twist_commanded(link);
   }
 
   void drop_link_velocity_cmd(sim::Entity joint)

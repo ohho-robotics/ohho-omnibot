@@ -160,6 +160,34 @@ Three nodes stay off unless you opt in. Their packages are not in this repositor
 
 `astra_camera` is not an apt package either. `perception.launch.py` and `omnibot_pi.launch.py` still default `depth_camera` to true, and skip that driver with one warning when the package is not installed. The Pi master launch documents `ai_perception:=false` as the default way to leave object perception off.
 
+## MoveIt 2 for the SO-101 (OHH-395)
+
+[`omnibot_moveit_config`](omnibot-ros2/omnibot_moveit_config/) plans the SO-101 arm and gripper through the ros2_control controllers. The mecanum base is a fixed virtual joint (`world` to `base_footprint`), so plans stay on the arm. The arm has 5 DOF. `kinematics.yaml` sets `position_only_ik` for the `arm` group, which is the Cartesian goal mode. Pilz `LIN` takes a pose and leaves the orientation tolerance loose; the tool position is the constraint that is solved. The gripper group loads KDL as well, with `position_only_ik` false, because Pilz will not plan a group that has no IK solver.
+
+<!-- docs-test: skip ros -->
+```bash
+ros2 launch omnibot_moveit_config demo.launch.py
+```
+
+Mock hardware (`use_mock:=true`), `move_group`, and RViz. `rviz:=false` is the headless path used in CI. `gz:=true` uses Gazebo Harmonic and `gz_ros2_control` (`gui:=true` opens a window).
+
+On the robot, start the bringup manager first, then MoveIt. `move_group.launch.py` uses the hardware URDF and the controller manager from `robot.launch.py`.
+
+<!-- docs-test: skip ros -->
+```bash
+ros2 launch omnibot_bringup robot.launch.py
+ros2 launch omnibot_moveit_config move_group.launch.py
+```
+
+The default pipeline is `ompl` and the default planner is `RRTConnect`. The Pilz pipeline is `pilz_industrial_motion_planner` with planners `PTP`, `LIN`, and `CIRC`. The RViz MotionPlanning panel lists those names. The arm controller action is `/arm_joint_trajectory_controller/follow_joint_trajectory`. The gripper controller action is `/gripper_controller/gripper_cmd` (`ParallelGripperCommand`).
+
+<!-- docs-test: skip ros -->
+```bash
+python -m pytest omnibot-ros2/omnibot_moveit_config/test/test_moveit_config_files.py
+```
+
+That pytest parses the SRDF and the YAML with PyYAML. The plan-and-execute test runs in the colcon `ros` job.
+
 ## Nav2 + slam_toolbox in Gazebo (OHH-30)
 
 Simulation only. The apartment world from `sim.launch.py` is mapped with `slam_toolbox`, the saved map is checked in, and Nav2 (DWB) drives the holonomic base to the named waypoints `kitchen`, `desk`, and `door`. Nothing here was run on the real robot.
@@ -342,7 +370,7 @@ Demos and updates: [YouTube](https://www.youtube.com/@varun.vaidhiya/videos) · 
 | Directory | What it is |
 |---|---|
 | [`src/`](src/) | Colcon workspace (symlinks) |
-| [`omnibot-ros2/`](omnibot-ros2/) | Driver, arm, description, bringup, Nav2 |
+| [`omnibot-ros2/`](omnibot-ros2/) | Driver, arm, description, bringup, Nav2, and MoveIt |
 | [`omnibot-ai-ros2/`](omnibot-ai-ros2/) | VLA, LeRobot, RL, and orchestration nodes |
 | [`omnibot-ai-engines/`](omnibot-ai-engines/) | Learning and agent engines, plus the GPU training trees |
 | [`mecanum-kinematics/`](mecanum-kinematics/) | Wheel inverse and forward kinematics |
