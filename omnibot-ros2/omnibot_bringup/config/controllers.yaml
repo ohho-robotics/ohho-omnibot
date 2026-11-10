@@ -1,0 +1,75 @@
+# One controller set for Gazebo and the robot.
+# The mecanum controller reads geometry_msgs/TwistStamped on
+# /mecanum_drive_controller/reference. The bringup adapter turns /cmd_vel
+# or /cmd_vel/out into that message. reference_timeout is not 0, or the
+# command is cleared every cycle.
+# tf_frame_prefix_enable is false so frames stay odom and base_footprint.
+# enable_odom_tf is false: planar Gazebo already publishes that TF, and the
+# robot EKF publishes it when ekf:=true. The adapter publishes the TF only
+# when neither of those is running.
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    mecanum_drive_controller:
+      type: mecanum_drive_controller/MecanumDriveController
+    arm_joint_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+    gripper_controller:
+      type: parallel_gripper_action_controller/GripperActionController
+
+mecanum_drive_controller:
+  ros__parameters:
+    reference_timeout: 0.5
+    front_left_wheel_command_joint_name: front_left_wheel_joint
+    front_right_wheel_command_joint_name: front_right_wheel_joint
+    rear_left_wheel_command_joint_name: rear_left_wheel_joint
+    rear_right_wheel_command_joint_name: rear_right_wheel_joint
+    kinematics:
+      base_frame_offset: {x: 0.0, y: 0.0, theta: 0.0}
+      wheels_radius: 0.04
+      # lx + ly. wheel_separation_x 0.165 and wheel_separation_y 0.215,
+      # each halved: 0.0825 + 0.1075 = 0.19.
+      sum_of_robot_center_projection_on_X_Y_axis: 0.19
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+    enable_odom_tf: false
+    tf_frame_prefix_enable: false
+    pose_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001]
+    linear:
+      x:
+        max_velocity: 1.0
+        min_velocity: -1.0
+      y:
+        max_velocity: 1.0
+        min_velocity: -1.0
+    angular:
+      z:
+        max_velocity: 2.0
+        min_velocity: -2.0
+
+arm_joint_trajectory_controller:
+  ros__parameters:
+    joints:
+      - arm_shoulder_pan
+      - arm_shoulder_lift
+      - arm_elbow_flex
+      - arm_wrist_flex
+      - arm_wrist_roll
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+
+gripper_controller:
+  ros__parameters:
+    joint: arm_gripper
+    goal_tolerance: 0.08
+    allow_stalling: true
+    max_velocity: 0.5
+    state_interfaces:
+      - position
+      - velocity

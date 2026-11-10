@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mecanum_bot">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema" name="mecanum_bot">
 
     <xacro:property name="PI" value="3.1415926535897931"/>
 
@@ -11,6 +11,16 @@
     <xacro:arg name="minimal_sensors" default="false"/>
     <!-- sim.launch.py vr:=true. Quest streams are 960x540 at 30 Hz. -->
     <xacro:arg name="vr_cameras" default="false"/>
+    <!-- use_sim loads gz_ros2_control. use_mock is the CI GenericSystem.
+         controllers_file is controllers.yaml for the gz plugin only. -->
+    <xacro:arg name="use_sim" default="false"/>
+    <xacro:arg name="use_mock" default="false"/>
+    <xacro:arg name="controllers_file" default=""/>
+    <xacro:arg name="calibration_file" default=""/>
+    <xacro:arg name="base_port" default="/dev/ttyUSB0"/>
+    <xacro:arg name="base_baud" default="115200"/>
+    <xacro:arg name="arm_port" default="/dev/ttyACM0"/>
+    <xacro:arg name="arm_baud" default="1000000"/>
     <xacro:property name="enable_extra_cameras" value="true"/>
     <xacro:property name="front_cam_width" value="640"/>
     <xacro:property name="front_cam_height" value="480"/>
@@ -572,17 +582,6 @@
             <axis xyz="0 1 0"/>
             <limit effort="${wheel_effort}" velocity="${wheel_velocity}"/>
         </joint>
-
-        <transmission name="${prefix}_wheel_trans">
-            <type>transmission_interface/SimpleTransmission</type>
-            <joint name="${prefix}_wheel_joint">
-                <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
-            </joint>
-            <actuator name="${prefix}_wheel_motor">
-                <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
-                <mechanicalReduction>1</mechanicalReduction>
-            </actuator>
-        </transmission>
     </xacro:macro>
 
     <!-- FL+RR share "\" (cs_pos). FR+RL share "/" (cs_neg). -->
@@ -619,13 +618,16 @@
     <xacro:property name="sts3215_effort" value="1.9123"/>
     <xacro:property name="sts3215_velocity" value="5.4542"/>
     <!-- Sim plant effort. The default is sts3215_effort, so a real-robot
-         URDF and the web export keep the STS3215 stall torque. gz-sim's
-         JointPositionController with use_velocity_commands is realized by
-         DART only up to this limit. At 1.9123 N·m the shoulder cannot brake
-         the 1.5 rad/s hold against gravity: the joint is still moving when
-         e-stop latches, and the sag walks the base while /cmd_vel/out is
-         zero. sim.launch.py passes gz_arm_effort:=10, the effort these
-         joints used before the rating. Position stops and velocity stay. -->
+         URDF and the web export keep the STS3215 stall torque. gz-sim
+         realizes a joint only up to this limit. At 1.9123 N·m the shoulder
+         cannot brake a 1.5 rad/s hold against gravity: the joint is still
+         moving when e-stop latches, and the sag walks the base while
+         /cmd_vel/out is zero. sim.launch.py passes gz_arm_effort:=10, the
+         effort these joints used before the rating. use_sim holds the arm
+         with gz_ros2_control (position_proportional_gain 0.15, about
+         1.5 rad/s for a 0.2 rad error) instead of a Gazebo
+         JointPositionController. Position stops and velocity stay at the
+         STS3215 rating. -->
     <xacro:arg name="gz_arm_effort" default="${sts3215_effort}"/>
 
     <!-- Pedestal envelope copied by apriltag_mounts.Chassis for tag
@@ -700,17 +702,8 @@
         <child link="arm_shoulder_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.91986" upper="1.91986"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
-    <transmission name="arm_shoulder_pan_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="arm_shoulder_pan">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="arm_motor1">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-            <mechanicalReduction>1</mechanicalReduction>
-        </actuator>
-    </transmission>
 
     <!-- UPPER ARM — beam + elbow servo -->
     <link name="arm_upper_arm_link">
@@ -735,17 +728,8 @@
         <child link="arm_upper_arm_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.74533" upper="1.74533"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
-    <transmission name="arm_shoulder_lift_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="arm_shoulder_lift">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="arm_motor2">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-            <mechanicalReduction>1</mechanicalReduction>
-        </actuator>
-    </transmission>
 
     <!-- LOWER ARM — forearm beam + wrist servo -->
     <link name="arm_lower_arm_link">
@@ -771,17 +755,8 @@
         <child link="arm_lower_arm_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.69" upper="1.69"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
-    <transmission name="arm_elbow_flex_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="arm_elbow_flex">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="arm_motor3">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-            <mechanicalReduction>1</mechanicalReduction>
-        </actuator>
-    </transmission>
 
     <!-- WRIST — roll/pitch bracket + servo (no horn) -->
     <link name="arm_wrist_link">
@@ -806,17 +781,8 @@
         <child link="arm_wrist_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.65806" upper="1.65806"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
-    <transmission name="arm_wrist_flex_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="arm_wrist_flex">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="arm_motor4">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-            <mechanicalReduction>1</mechanicalReduction>
-        </actuator>
-    </transmission>
 
     <!-- GRIPPER — roll follower body + roll servo -->
     <link name="arm_gripper_link">
@@ -841,17 +807,8 @@
         <child link="arm_gripper_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-2.74385" upper="2.84121"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
-    <transmission name="arm_wrist_roll_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="arm_wrist_roll">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="arm_motor5">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-            <mechanicalReduction>1</mechanicalReduction>
-        </actuator>
-    </transmission>
 
     <!-- GRIPPER FRAME — tool-frame reference (fixed, massless) -->
     <link name="arm_gripper_frame_link">
@@ -889,17 +846,8 @@
         <child link="arm_moving_jaw_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-0.174533" upper="1.74533"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
-    <transmission name="arm_gripper_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="arm_gripper">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="arm_motor6">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-            <mechanicalReduction>1</mechanicalReduction>
-        </actuator>
-    </transmission>
 
     <!-- ================================================================
          Wrist camera — OV9732 on the SO-101 gripper body (arm_gripper_link).
@@ -1025,12 +973,34 @@
             clip_far="20.0"/>
     </xacro:if>
 
-    <!-- Gripper contact friction so the jaw can hold the apartment grasp cube. -->
+    <!-- Gripper contact friction so the jaw can hold the apartment grasp cube.
+         turnGravityOff is the URDF extension sdformat maps to SDF gravity
+         false. A plain gravity tag is ignored. gz_ros2_control does not hold
+         joints until controller_manager has read /robot_description, and a
+         falling SO-101 on free mecanum wheels shoves the chassis while
+         /cmd_vel is zero. Joint velocity commands still move the arm. -->
+    <gazebo reference="arm_base_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
+    <gazebo reference="arm_shoulder_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
+    <gazebo reference="arm_upper_arm_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
+    <gazebo reference="arm_lower_arm_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
+    <gazebo reference="arm_wrist_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
     <gazebo reference="arm_gripper_link">
+        <turnGravityOff>true</turnGravityOff>
         <mu1>2.0</mu1>
         <mu2>2.0</mu2>
     </gazebo>
     <gazebo reference="arm_moving_jaw_link">
+        <turnGravityOff>true</turnGravityOff>
         <mu1>2.0</mu1>
         <mu2>2.0</mu2>
     </gazebo>
@@ -1060,23 +1030,6 @@
         </sensor>
     </gazebo>
 
-    <!-- Per-joint position hold for the SO-101. cmd_max is the sim
-         tracking speed (rad/s), below sts3215_velocity (no-load, rad/s).
-         initial_position 0 holds the arm at the URDF zero before ROS
-         sends a target. use_velocity_commands tracks that target without
-         relying on a gravity-fighting force PID. -->
-    <xacro:macro name="arm_joint_position_controller" params="joint">
-        <plugin filename="gz-sim-joint-position-controller-system"
-                name="gz::sim::systems::JointPositionController">
-            <joint_name>${joint}</joint_name>
-            <topic>/arm/sim/${joint}/cmd_pos</topic>
-            <initial_position>0</initial_position>
-            <use_velocity_commands>true</use_velocity_commands>
-            <cmd_max>1.5</cmd_max>
-            <cmd_min>-1.5</cmd_min>
-        </plugin>
-    </xacro:macro>
-
     <!-- ================================================================
          Gazebo Harmonic Mecanum Drive Plugin
          ================================================================ -->
@@ -1092,14 +1045,20 @@
         <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
             <odom_frame>odom</odom_frame>
             <robot_base_frame>base_footprint</robot_base_frame>
-            <odom_publish_frequency>50</odom_publish_frequency>
+            <!-- The twist is a 10-step rolling mean (~20 ms). 100 Hz cuts
+                 the extra publish slot without flooding the depth-10 odom
+                 subscription the stop test drains with spin_once. -->
+            <odom_publish_frequency>100</odom_publish_frequency>
             <odom_topic>/odom</odom_topic>
             <tf_topic>/tf</tf_topic>
             <dimensions>2</dimensions>
         </plugin>
         </xacro:if>
-        <!-- drive:=mecanum (default): gz-sim mecanum drive, holonomic /cmd_vel. -->
+        <!-- drive:=mecanum (default) and not use_sim: gz MecanumDrive.
+             use_sim commands the wheel joints from mecanum_drive_controller
+             instead, so this plugin is omitted and the two do not fight. -->
         <xacro:unless value="${'$(arg drive)' == 'planar'}">
+        <xacro:unless value="$(arg use_sim)">
         <plugin filename="gz-sim-mecanum-drive-system" name="gz::sim::systems::MecanumDrive">
             <front_left_joint>front_left_wheel_joint</front_left_joint>
             <front_right_joint>front_right_wheel_joint</front_right_joint>
@@ -1120,7 +1079,11 @@
             <child_frame_id>base_footprint</child_frame_id>
         </plugin>
         </xacro:unless>
+        </xacro:unless>
 
+        <!-- use_sim publishes joint states from joint_state_broadcaster.
+             These gz publishers stay for use_sim:=false (desktop gazebo). -->
+        <xacro:unless value="$(arg use_sim)">
         <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
             <!-- Absolute topic so ros_gz_bridge can bridge it directly to /joint_states in ROS.
                  Wheel joints only. Arm joints are a second publisher below so the
@@ -1132,20 +1095,8 @@
             <joint_name>rear_right_wheel_joint</joint_name>
         </plugin>
 
-        <!-- SO-101 in Gazebo Harmonic. One JointPositionController per joint
-             (gz-sim-8), speed-capped, plus a JointStatePublisher for the arm.
-             gz_ros2_control is not used: sim.launch.py already runs on the
-             gz-sim systems shipped with ros_gz_sim. Software limits, the
-             0.15 rad step, the 0.2 s hold, and the e-stop latch are applied
-             by arm_sim_driver from arm_params.yaml via arm_safety.py.
-             URDF lower/upper values stay the SO-101 calib stops. -->
-        <xacro:arm_joint_position_controller joint="arm_shoulder_pan"/>
-        <xacro:arm_joint_position_controller joint="arm_shoulder_lift"/>
-        <xacro:arm_joint_position_controller joint="arm_elbow_flex"/>
-        <xacro:arm_joint_position_controller joint="arm_wrist_flex"/>
-        <xacro:arm_joint_position_controller joint="arm_wrist_roll"/>
-        <xacro:arm_joint_position_controller joint="arm_gripper"/>
-
+        <!-- Arm joint states for use_sim:=false. sim.launch.py (use_sim)
+             republishes /joint_states onto /arm/sim/joint_states. -->
         <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
             <topic>/arm/sim/joint_states</topic>
             <update_rate>50</update_rate>
@@ -1156,6 +1107,22 @@
             <joint_name>arm_wrist_roll</joint_name>
             <joint_name>arm_gripper</joint_name>
         </plugin>
+        </xacro:unless>
+
+        <!-- position_proportional_gain 0.15 at the 50 Hz manager makes a
+             0.2 rad position error about 1.5 rad/s, the old cmd_max. -->
+        <xacro:if value="$(arg use_sim)">
+        <xacro:unless value="$(arg use_mock)">
+        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+            <parameters>$(arg controllers_file)</parameters>
+            <hold_joints>true</hold_joints>
+            <position_proportional_gain>0.15</position_proportional_gain>
+            <!-- Later than VelocityControl (priority 0) so a wheel brake can
+                 clear a latched body twist in the same PreUpdate. -->
+            <gz:system_priority>100</gz:system_priority>
+        </plugin>
+        </xacro:unless>
+        </xacro:if>
 
         <!-- NOTE: gz-sim-sensors-system and gz-sim-imu-system are world-level
              plugins loaded in the world SDF — do NOT duplicate here. -->
@@ -1216,6 +1183,7 @@
         </gazebo>
     </xacro:if>
 
+  <xacro:include filename="omnibot.ros2_control.xacro"/>
   <xacro:include filename="apriltags.urdf.xacro"/>
 
 </robot>

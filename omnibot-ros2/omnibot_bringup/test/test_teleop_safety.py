@@ -82,6 +82,12 @@ def test_ceilings_match_omnibot_profile_and_stop_budget():
     assert CMD_TIMEOUT_S + 0.01 <= 0.350
     source = NODE_SRC.read_text(encoding="utf-8")
     assert "TICK_PERIOD_S = 0.01" in source
+    # OdometryPublisher keeps a 10-step mean (20 ms at 500 Hz) and the
+    # executor timer can sit behind joint-state callbacks. The thread tick
+    # has to leave that mean inside the 350 ms stop.
+    assert "WATCHDOG_TICK_S = 0.005" in source
+    assert CMD_TIMEOUT_S + 0.005 + 0.030 <= 0.350
+    assert "_watchdog_loop" in source
     assert "declare_parameter" not in source
     # Jazzy's rclpy.parameter does not export SetParametersResult. The callback
     # result is the rcl_interfaces message.
@@ -682,6 +688,7 @@ def test_node_wiring_latch_and_service_without_ros(tmp_path):
         assert node._state_pub.msgs[-1].data
         assert node._gate.latched is True
         assert node._gate.armed is False
+        assert node._watchdog is None
 
         t["n"] = 0.0
         node._heartbeat_cb(Empty())

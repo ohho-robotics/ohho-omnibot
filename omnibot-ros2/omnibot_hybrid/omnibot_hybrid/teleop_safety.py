@@ -23,11 +23,14 @@ The service refuses while the stop is still asserted.
 Caps are the OmniBot ceilings in ``teleop_gate`` (0.2 m/s, 1.0 rad/s). This
 node declares no speed, acceleration, or timeout parameter, so a client
 cannot raise them. The watchdogs use wall time (``use_sim_time`` true is
-rejected) and a 10 ms tick, so a dead client is zeroed inside 350 ms.
+rejected). A 5 ms thread wakes the 300 ms timeout even when subscription
+callbacks fill the executor, so the zero still lands inside 350 ms after
+Gazebo's 10-step odometry average.
 """
 
 from __future__ import annotations
 
+import threading
 import time
 
 import rclpy
@@ -49,7 +52,10 @@ from omnibot_hybrid.teleop_gate import (
 )
 
 # 300 ms timeout plus one tick stays inside the 350 ms stop budget.
+# The executor timer is the backup. The thread below is what wakes on time
+# when joint-state callbacks are queued in front of it.
 TICK_PERIOD_S = 0.01
+WATCHDOG_TICK_S = 0.005
 
 _STATE_QOS = QoSProfile(
     depth=1,
@@ -63,10 +69,14 @@ class TeleopSafety(Node):
 
     def __init__(self, clock=None, audit_dir=None):
         super().__init__("teleop_safety")
+        self._own_clock = clock is None
         self._clock = clock or time.monotonic
         self._gate = TeleopGate(clock=self._clock, audit_dir=audit_dir)
+        self._apply_lock = threading.Lock()
         self._last_state = ""
         self._last_state_pub = 0.0
+        self._watchdog = None
+        self._watchdog_stop = None
 
         self.add_on_set_parameters_callback(self._on_parameters)
 
@@ -100,6 +110,16 @@ class TeleopSafety(Node):
             clock=Clock(clock_type=ClockType.STEADY_TIME),
         )
         self._publish_state(force=True)
+        # An injected clock is a unit test. The thread would race those
+        # assertions. Production uses the monotonic clock and the thread.
+        if self._own_clock:
+            self._watchdog_stop = threading.Event()
+            self._watchdog = threading.Thread(
+                target=self._watchdog_loop,
+                name="teleop_safety_watchdog",
+                daemon=True,
+            )
+            self._watchdog.start()
         self.get_logger().info(
             "teleop_safety ceilings "
             f"lin={HARD_MAX_VX} m/s ang={HARD_MAX_WZ} rad/s "
@@ -119,44 +139,62 @@ class TeleopSafety(Node):
         return SetParametersResult(successful=True)
 
     def _twist_cb(self, msg: Twist) -> None:
-        self._apply(
-            self._gate.command_velocity(
-                msg.linear.x,
-                msg.linear.y,
-                msg.angular.z,
-                self._clock(),
+        with self._apply_lock:
+            self._apply_locked(
+                self._gate.command_velocity(
+                    msg.linear.x,
+                    msg.linear.y,
+                    msg.angular.z,
+                    self._clock(),
+                )
             )
-        )
 
     def _joint_cb(self, msg: JointState) -> None:
-        self._apply(
-            self._gate.command_joints(
-                list(msg.name),
-                list(msg.position),
-                self._clock(),
+        with self._apply_lock:
+            self._apply_locked(
+                self._gate.command_joints(
+                    list(msg.name),
+                    list(msg.position),
+                    self._clock(),
+                )
             )
-        )
 
     def _joint_state_cb(self, msg: JointState) -> None:
-        self._gate.note_joint_state(list(msg.name), list(msg.position))
+        with self._apply_lock:
+            self._gate.note_joint_state(list(msg.name), list(msg.position))
 
     def _heartbeat_cb(self, _msg: Empty) -> None:
-        self._apply(self._gate.heartbeat(self._clock()))
+        with self._apply_lock:
+            self._apply_locked(self._gate.heartbeat(self._clock()))
 
     def _estop_cb(self, msg: Bool) -> None:
-        self._apply(self._gate.set_emergency_stop(msg.data, self._clock()))
+        with self._apply_lock:
+            self._apply_locked(self._gate.set_emergency_stop(msg.data, self._clock()))
 
     def _reset_cb(self, _request, response):
-        outcome = self._gate.reset(self._clock())
-        response.success = bool(outcome.ok)
-        response.message = outcome.message
-        self._apply(outcome)
+        with self._apply_lock:
+            outcome = self._gate.reset(self._clock())
+            response.success = bool(outcome.ok)
+            response.message = outcome.message
+            self._apply_locked(outcome)
         return response
 
-    def _tick(self) -> None:
-        self._apply(self._gate.tick(self._clock()))
+    def _watchdog_loop(self) -> None:
+        while not self._watchdog_stop.wait(WATCHDOG_TICK_S):
+            self._tick()
 
-    def _apply(self, outcome) -> None:
+    def destroy_node(self):
+        if self._watchdog_stop is not None:
+            self._watchdog_stop.set()
+            if self._watchdog is not None:
+                self._watchdog.join(timeout=0.2)
+        return super().destroy_node()
+
+    def _tick(self) -> None:
+        with self._apply_lock:
+            self._apply_locked(self._gate.tick(self._clock()))
+
+    def _apply_locked(self, outcome) -> None:
         if outcome.log:
             self.get_logger().warn(outcome.log)
         if outcome.twist is not None:

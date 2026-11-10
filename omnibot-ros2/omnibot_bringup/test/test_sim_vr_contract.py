@@ -16,8 +16,11 @@ world:=flat so the drive is not blocked by apartment furniture. It checks:
 
 import math
 import os
+import subprocess
 import time
 import unittest
+
+import importlib.util
 
 import launch_testing
 import rclpy
@@ -41,6 +44,13 @@ REQUIRED_NODES = (
     "web_video_server",
 )
 
+HOLD_CONTROLLERS = (
+    "joint_state_broadcaster",
+    "mecanum_drive_controller",
+    "arm_joint_trajectory_controller",
+    "gripper_controller",
+)
+
 REQUIRED_TOPICS = (
     "/cmd_vel/out",
     "/cmd_vel/teleop",
@@ -62,6 +72,24 @@ REQUIRED_TOPICS = (
     "/imu",
     "/camera/front/image_raw",
 )
+
+
+def _adapter_logic():
+    path = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "scripts",
+            "ros2_control_adapter_logic.py",
+        )
+    )
+    spec = importlib.util.spec_from_file_location("ros2_control_adapter_logic", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_LOGIC = _adapter_logic()
 
 
 def generate_test_description():
@@ -119,10 +147,18 @@ class TestSimVrContract(unittest.TestCase):
         cls.node.destroy_node()
         rclpy.shutdown()
 
+    def _spin_once(self, timeout_sec):
+        # /odom arrives much faster than this loop. spin_once runs a single
+        # callback, so a burst of odometry hides /cmd_vel/out and a real
+        # command is measured as 0. Drain what is already ready.
+        rclpy.spin_once(self.node, timeout_sec=timeout_sec)
+        for _ in range(30):
+            rclpy.spin_once(self.node, timeout_sec=0.0)
+
     def _spin_until(self, seconds, ready):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
             if ready():
                 return True
         return False
@@ -154,13 +190,13 @@ class TestSimVrContract(unittest.TestCase):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             tick()
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
 
     def _until_tick(self, seconds, tick, ready):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             tick()
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
             if ready():
                 return True
         return False
@@ -204,6 +240,24 @@ class TestSimVrContract(unittest.TestCase):
         self.assertEqual(len(result.values), 1)
         return result.values[0].string_value
 
+    def _controllers_active(self):
+        now = time.monotonic()
+        if now < getattr(self, "_ctrl_poll_at", 0.0):
+            return getattr(self, "_ctrl_ready", False)
+        self._ctrl_poll_at = now + 2.0
+        completed = subprocess.run(
+            ["ros2", "control", "list_controllers"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+        self._ctrl_text = (completed.stdout + completed.stderr).strip()
+        self._ctrl_ready = _LOGIC.controller_listing_active(
+            self._ctrl_text, HOLD_CONTROLLERS
+        )
+        return self._ctrl_ready
+
     def _wait_mode(self, name):
         ready = self._spin_until(
             5.0, lambda: self.modes and self.modes[-1].data == name
@@ -241,6 +295,26 @@ class TestSimVrContract(unittest.TestCase):
         self.assertEqual(self._address("web_video_server"), "127.0.0.1")
 
         self._wait_mode("teleop")
+        # The graph is up before gz_ros2_control has braked the arm and
+        # wheels. Measure the hold only after those controllers are active
+        # and the spawn drop has settled. Both waits are bounded.
+        controllers_ready = self._spin_until(90.0, self._controllers_active)
+        _log(
+            "EVIDENCE sim_vr controllers_active "
+            f"ready={controllers_ready} "
+            f"listing={getattr(self, '_ctrl_text', '').strip()}"
+        )
+        self.assertTrue(
+            controllers_ready,
+            "ros2_control controllers did not become active before the hold check",
+        )
+        settled = self._spin_until(
+            10.0, lambda: bool(self.odom) and _speed(self.odom[-1]) < 0.05
+        )
+        _log(
+            "EVIDENCE sim_vr hold_settled "
+            f"settled={settled} speed={_speed(self.odom[-1]):.4f}"
+        )
         start = self.odom[-1].pose.pose.position
         mark = len(self.out)
         nav_only = self._twist(0.2)
@@ -260,7 +334,7 @@ class TestSimVrContract(unittest.TestCase):
         deadline = time.monotonic() + 20.0
         while time.monotonic() < deadline:
             self.teleop.publish(drive)
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
             if self._dist(start) >= 0.2:
                 moved = True
                 break
@@ -301,7 +375,7 @@ class TestSimVrContract(unittest.TestCase):
         deadline = time.monotonic() + 20.0
         while time.monotonic() < deadline:
             self.nav.publish(nav_only)
-            rclpy.spin_once(self.node, timeout_sec=0.05)
+            self._spin_once(0.05)
             if self._dist(start) >= 0.1:
                 moved_nav = True
                 break
