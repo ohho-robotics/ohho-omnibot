@@ -80,6 +80,7 @@ import sys
 
 from launch import LaunchDescription
 from launch.actions import (
+    AppendEnvironmentVariable,
     DeclareLaunchArgument,
     IncludeLaunchDescription,
     LogInfo,
@@ -184,6 +185,8 @@ def _launch_sim(context, *args, **kwargs):
                 " lidar:=true",
                 " minimal_sensors:=true",
                 f" vr_cameras:={_cameras.xacro_flag(vr_on)}",
+                # Sim plant only. The xacro default stays the STS3215 rating.
+                " gz_arm_effort:=10",
             ]
         ),
         value_type=str,
@@ -248,7 +251,15 @@ def _launch_sim(context, *args, **kwargs):
         parameters=[{"config_file": bridge_config, "use_sim_time": False}],
     )
 
-    actions = [gazebo, robot_state_publisher, spawn, bridge]
+    # model://omnibot_description/<path> resolves against <prefix>/share.
+    # sim_desktop.launch.py sets the same path for the GUI. Headless
+    # sim-smoke and vr-contract start here, and without it gz cannot load
+    # the chassis, wheel, SO-101, and AprilTag visuals.
+    mesh_path = AppendEnvironmentVariable(
+        "GZ_SIM_RESOURCE_PATH",
+        os.path.dirname(description),
+    )
+    actions = [mesh_path, gazebo, robot_state_publisher, spawn, bridge]
     descriptor_on = LaunchConfiguration("descriptor").perform(context).lower() in (
         "1",
         "true",

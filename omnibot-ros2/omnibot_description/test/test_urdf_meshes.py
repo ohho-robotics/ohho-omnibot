@@ -201,6 +201,18 @@ def test_limits_cite_sts3215_and_mark_wheel_estimates():
         assert float(limit["effort"]) == pytest.approx(100.0)
         assert float(limit["velocity"]) == pytest.approx(100.0)
         assert "lower" not in limit and "upper" not in limit
+    # sim.launch.py passes gz_arm_effort:=10. The default expansion above
+    # stays the STS3215 rating; the override changes effort only.
+    assert 'name="gz_arm_effort" default="${sts3215_effort}"' in text
+    sim = _expand({**export.WEB_XACRO_ARGS, "gz_arm_effort": "10"})
+    sim_joints = _top_joints(sim)
+    for name in export.ARM_JOINTS:
+        default_limit = joints[name].find("limit").attrib
+        sim_limit = sim_joints[name].find("limit").attrib
+        assert float(sim_limit["effort"]) == pytest.approx(10.0)
+        assert float(sim_limit["velocity"]) == float(default_limit["velocity"])
+        assert sim_limit["lower"] == default_limit["lower"]
+        assert sim_limit["upper"] == default_limit["upper"]
 
 
 def test_base_and_wheel_inertia_match_the_stated_mass_and_shape():
