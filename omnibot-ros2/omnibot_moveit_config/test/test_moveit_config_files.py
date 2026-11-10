@@ -332,8 +332,24 @@ def test_launches_and_package_manifest():
         "moveit_simple_controller_manager",
         "parallel_gripper_controller",
         "joint_trajectory_controller",
+        "hardware_interface",
+        "ros2controlcli",
     ):
         assert package in manifest
+    # The GenericSystem plugin lives in hardware_interface. The library name
+    # is not a rosdep key, so no package may depend on it.
+    assert "mock_components</" not in manifest
+    control = demo.split('executable="ros2_control_node"', 1)[1].split(
+        "actions.append", 1
+    )[0]
+    assert "moveit_config.robot_description" not in control
+    assert "controllers_file" in control
+    for manifest_path in REPO.rglob("package.xml"):
+        if any(part in {".venv", "build", "install", ".git"} for part in manifest_path.parts):
+            continue
+        text = manifest_path.read_text(encoding="utf-8")
+        for tag in ("depend", "exec_depend", "build_depend", "test_depend"):
+            assert f"<{tag}>mock_components</{tag}>" not in text, manifest_path
     assert "omnibot_description" in assistant
     assert "config/mecanum_bot.srdf" in assistant
     assert "demo.launch.py" in readme

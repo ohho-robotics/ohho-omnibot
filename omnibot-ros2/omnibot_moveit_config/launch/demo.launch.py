@@ -212,8 +212,9 @@ def _launch_setup(context, *args, **kwargs):
             executable="ros2_control_node",
             name="controller_manager",
             output="screen",
+            # Jazzy controller_manager ignores a robot_description parameter and
+            # subscribes to /robot_description. robot_state_publisher publishes it.
             parameters=[
-                moveit_config.robot_description,
                 controllers_file,
                 {"use_sim_time": False},
             ],

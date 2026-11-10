@@ -25,7 +25,9 @@
   <exec_depend>joint_trajectory_controller</exec_depend>
   <exec_depend>parallel_gripper_controller</exec_depend>
   <exec_depend>mecanum_drive_controller</exec_depend>
-  <exec_depend>mock_components</exec_depend>
+  <!-- Jazzy builds mock_components/GenericSystem inside hardware_interface.
+       mock_components is not a rosdep key. -->
+  <exec_depend>hardware_interface</exec_depend>
   <exec_depend>gz_ros2_control</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>rviz2</exec_depend>
@@ -44,6 +46,7 @@
   <test_depend>geometry_msgs</test_depend>
   <test_depend>shape_msgs</test_depend>
   <test_depend>tf2_ros</test_depend>
+  <test_depend>ros2controlcli</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
