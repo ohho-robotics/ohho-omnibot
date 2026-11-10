@@ -125,6 +125,10 @@ if(BUILD_TESTING)
     test/test_record_launch.py
     TIMEOUT 60
   )
+  ament_add_pytest_test(test_dds_profile
+    test/test_dds_profile.py
+    TIMEOUT 60
+  )
 
   # Headless Gazebo launch test. The sim-smoke CI job exports
   # OMNIBOT_SIM_SMOKE=1 before configure. The default colcon test job

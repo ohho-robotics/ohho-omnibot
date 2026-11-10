@@ -71,9 +71,38 @@
     <xacro:property name="wheel_z_offset"     value="${wheel_radius - base_link_z_offset}"/>
     <xacro:property name="wheel_x_offset"     value="${wheel_separation_x / 2.0}"/>
     <xacro:property name="wheel_y_offset"     value="${wheel_separation_y / 2.0}"/>
+    <!-- Hub and roller sizes baked into meshes/base/mecanum_wheel_cs_*.stl
+         by scripts/generate_base_meshes.py. Collision still uses wheel_radius
+         and wheel_width. -->
+    <xacro:property name="hub_radius_scale"   value="0.80"/>
+    <xacro:property name="roller_radius"      value="0.006"/>
+    <xacro:property name="roller_length"      value="0.030"/>
+    <!-- Wheel joint effort is N·m and velocity is rad/s. Both are ESTIMATES.
+         omnibot_driver/config/yahboom_params.yaml documents
+         encoder_ticks_per_revolution 1440 and encoder_resolution 0.25 deg/tick
+         (1440 * 0.25 deg = 360 deg, so 1440 counts per output revolution) and
+         max_rad_s 10 as a PWM scale, not a stall or no-load rating.
+         mecanum-kinematics/config/mecanum_params.yaml documents wheel_radius
+         0.04 m. This repo does not document a gear ratio, a motor model, a
+         stall torque, or a no-load speed. Public JGB37-520 tables use several
+         ratios (a 1:30 gear with an 11-line quadrature encoder is
+         11 * 4 * 30 = 1320 counts/rev, which is not 1440), so no datasheet
+         row is identified. The placeholders 100 N·m and 100 rad/s are kept.
+         Do not treat them as motor ratings. -->
+    <xacro:property name="wheel_effort"       value="100"/>
+    <xacro:property name="wheel_velocity"     value="100"/>
 
     <!-- ================================================================
          Masses
+         base_mass, top_plate_mass, and wheel_mass are estimates. Nothing
+         in this repo is a weighed chassis or a wheel datasheet mass.
+         A solid aluminium plate at 2700 kg/m^3 with the xacro plate size
+         (0.265 m * 0.250 m * 0.006 m) is about 1.07 kg. base_mass 1.5 kg
+         lumps unmodelled electronics onto the bottom plate (the comment
+         on base_link). top_plate_mass 1.0 kg is that same plate, a little
+         under the solid-aluminium figure. wheel_mass 0.2 kg is a round
+         estimate for the 80 mm mecanum wheel. Inertias below use these
+         masses with the solid box (plates) and the Y-axis cylinder (wheels).
          ================================================================ -->
     <xacro:property name="base_mass"       value="1.5"/>
     <xacro:property name="top_plate_mass"  value="1.0"/>
@@ -100,10 +129,11 @@
          between the two plates (not modelled individually).
          ================================================================ -->
     <link name="base_link">
+        <!-- Simplified procedural plate, not CAD. meshes/base/README.md. -->
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
-                <box size="${chassis_length} ${chassis_width} ${plate_thickness}"/>
+                <mesh filename="package://omnibot_description/meshes/base/chassis_plate.stl"/>
             </geometry>
             <material name="chassis_black">
                 <color rgba="0.08 0.08 0.08 1"/>
@@ -158,6 +188,7 @@
                     <cylinder radius="0.007" length="${standoff_height}"/>
                 </geometry>
             </collision>
+            <!-- 0.04 kg and 0.0001 kg·m^2 are round estimates, not a datasheet. -->
             <inertial>
                 <mass value="0.04"/>
                 <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -187,10 +218,11 @@
          The SO-ARM 101 and depth camera mount here.
          ================================================================ -->
     <link name="top_plate_link">
+        <!-- Same simplified plate mesh as base_link. Not CAD. -->
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
-                <box size="${chassis_length} ${chassis_width} ${plate_thickness}"/>
+                <mesh filename="package://omnibot_description/meshes/base/chassis_plate.stl"/>
             </geometry>
             <material name="chassis_black"/>
         </visual>
@@ -483,95 +515,30 @@
     </joint>
 
     <!-- ================================================================
-         Mecanum wheels — 4× with barrel roller visuals.
+         Mecanum wheels.
 
          Wheel axis = Y in the link frame (joint axis xyz="0 1 0").
-         The wheel disk lies in the XZ plane.
+         The wheel disk lies in the XZ plane. Joint origins are unchanged.
 
-         8 barrel rollers are placed at φ = 0, π/4, … 7π/4 around the rim.
-         Roller centre distance from hub axis: rR = wheel_radius − roller_r
-         Roller orientation formula (derived analytically):
-           rpy = ( cs × (−π/4),  π/2 + φ,  0 )
-         where cs = +1 gives "\" chirality, cs = −1 gives "/" chirality.
-
-         Diagonal pairs share chirality: FL+RR = cs +1, FR+RL = cs −1.
+         Visual: simplified procedural STL (hub plus 8 rollers) generated
+         by scripts/generate_base_meshes.py. Not CAD. meshes/base/README.md.
+         Diagonal pairs share chirality: FL+RR use mecanum_wheel_cs_pos.stl
+         ("\"), FR+RL use mecanum_wheel_cs_neg.stl ("/").
 
          Collision: plain cylinder (physics engine approximation).
          ================================================================ -->
 
-    <!-- rR  = roller centre radius  = wheel_radius − 0.006        -->
-    <!-- rRn = rR × sin(π/4) ≈ rR × 0.7071  (diagonal positions)  -->
-
-    <xacro:macro name="wheel" params="prefix x_reflect y_reflect cs">
+    <xacro:macro name="wheel" params="prefix x_reflect y_reflect mesh">
         <link name="${prefix}_wheel_link">
 
-            <!-- Hub — solid dark cylinder, slightly narrower than roller rim -->
             <visual>
-                <origin xyz="0 0 0" rpy="${PI/2} 0 0"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
                 <geometry>
-                    <cylinder radius="${wheel_radius * 0.80}" length="${wheel_width}"/>
+                    <mesh filename="package://omnibot_description/meshes/base/${mesh}"/>
                 </geometry>
                 <material name="wheel_black">
                     <color rgba="0.10 0.10 0.10 1"/>
                 </material>
-            </visual>
-
-            <!-- 8 barrel rollers arranged around the circumference at 45° intervals -->
-            <!-- φ = 0   (top,    +Z) -->
-            <visual>
-                <origin xyz="0 0 ${wheel_radius - 0.006}"
-                        rpy="${cs * (-PI/4)} ${PI/2} 0"/>
-                <geometry><cylinder radius="0.006" length="0.030"/></geometry>
-                <material name="roller_grey"><color rgba="0.28 0.28 0.28 1"/></material>
-            </visual>
-            <!-- φ = π/4 -->
-            <visual>
-                <origin xyz="${(wheel_radius - 0.006) * 0.7071} 0 ${(wheel_radius - 0.006) * 0.7071}"
-                        rpy="${cs * (-PI/4)} ${3 * PI/4} 0"/>
-                <geometry><cylinder radius="0.006" length="0.030"/></geometry>
-                <material name="roller_grey"/>
-            </visual>
-            <!-- φ = π/2  (front, +X) -->
-            <visual>
-                <origin xyz="${wheel_radius - 0.006} 0 0"
-                        rpy="${cs * (-PI/4)} ${PI} 0"/>
-                <geometry><cylinder radius="0.006" length="0.030"/></geometry>
-                <material name="roller_grey"/>
-            </visual>
-            <!-- φ = 3π/4 -->
-            <visual>
-                <origin xyz="${(wheel_radius - 0.006) * 0.7071} 0 ${-(wheel_radius - 0.006) * 0.7071}"
-                        rpy="${cs * (-PI/4)} ${5 * PI/4} 0"/>
-                <geometry><cylinder radius="0.006" length="0.030"/></geometry>
-                <material name="roller_grey"/>
-            </visual>
-            <!-- φ = π   (bottom, −Z) -->
-            <visual>
-                <origin xyz="0 0 ${-(wheel_radius - 0.006)}"
-                        rpy="${cs * (-PI/4)} ${3 * PI/2} 0"/>
-                <geometry><cylinder radius="0.006" length="0.030"/></geometry>
-                <material name="roller_grey"/>
-            </visual>
-            <!-- φ = 5π/4 -->
-            <visual>
-                <origin xyz="${-(wheel_radius - 0.006) * 0.7071} 0 ${-(wheel_radius - 0.006) * 0.7071}"
-                        rpy="${cs * (-PI/4)} ${7 * PI/4} 0"/>
-                <geometry><cylinder radius="0.006" length="0.030"/></geometry>
-                <material name="roller_grey"/>
-            </visual>
-            <!-- φ = 3π/2  (rear, −X) -->
-            <visual>
-                <origin xyz="${-(wheel_radius - 0.006)} 0 0"
-                        rpy="${cs * (-PI/4)} ${2 * PI} 0"/>
-                <geometry><cylinder radius="0.006" length="0.030"/></geometry>
-                <material name="roller_grey"/>
-            </visual>
-            <!-- φ = 7π/4 -->
-            <visual>
-                <origin xyz="${-(wheel_radius - 0.006) * 0.7071} 0 ${(wheel_radius - 0.006) * 0.7071}"
-                        rpy="${cs * (-PI/4)} ${9 * PI/4} 0"/>
-                <geometry><cylinder radius="0.006" length="0.030"/></geometry>
-                <material name="roller_grey"/>
             </visual>
 
             <!-- Collision: simple cylinder for physics (covers full wheel radius) -->
@@ -582,9 +549,14 @@
                 </geometry>
             </collision>
 
+            <!-- Axle is link Y. Iyy is the spin term m r^2 / 2.
+                 Ixx and Izz are the transverse cylinder terms. The inertial
+                 frame is the link frame (no rpy). wheel_mass is an estimate;
+                 see the Masses comment. A previous rpy of pi/2 put the spin
+                 term on link Z. -->
             <inertial>
                 <mass value="${wheel_mass}"/>
-                <origin xyz="0 0 0" rpy="${PI/2} 0 0"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
                 <inertia
                     ixx="${wheel_mass/12.0*(3*wheel_radius*wheel_radius + wheel_width*wheel_width)}"
                     ixy="0" ixz="0"
@@ -608,25 +580,78 @@
             <origin xyz="${x_reflect * wheel_x_offset} ${y_reflect * wheel_y_offset} ${wheel_z_offset}"
                     rpy="0 0 0"/>
             <axis xyz="0 1 0"/>
-            <limit effort="100" velocity="100"/>
+            <limit effort="${wheel_effort}" velocity="${wheel_velocity}"/>
         </joint>
     </xacro:macro>
 
-    <!-- FL+RR share cs=+1 ("\"), FR+RL share cs=−1 ("/") -->
-    <xacro:wheel prefix="front_left"  x_reflect=" 1" y_reflect=" 1" cs=" 1"/>
-    <xacro:wheel prefix="front_right" x_reflect=" 1" y_reflect="-1" cs="-1"/>
-    <xacro:wheel prefix="rear_left"   x_reflect="-1" y_reflect=" 1" cs="-1"/>
-    <xacro:wheel prefix="rear_right"  x_reflect="-1" y_reflect="-1" cs=" 1"/>
+    <!-- FL+RR share "\" (cs_pos). FR+RL share "/" (cs_neg). -->
+    <xacro:wheel prefix="front_left"  x_reflect=" 1" y_reflect=" 1" mesh="mecanum_wheel_cs_pos.stl"/>
+    <xacro:wheel prefix="front_right" x_reflect=" 1" y_reflect="-1" mesh="mecanum_wheel_cs_neg.stl"/>
+    <xacro:wheel prefix="rear_left"   x_reflect="-1" y_reflect=" 1" mesh="mecanum_wheel_cs_neg.stl"/>
+    <xacro:wheel prefix="rear_right"  x_reflect="-1" y_reflect="-1" mesh="mecanum_wheel_cs_pos.stl"/>
 
     <!-- ================================================================
          SO-ARM 101 — 6-DOF follower arm (TheRobotStudio/SO-ARM100)
-         Joint origins/axes/limits: EXACT from so101_new_calib.urdf.
-         Visuals: box + cylinder primitives (render in any viewer).
-         STL meshes kept in meshes/so101/ for ROS 2 use after colcon build.
+         Joint origins/axes and position limits: EXACT from so101_new_calib.urdf.
+         Visuals: meshes/so101/*.stl. Origins are the visual poses previously
+         held in scripts/export_web_model.py (themselves from that calib URDF).
+         Collision stays the box/cylinder primitives.
          ================================================================ -->
 
     <material name="arm_white"><color rgba="0.95 0.95 0.95 1.0"/></material>
     <material name="arm_servo"><color rgba="0.12 0.12 0.12 1.0"/></material>
+
+    <!-- Feetech STS3215 output-shaft ratings at 7.4 V. Servo datasheets
+         quote torque and speed at the output horn, so the URDF joint uses
+         those numbers directly and mechanicalReduction stays 1.
+         Source: Shenzhen Feetech RC Model product specification, model
+         STS3215, "7.4V 19KG.CM", edition A/0 dated 2020-03-28, items 5-2
+         and 5-4. Public copy:
+         https://www.mantech.co.za/Datasheets/Products/STS3215-200620A.pdf
+         omnibot_arm/config/arm_params.yaml records ticks_per_rev 4096,
+         this servo's magnetic encoder, on every SO-101 joint.
+         Stall torque: 19.5 kgf·cm * 0.0980665 N·m/(kgf·cm) = 1.9123 N·m.
+         No-load speed: 0.192 s/60° = (pi/3)/0.192 = 5.4542 rad/s.
+         The same sheet rounds that speed to 52 RPM (52*2*pi/60 = 5.445 rad/s).
+         URDF effort is N·m. URDF velocity is rad/s.
+         Position lower/upper on each joint stay the calib stops. -->
+    <xacro:property name="sts3215_effort" value="1.9123"/>
+    <xacro:property name="sts3215_velocity" value="5.4542"/>
+    <!-- Sim plant effort. The default is sts3215_effort, so a real-robot
+         URDF and the web export keep the STS3215 stall torque. gz-sim
+         realizes a joint only up to this limit. At 1.9123 N·m the shoulder
+         cannot brake a 1.5 rad/s hold against gravity: the joint is still
+         moving when e-stop latches, and the sag walks the base while
+         /cmd_vel/out is zero. sim.launch.py passes gz_arm_effort:=10, the
+         effort these joints used before the rating. use_sim holds the arm
+         with gz_ros2_control (position_proportional_gain 0.15, about
+         1.5 rad/s for a 0.2 rad error) instead of a Gazebo
+         JointPositionController. Position stops and velocity stay at the
+         STS3215 rating. -->
+    <xacro:arg name="gz_arm_effort" default="${sts3215_effort}"/>
+
+    <!-- Pedestal envelope copied by apriltag_mounts.Chassis for tag
+         clearance. The arm visuals are STLs now; these are not mesh bounds.
+         arm_body_z is the old main-body box height. The collision box on
+         arm_base_link is taller (0.070 m) and stays that literal. -->
+    <xacro:property name="arm_body_x" value="0.075"/>
+    <xacro:property name="arm_body_y" value="0.065"/>
+    <xacro:property name="arm_body_z" value="0.055"/>
+    <xacro:property name="waveshare_origin_x" value="-0.031"/>
+    <xacro:property name="waveshare_origin_z" value="0.068"/>
+    <xacro:property name="waveshare_size_x" value="0.080"/>
+    <xacro:property name="waveshare_size_y" value="0.060"/>
+    <xacro:property name="waveshare_size_z" value="0.006"/>
+
+    <xacro:macro name="so101_visual" params="stl xyz rpy material">
+        <visual>
+            <origin xyz="${xyz}" rpy="${rpy}"/>
+            <geometry>
+                <mesh filename="package://omnibot_description/meshes/so101/${stl}"/>
+            </geometry>
+            <material name="${material}"/>
+        </visual>
+    </xacro:macro>
 
     <!-- Fixed joint: top plate → arm base -->
     <joint name="arm_base_joint" type="fixed">
@@ -637,24 +662,10 @@
 
     <!-- ARM BASE — pedestal body + bottom servo -->
     <link name="arm_base_link">
-        <visual>
-            <!-- Main body: ~75×65×55 mm box, centred at z=0.035 -->
-            <origin xyz="0 0 0.035" rpy="0 0 0"/>
-            <geometry><box size="0.075 0.065 0.055"/></geometry>
-            <material name="arm_white"/>
-        </visual>
-        <visual>
-            <!-- STS3215 base servo body -->
-            <origin xyz="0.026 0 0.044" rpy="0 0 0"/>
-            <geometry><box size="0.040 0.025 0.040"/></geometry>
-            <material name="arm_servo"/>
-        </visual>
-        <visual>
-            <!-- Waveshare mounting plate on top -->
-            <origin xyz="-0.031 0 0.068" rpy="0 0 0"/>
-            <geometry><box size="0.080 0.060 0.006"/></geometry>
-            <material name="arm_white"/>
-        </visual>
+        <xacro:so101_visual stl="base_motor_holder_so101_v1.stl" xyz="-0.00636471 -9.94414e-05 -0.0024" rpy="1.5708 -1.67685e-15 1.5708" material="arm_white"/>
+        <xacro:so101_visual stl="base_so101_v2.stl" xyz="-0.00636471 -8.97657e-09 -0.0024" rpy="1.5708 -2.78073e-29 1.5708" material="arm_white"/>
+        <xacro:so101_visual stl="sts3215_03a_v1.stl" xyz="0.0263353 -8.97657e-09 0.0437" rpy="-8.21148e-16 7.84513e-18 1.249e-15" material="arm_servo"/>
+        <xacro:so101_visual stl="waveshare_mounting_plate_so101_v2.stl" xyz="-0.0309827 -0.000199441 0.0474" rpy="1.5708 -1.35493e-14 1.5708" material="arm_white"/>
         <collision>
             <origin xyz="0 0 0.035" rpy="0 0 0"/>
             <geometry><box size="0.075 0.065 0.070"/></geometry>
@@ -669,18 +680,9 @@
 
     <!-- SHOULDER — pan servo + motor holder + rotation pitch bracket -->
     <link name="arm_shoulder_link">
-        <visual>
-            <!-- STS3215 shoulder servo, lying on its side -->
-            <origin xyz="-0.031 0 -0.025" rpy="${PI/2} 0 0"/>
-            <geometry><cylinder radius="0.020" length="0.050"/></geometry>
-            <material name="arm_servo"/>
-        </visual>
-        <visual>
-            <!-- Motor holder + rotation pitch bracket -->
-            <origin xyz="0.012 0 0.046" rpy="0 0 0"/>
-            <geometry><box size="0.040 0.045 0.038"/></geometry>
-            <material name="arm_white"/>
-        </visual>
+        <xacro:so101_visual stl="sts3215_03a_v1.stl" xyz="-0.0303992 0.000422241 -0.0417" rpy="1.5708 1.5708 0" material="arm_servo"/>
+        <xacro:so101_visual stl="motor_holder_so101_base_v1.stl" xyz="-0.0675992 -0.000177759 0.0158499" rpy="1.5708 -1.5708 0" material="arm_white"/>
+        <xacro:so101_visual stl="rotation_pitch_so101_v1.stl" xyz="0.0122008 2.22413e-05 0.0464" rpy="-1.5708 2.35221e-33 0" material="arm_white"/>
         <collision>
             <origin xyz="-0.031 0 -0.025" rpy="${PI/2} 0 0"/>
             <geometry><cylinder radius="0.020" length="0.050"/></geometry>
@@ -699,24 +701,14 @@
         <parent link="arm_base_link"/>
         <child link="arm_shoulder_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="10" velocity="10" lower="-1.91986" upper="1.91986"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.91986" upper="1.91986"/>
         <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- UPPER ARM — beam + elbow servo -->
     <link name="arm_upper_arm_link">
-        <visual>
-            <!-- Upper arm beam -->
-            <origin xyz="-0.065 0.012 0.018" rpy="0 0 0"/>
-            <geometry><box size="0.125 0.035 0.030"/></geometry>
-            <material name="arm_white"/>
-        </visual>
-        <visual>
-            <!-- STS3215 elbow servo -->
-            <origin xyz="-0.113 -0.016 0.019" rpy="${PI/2} 0 0"/>
-            <geometry><cylinder radius="0.018" length="0.040"/></geometry>
-            <material name="arm_servo"/>
-        </visual>
+        <xacro:so101_visual stl="sts3215_03a_v1.stl" xyz="-0.11257 -0.0155 0.0187" rpy="-3.14159 -5.27356e-16 -1.5708" material="arm_servo"/>
+        <xacro:so101_visual stl="upper_arm_so101_v1.stl" xyz="-0.065085 0.012 0.0182" rpy="3.14159 -0 -1.30911e-30" material="arm_white"/>
         <collision>
             <origin xyz="-0.065 0.012 0.018" rpy="0 0 0"/>
             <geometry><box size="0.125 0.035 0.030"/></geometry>
@@ -735,24 +727,15 @@
         <parent link="arm_shoulder_link"/>
         <child link="arm_upper_arm_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="10" velocity="10" lower="-1.74533" upper="1.74533"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.74533" upper="1.74533"/>
         <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- LOWER ARM — forearm beam + wrist servo -->
     <link name="arm_lower_arm_link">
-        <visual>
-            <!-- Forearm beam -->
-            <origin xyz="-0.065 -0.032 0.018" rpy="0 0 0"/>
-            <geometry><box size="0.125 0.030 0.028"/></geometry>
-            <material name="arm_white"/>
-        </visual>
-        <visual>
-            <!-- STS3215 wrist servo -->
-            <origin xyz="-0.122 0.005 0.019" rpy="${PI/2} 0 0"/>
-            <geometry><cylinder radius="0.018" length="0.040"/></geometry>
-            <material name="arm_servo"/>
-        </visual>
+        <xacro:so101_visual stl="under_arm_so101_v1.stl" xyz="-0.0648499 -0.032 0.0182" rpy="3.14159 -0 6.67202e-31" material="arm_white"/>
+        <xacro:so101_visual stl="motor_holder_so101_wrist_v1.stl" xyz="-0.0648499 -0.032 0.018" rpy="-3.14159 -2.55351e-15 -1.83387e-30" material="arm_white"/>
+        <xacro:so101_visual stl="sts3215_03a_v1.stl" xyz="-0.1224 0.0052 0.0187" rpy="-3.14159 -7.88861e-31 -3.14159" material="arm_servo"/>
         <collision>
             <origin xyz="-0.065 -0.032 0.018" rpy="0 0 0"/>
             <geometry><box size="0.125 0.030 0.028"/></geometry>
@@ -771,24 +754,14 @@
         <parent link="arm_upper_arm_link"/>
         <child link="arm_lower_arm_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="10" velocity="10" lower="-1.69" upper="1.69"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.69" upper="1.69"/>
         <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- WRIST — roll/pitch bracket + servo (no horn) -->
     <link name="arm_wrist_link">
-        <visual>
-            <!-- Wrist roll-pitch body -->
-            <origin xyz="0 -0.028 0.018" rpy="0 0 0"/>
-            <geometry><box size="0.038 0.035 0.040"/></geometry>
-            <material name="arm_white"/>
-        </visual>
-        <visual>
-            <!-- STS3215 no-horn servo -->
-            <origin xyz="0 -0.042 0.031" rpy="${PI/2} 0 0"/>
-            <geometry><cylinder radius="0.018" length="0.040"/></geometry>
-            <material name="arm_servo"/>
-        </visual>
+        <xacro:so101_visual stl="sts3215_03a_no_horn_v1.stl" xyz="8.32667e-17 -0.0424 0.0306" rpy="1.5708 1.5708 0" material="arm_servo"/>
+        <xacro:so101_visual stl="wrist_roll_pitch_so101_v2.stl" xyz="0 -0.028 0.0181" rpy="-1.5708 -1.5708 0" material="arm_white"/>
         <collision>
             <origin xyz="0 -0.028 0.018" rpy="0 0 0"/>
             <geometry><box size="0.038 0.035 0.040"/></geometry>
@@ -807,24 +780,14 @@
         <parent link="arm_lower_arm_link"/>
         <child link="arm_wrist_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="10" velocity="10" lower="-1.65806" upper="1.65806"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.65806" upper="1.65806"/>
         <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- GRIPPER — roll follower body + roll servo -->
     <link name="arm_gripper_link">
-        <visual>
-            <!-- Wrist roll follower body -->
-            <origin xyz="0 0 -0.015" rpy="0 0 0"/>
-            <geometry><box size="0.060 0.040 0.055"/></geometry>
-            <material name="arm_white"/>
-        </visual>
-        <visual>
-            <!-- STS3215 roll servo -->
-            <origin xyz="0.008 0 -0.023" rpy="0 ${PI/2} 0"/>
-            <geometry><cylinder radius="0.018" length="0.040"/></geometry>
-            <material name="arm_servo"/>
-        </visual>
+        <xacro:so101_visual stl="sts3215_03a_v1.stl" xyz="0.0077 0.0001 -0.0234" rpy="-1.5708 -5.19179e-17 -1.66533e-16" material="arm_servo"/>
+        <xacro:so101_visual stl="wrist_roll_follower_so101_v1.stl" xyz="8.32667e-17 -0.000218214 0.000949706" rpy="-3.14159 -5.55112e-17 0" material="arm_white"/>
         <collision>
             <origin xyz="0 0 -0.015" rpy="0 0 0"/>
             <geometry><box size="0.060 0.040 0.055"/></geometry>
@@ -843,7 +806,7 @@
         <parent link="arm_wrist_link"/>
         <child link="arm_gripper_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="10" velocity="10" lower="-2.74385" upper="2.84121"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-2.74385" upper="2.84121"/>
         <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
@@ -863,11 +826,7 @@
 
     <!-- MOVING JAW -->
     <link name="arm_moving_jaw_link">
-        <visual>
-            <origin xyz="0 -0.030 0.019" rpy="0 0 0"/>
-            <geometry><box size="0.018 0.010 0.050"/></geometry>
-            <material name="arm_white"/>
-        </visual>
+        <xacro:so101_visual stl="moving_jaw_so101_v1.stl" xyz="-5.55112e-17 -5.55112e-17 0.0189" rpy="9.53145e-17 6.93889e-18 1.24077e-24" material="arm_white"/>
         <collision>
             <origin xyz="0 -0.030 0.019" rpy="0 0 0"/>
             <geometry><box size="0.018 0.010 0.050"/></geometry>
@@ -886,7 +845,7 @@
         <parent link="arm_gripper_link"/>
         <child link="arm_moving_jaw_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="10" velocity="10" lower="-0.174533" upper="1.74533"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-0.174533" upper="1.74533"/>
         <dynamics damping="4.0" friction="0.5"/>
     </joint>
 

@@ -12,6 +12,11 @@ FROM ros:jazzy-ros-base-noble
 ENV DEBIAN_FRONTEND=noninteractive \
     ROS_DISTRO=jazzy \
     ROS_DOMAIN_ID=30 \
+    RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+    CYCLONEDDS_URI=file:///workspaces/OmniBot/omnibot-ros2/omnibot_bringup/config/dds/cyclonedds.xml \
+    OMNIBOT_PI_IP=192.0.2.10 \
+    OMNIBOT_WS_IP=192.0.2.20 \
+    OMNIBOT_WORKSTATION_IP=192.0.2.20 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LIBGL_ALWAYS_SOFTWARE=1 \
@@ -52,6 +57,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-depthimage-to-laserscan \
     ros-jazzy-teleop-twist-keyboard \
     ros-jazzy-topic-tools \
+    ros-jazzy-rmw-cyclonedds-cpp \
     # Build tools & utilities
     python3-colcon-common-extensions \
     python3-rosdep \
@@ -144,7 +150,9 @@ RUN chown -R $USER_UID:$USER_GID /workspaces/OmniBot /opt/omnibot
 # ── 6. Environment & entrypoint setup ─────────────────────────────────────────
 RUN echo "source /opt/ros/jazzy/setup.bash" >> /etc/bash.bashrc \
     && echo "if [ -f /opt/omnibot/install/setup.bash ]; then source /opt/omnibot/install/setup.bash; fi" >> /etc/bash.bashrc \
-    && echo "export ROS_DOMAIN_ID=30" >> /etc/bash.bashrc
+    && echo "export ROS_DOMAIN_ID=30" >> /etc/bash.bashrc \
+    && echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> /etc/bash.bashrc \
+    && echo "export CYCLONEDDS_URI=file:///workspaces/OmniBot/omnibot-ros2/omnibot_bringup/config/dds/cyclonedds.xml" >> /etc/bash.bashrc
 
 # Entrypoint script that ensures environment is sourced for any command
 RUN printf '#!/bin/bash\nset -e\nsource /opt/ros/jazzy/setup.bash\nif [ -f /opt/omnibot/install/setup.bash ]; then source /opt/omnibot/install/setup.bash; fi\nif [ -f /workspaces/OmniBot/install/setup.bash ] && [ ! /workspaces/OmniBot/install/setup.bash -ef /opt/omnibot/install/setup.bash ]; then source /workspaces/OmniBot/install/setup.bash; fi\nexec "$@"\n' > /omnibot_entrypoint.sh \
