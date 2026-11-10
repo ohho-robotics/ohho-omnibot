@@ -618,6 +618,15 @@
          Position lower/upper on each joint stay the calib stops. -->
     <xacro:property name="sts3215_effort" value="1.9123"/>
     <xacro:property name="sts3215_velocity" value="5.4542"/>
+    <!-- Sim plant effort. The default is sts3215_effort, so a real-robot
+         URDF and the web export keep the STS3215 stall torque. gz-sim's
+         JointPositionController with use_velocity_commands is realized by
+         DART only up to this limit. At 1.9123 N·m the shoulder cannot brake
+         the 1.5 rad/s hold against gravity: the joint is still moving when
+         e-stop latches, and the sag walks the base while /cmd_vel/out is
+         zero. sim.launch.py passes gz_arm_effort:=10, the effort these
+         joints used before the rating. Position stops and velocity stay. -->
+    <xacro:arg name="gz_arm_effort" default="${sts3215_effort}"/>
 
     <!-- Pedestal envelope copied by apriltag_mounts.Chassis for tag
          clearance. The arm visuals are STLs now; these are not mesh bounds.
@@ -690,7 +699,7 @@
         <parent link="arm_base_link"/>
         <child link="arm_shoulder_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="${sts3215_effort}" velocity="${sts3215_velocity}" lower="-1.91986" upper="1.91986"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.91986" upper="1.91986"/>
     </joint>
     <transmission name="arm_shoulder_pan_trans">
         <type>transmission_interface/SimpleTransmission</type>
@@ -725,7 +734,7 @@
         <parent link="arm_shoulder_link"/>
         <child link="arm_upper_arm_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="${sts3215_effort}" velocity="${sts3215_velocity}" lower="-1.74533" upper="1.74533"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.74533" upper="1.74533"/>
     </joint>
     <transmission name="arm_shoulder_lift_trans">
         <type>transmission_interface/SimpleTransmission</type>
@@ -761,7 +770,7 @@
         <parent link="arm_upper_arm_link"/>
         <child link="arm_lower_arm_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="${sts3215_effort}" velocity="${sts3215_velocity}" lower="-1.69" upper="1.69"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.69" upper="1.69"/>
     </joint>
     <transmission name="arm_elbow_flex_trans">
         <type>transmission_interface/SimpleTransmission</type>
@@ -796,7 +805,7 @@
         <parent link="arm_lower_arm_link"/>
         <child link="arm_wrist_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="${sts3215_effort}" velocity="${sts3215_velocity}" lower="-1.65806" upper="1.65806"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-1.65806" upper="1.65806"/>
     </joint>
     <transmission name="arm_wrist_flex_trans">
         <type>transmission_interface/SimpleTransmission</type>
@@ -831,7 +840,7 @@
         <parent link="arm_wrist_link"/>
         <child link="arm_gripper_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="${sts3215_effort}" velocity="${sts3215_velocity}" lower="-2.74385" upper="2.84121"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-2.74385" upper="2.84121"/>
     </joint>
     <transmission name="arm_wrist_roll_trans">
         <type>transmission_interface/SimpleTransmission</type>
@@ -879,7 +888,7 @@
         <parent link="arm_gripper_link"/>
         <child link="arm_moving_jaw_link"/>
         <axis xyz="0 0 1"/>
-        <limit effort="${sts3215_effort}" velocity="${sts3215_velocity}" lower="-0.174533" upper="1.74533"/>
+        <limit effort="$(arg gz_arm_effort)" velocity="${sts3215_velocity}" lower="-0.174533" upper="1.74533"/>
     </joint>
     <transmission name="arm_gripper_trans">
         <type>transmission_interface/SimpleTransmission</type>
