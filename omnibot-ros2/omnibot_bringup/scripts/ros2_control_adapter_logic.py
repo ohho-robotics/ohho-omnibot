@@ -131,6 +131,15 @@ class TwistRelay:
         self._sample = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self._stamp = float(now)
 
+    def stopped(self):
+        """True when the latest sample is a full stop.
+
+        The adapter publishes that sample in the twist callback. Waiting for
+        the refresh timer leaves the mecanum controller holding the last
+        wheel speed.
+        """
+        return all(abs(value) <= 1e-6 for value in self._sample)
+
     def sample(self, now):
         if self._stamp is None or (float(now) - self._stamp) > self.timeout_sec:
             return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)

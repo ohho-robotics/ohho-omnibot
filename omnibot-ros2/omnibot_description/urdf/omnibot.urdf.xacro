@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mecanum_bot">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema" name="mecanum_bot">
 
     <xacro:property name="PI" value="3.1415926535897931"/>
 
@@ -1086,7 +1086,10 @@
         <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
             <odom_frame>odom</odom_frame>
             <robot_base_frame>base_footprint</robot_base_frame>
-            <odom_publish_frequency>50</odom_publish_frequency>
+            <!-- The twist is a 10-step rolling mean (~20 ms). 100 Hz cuts
+                 the extra publish slot without flooding the depth-10 odom
+                 subscription the stop test drains with spin_once. -->
+            <odom_publish_frequency>100</odom_publish_frequency>
             <odom_topic>/odom</odom_topic>
             <tf_topic>/tf</tf_topic>
             <dimensions>2</dimensions>
@@ -1155,6 +1158,9 @@
             <parameters>$(arg controllers_file)</parameters>
             <hold_joints>true</hold_joints>
             <position_proportional_gain>0.15</position_proportional_gain>
+            <!-- Later than VelocityControl (priority 0) so a wheel brake can
+                 clear a latched body twist in the same PreUpdate. -->
+            <gz:system_priority>100</gz:system_priority>
         </plugin>
         </xacro:unless>
         </xacro:if>

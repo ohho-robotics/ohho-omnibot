@@ -252,3 +252,27 @@ def test_adapter_waits_for_arm_joints_and_times_out_twists():
     assert relay.sample(10.3) == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     relay.force_zero(11.0)
     assert relay.sample(11.1) == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    assert relay.stopped() is True
+    relay.update((0.2, 0.0, 0.0), (0.0, 0.0, 0.0), 12.0)
+    assert relay.stopped() is False
+    relay.update((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 12.01)
+    assert relay.stopped() is True
+
+    mock = (
+        REPO / "omnibot-ros2" / "omnibot_bringup" / "src" / "planar_wheel_mock.cpp"
+    ).read_text(encoding="utf-8")
+    assert "LinearVelocityCmd" in mock
+    assert "AngularVelocityCmd" in mock
+    assert "zero_base" in mock
+    assert "drop_link_velocity_cmd" in mock
+    assert "JointForceCmd(0) stops VelocityControl" in mock
+    assert "if (std::abs(command) >= 1e-3) {\n        stopped = false;\n      }" in mock
+    adapter = (
+        REPO / "omnibot-ros2" / "omnibot_bringup" / "scripts" / "ros2_control_adapter.py"
+    ).read_text(encoding="utf-8")
+    assert "def _on_twist" in adapter
+    assert adapter.count("self._publish_reference(now)") >= 3
+    assert "ReliabilityPolicy.BEST_EFFORT" in adapter
+    urdf = _xacro_text()
+    assert "<odom_publish_frequency>100</odom_publish_frequency>" in urdf
+    assert "<gz:system_priority>100</gz:system_priority>" in urdf
