@@ -288,10 +288,15 @@ def test_joint_limits_are_the_tighter_of_urdf_and_arm_params():
 def test_kinematics_and_planners():
     kinematics = _load(PKG / "config" / "kinematics.yaml")
     text = (PKG / "config" / "kinematics.yaml").read_text(encoding="utf-8")
-    assert set(kinematics) == {"arm"}
+    assert set(kinematics) == {"arm", "gripper"}
     assert "KDLKinematicsPlugin" in kinematics["arm"]["kinematics_solver"]
     assert kinematics["arm"]["position_only_ik"] is True
     assert kinematics["arm"]["kinematics_solver_timeout"] > 0
+    gripper = kinematics["gripper"]
+    assert "KDLKinematicsPlugin" in gripper["kinematics_solver"]
+    assert gripper["position_only_ik"] is False
+    assert gripper["kinematics_solver_search_resolution"] > 0
+    assert gripper["kinematics_solver_timeout"] > 0
     assert "5" in text
 
     ompl = _load(PKG / "config" / "ompl_planning.yaml")

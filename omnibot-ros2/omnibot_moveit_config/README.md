@@ -4,6 +4,8 @@ MoveIt 2 configuration for the SO-101 arm and gripper on the OmniBot. The mecanu
 
 The arm has 5 DOF. `config/kinematics.yaml` sets `position_only_ik` on the `arm` group. That is the Cartesian goal mode: the solver matches the tool position. Pilz `LIN` still takes a pose. The orientation tolerance stays loose, and the tool position is the constraint that is solved.
 
+The gripper group is the single `arm_gripper` joint. Pilz `CommandPlanner` will not plan a group that has no IK solver, so the same file loads KDL for `gripper` with `position_only_ik` false. Gripper PTP still uses the joint target. The solver only has to initialize.
+
 ## Demo
 
 Mock hardware, `move_group`, and RViz:

@@ -325,6 +325,10 @@ def test_adapter_waits_for_arm_joints_and_times_out_twists():
     assert logic.arm_subset(logic.ARM_JOINTS, [0.0] * 5) is None
 
     relay = logic.TwistRelay(timeout_sec=0.25)
+    assert logic.message_time_fields(0) == (0, 0)
+    assert logic.message_time_fields(200_000_000) == (0, 200_000_000)
+    assert logic.message_time_fields(1_500_000_000) == (1, 500_000_000)
+    assert logic.message_time_fields(-5) == (0, 0)
     assert relay.sample(10.0) == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     relay.update((0.5, 0.0, 0.0), (0.0, 0.0, 0.1), 10.0)
     assert relay.sample(10.2)[0] == pytest.approx(0.5)
@@ -352,6 +356,10 @@ def test_adapter_waits_for_arm_joints_and_times_out_twists():
     assert "def _on_twist" in adapter
     assert adapter.count("self._publish_reference(now)") >= 3
     assert "ReliabilityPolicy.BEST_EFFORT" in adapter
+    assert "Duration(" not in adapter
+    assert "to_msg()" not in adapter
+    assert "message_time_fields" in adapter
+    assert "except RuntimeError" in adapter
     urdf = _xacro_text()
     assert "<odom_publish_frequency>100</odom_publish_frequency>" in urdf
     assert "<gz:system_priority>100</gz:system_priority>" in urdf

@@ -162,7 +162,7 @@ Three nodes stay off unless you opt in. Their packages are not in this repositor
 
 ## MoveIt 2 for the SO-101 (OHH-395)
 
-[`omnibot_moveit_config`](omnibot-ros2/omnibot_moveit_config/) plans the SO-101 arm and gripper through the ros2_control controllers. The mecanum base is a fixed virtual joint (`world` to `base_footprint`), so plans stay on the arm. The arm has 5 DOF. `kinematics.yaml` sets `position_only_ik` for the `arm` group, which is the Cartesian goal mode. Pilz `LIN` takes a pose and leaves the orientation tolerance loose; the tool position is the constraint that is solved.
+[`omnibot_moveit_config`](omnibot-ros2/omnibot_moveit_config/) plans the SO-101 arm and gripper through the ros2_control controllers. The mecanum base is a fixed virtual joint (`world` to `base_footprint`), so plans stay on the arm. The arm has 5 DOF. `kinematics.yaml` sets `position_only_ik` for the `arm` group, which is the Cartesian goal mode. Pilz `LIN` takes a pose and leaves the orientation tolerance loose; the tool position is the constraint that is solved. The gripper group loads KDL as well, with `position_only_ik` false, because Pilz will not plan a group that has no IK solver.
 
 <!-- docs-test: skip ros -->
 ```bash
