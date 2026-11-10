@@ -174,8 +174,9 @@ def generate_launch_description():
         name="controller_manager",
         output="screen",
         condition=IfCondition(use_ros2_control),
+        # Jazzy controller_manager ignores a robot_description parameter and
+        # subscribes to /robot_description. robot_state_publisher publishes it.
         parameters=[
-            {"robot_description": robot_description_config},
             controllers_yaml,
             {"use_sim_time": False},
         ],

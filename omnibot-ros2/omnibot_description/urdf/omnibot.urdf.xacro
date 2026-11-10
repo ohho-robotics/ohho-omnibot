@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mecanum_bot">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema" name="mecanum_bot">
 
     <xacro:property name="PI" value="3.1415926535897931"/>
 
@@ -700,6 +700,7 @@
         <child link="arm_shoulder_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="10" velocity="10" lower="-1.91986" upper="1.91986"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- UPPER ARM — beam + elbow servo -->
@@ -735,6 +736,7 @@
         <child link="arm_upper_arm_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="10" velocity="10" lower="-1.74533" upper="1.74533"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- LOWER ARM — forearm beam + wrist servo -->
@@ -770,6 +772,7 @@
         <child link="arm_lower_arm_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="10" velocity="10" lower="-1.69" upper="1.69"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- WRIST — roll/pitch bracket + servo (no horn) -->
@@ -805,6 +808,7 @@
         <child link="arm_wrist_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="10" velocity="10" lower="-1.65806" upper="1.65806"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- GRIPPER — roll follower body + roll servo -->
@@ -840,6 +844,7 @@
         <child link="arm_gripper_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="10" velocity="10" lower="-2.74385" upper="2.84121"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- GRIPPER FRAME — tool-frame reference (fixed, massless) -->
@@ -882,6 +887,7 @@
         <child link="arm_moving_jaw_link"/>
         <axis xyz="0 0 1"/>
         <limit effort="10" velocity="10" lower="-0.174533" upper="1.74533"/>
+        <dynamics damping="4.0" friction="0.5"/>
     </joint>
 
     <!-- ================================================================
@@ -1008,12 +1014,34 @@
             clip_far="20.0"/>
     </xacro:if>
 
-    <!-- Gripper contact friction so the jaw can hold the apartment grasp cube. -->
+    <!-- Gripper contact friction so the jaw can hold the apartment grasp cube.
+         turnGravityOff is the URDF extension sdformat maps to SDF gravity
+         false. A plain gravity tag is ignored. gz_ros2_control does not hold
+         joints until controller_manager has read /robot_description, and a
+         falling SO-101 on free mecanum wheels shoves the chassis while
+         /cmd_vel is zero. Joint velocity commands still move the arm. -->
+    <gazebo reference="arm_base_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
+    <gazebo reference="arm_shoulder_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
+    <gazebo reference="arm_upper_arm_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
+    <gazebo reference="arm_lower_arm_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
+    <gazebo reference="arm_wrist_link">
+        <turnGravityOff>true</turnGravityOff>
+    </gazebo>
     <gazebo reference="arm_gripper_link">
+        <turnGravityOff>true</turnGravityOff>
         <mu1>2.0</mu1>
         <mu2>2.0</mu2>
     </gazebo>
     <gazebo reference="arm_moving_jaw_link">
+        <turnGravityOff>true</turnGravityOff>
         <mu1>2.0</mu1>
         <mu2>2.0</mu2>
     </gazebo>
@@ -1058,7 +1086,10 @@
         <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
             <odom_frame>odom</odom_frame>
             <robot_base_frame>base_footprint</robot_base_frame>
-            <odom_publish_frequency>50</odom_publish_frequency>
+            <!-- The twist is a 10-step rolling mean (~20 ms). 100 Hz cuts
+                 the extra publish slot without flooding the depth-10 odom
+                 subscription the stop test drains with spin_once. -->
+            <odom_publish_frequency>100</odom_publish_frequency>
             <odom_topic>/odom</odom_topic>
             <tf_topic>/tf</tf_topic>
             <dimensions>2</dimensions>
@@ -1127,6 +1158,9 @@
             <parameters>$(arg controllers_file)</parameters>
             <hold_joints>true</hold_joints>
             <position_proportional_gain>0.15</position_proportional_gain>
+            <!-- Later than VelocityControl (priority 0) so a wheel brake can
+                 clear a latched body twist in the same PreUpdate. -->
+            <gz:system_priority>100</gz:system_priority>
         </plugin>
         </xacro:unless>
         </xacro:if>

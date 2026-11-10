@@ -10,6 +10,9 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>pluginlib</depend>
+  <depend>gz_sim_vendor</depend>
   <depend>omnibot_description</depend>
   <depend>robot_state_publisher</depend>
   <depend>joint_state_publisher</depend>
@@ -34,9 +37,12 @@
   <exec_depend>mecanum_drive_controller</exec_depend>
   <exec_depend>joint_trajectory_controller</exec_depend>
   <exec_depend>parallel_gripper_controller</exec_depend>
-  <exec_depend>gz_ros2_control</exec_depend>
-  <exec_depend>hardware_interface</exec_depend>
-  <exec_depend>mock_components</exec_depend>
+  <depend>gz_ros2_control</depend>
+  <!-- Jazzy builds mock_components/GenericSystem inside hardware_interface.
+       The CI mock path still uses that plugin. Planar wheels use
+       omnibot_bringup/PlanarWheelMock because the gz resource manager only
+       loads GazeboSimSystemInterface. -->
+  <depend>hardware_interface</depend>
   <exec_depend>control_msgs</exec_depend>
   <exec_depend>trajectory_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>

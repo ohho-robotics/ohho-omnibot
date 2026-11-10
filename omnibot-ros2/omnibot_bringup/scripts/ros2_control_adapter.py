@@ -19,6 +19,7 @@ import time
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import TransformStamped
 from geometry_msgs.msg import Twist
@@ -100,8 +101,18 @@ class Ros2ControlAdapter(Node):
         self._grip_dirty = False
         self._pending_gripper = None
 
+        # mecanum_drive_controller subscribes best-effort, keep-last 1.
+        # A reliable publisher never connects, so the wheel command stays 0
+        # and the planar brake treats the wheels as stopped.
+        reference_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+        )
         self._reference = self.create_publisher(
-            TwistStamped, str(self.get_parameter("reference_topic").value), 10
+            TwistStamped,
+            str(self.get_parameter("reference_topic").value),
+            reference_qos,
         )
         self._trajectory = self.create_publisher(
             JointTrajectory, str(self.get_parameter("trajectory_topic").value), 10
@@ -224,6 +235,9 @@ class Ros2ControlAdapter(Node):
         now = self.get_clock().now().nanoseconds * 1e-9
         if self._estop:
             self._twists.force_zero(now)
+            # The 20 Hz timer would leave the last wheel speed in the
+            # controller until the next tick. The brake has to see zero now.
+            self._publish_reference(now)
         if self._safety is None:
             return
         self._safety.on_emergency_stop(self._estop)
@@ -239,6 +253,11 @@ class Ros2ControlAdapter(Node):
             (msg.angular.x, msg.angular.y, msg.angular.z),
             now,
         )
+        # The refresh timer is 20 Hz and, with use_sim_time, waits on /clock.
+        # Planar motion is VelocityControl on the bridged twist. The wheel
+        # brake treats a stale zero command as "stopped" and clears that body
+        # velocity, so the reference has to track this twist in the callback.
+        self._publish_reference(now)
 
     def _on_joint_states(self, msg):
         subset = arm_subset(list(msg.name), list(msg.position), list(msg.velocity))
@@ -301,8 +320,7 @@ class Ros2ControlAdapter(Node):
         self._gripper.send_goal_async(goal)
         self._pending_gripper = None
 
-    def _on_timer(self):
-        now = self.get_clock().now().nanoseconds * 1e-9
+    def _publish_reference(self, now):
         sample = self._twists.sample(now)
         stamped = TwistStamped()
         stamped.header.stamp = self.get_clock().now().to_msg()
@@ -314,6 +332,10 @@ class Ros2ControlAdapter(Node):
         stamped.twist.angular.y = sample[4]
         stamped.twist.angular.z = sample[5]
         self._reference.publish(stamped)
+
+    def _on_timer(self):
+        now = self.get_clock().now().nanoseconds * 1e-9
+        self._publish_reference(now)
 
         if self._source == "cmd_pos":
             arm = self._tracker.trajectory_if_changed()

@@ -27,6 +27,7 @@ PLUGINS = (
     "omnibot_hardware/OmniBotSystem",
     "gz_ros2_control/GazeboSimSystem",
     "mock_components/GenericSystem",
+    "omnibot_bringup/PlanarWheelMock",
 )
 CONTROLLER_TYPES = (
     "joint_state_broadcaster/JointStateBroadcaster",
@@ -50,6 +51,19 @@ def _xacro_text():
 def test_source_has_ros2_control_and_no_transmission():
     text = _xacro_text()
     assert "<transmission" not in text
+    assert text.count('<dynamics damping="4.0" friction="0.5"/>') == 6
+    assert text.count("<turnGravityOff>true</turnGravityOff>") == 7
+    assert "<gravity>" not in text
+    for link in (
+        "arm_base_link",
+        "arm_shoulder_link",
+        "arm_upper_arm_link",
+        "arm_lower_arm_link",
+        "arm_wrist_link",
+        "arm_gripper_link",
+        "arm_moving_jaw_link",
+    ):
+        assert f'reference="{link}"' in text
     assert 'name="use_sim"' in text
     assert 'name="use_mock"' in text
     assert 'name="controllers_file"' in text
@@ -134,6 +148,8 @@ def test_xacro_expands_sim_robot_and_mock_when_available():
     assert 'name="OmniBotArmSim"' in planar
     assert 'name="OmniBotWheelMock"' in planar
     assert 'name="OmniBotGazebo"' not in planar
+    assert "<plugin>omnibot_bringup/PlanarWheelMock</plugin>" in planar
+    assert "<plugin>mock_components/GenericSystem</plugin>" not in planar
     assert "gz-sim-velocity-control-system" in planar
     mecanum = expand(
         ["use_sim:=true", "use_mock:=false", "drive:=mecanum",
@@ -152,10 +168,59 @@ def test_xacro_expands_sim_robot_and_mock_when_available():
     assert 'name="OmniBotMock"' in mock
     assert "omnibot_hardware/OmniBotSystem" not in mock
     assert 'name="OmniBotSystem"' not in mock
+    assert "<plugin>mock_components/GenericSystem</plugin>" in mock
+    assert "<plugin>omnibot_bringup/PlanarWheelMock</plugin>" not in mock
+
+
+def test_controller_manager_reads_robot_description_topic():
+    robot = ROBOT_LAUNCH.read_text(encoding="utf-8")
+    sim = SIM_LAUNCH.read_text(encoding="utf-8")
+    mock = (
+        REPO / "omnibot-ros2" / "omnibot_bringup" / "test" / "test_mock_controllers.py"
+    ).read_text(encoding="utf-8")
+    for text in (robot, sim, mock):
+        assert 'package="robot_state_publisher"' in text
+        assert 'executable="robot_state_publisher"' in text
+    assert robot.count('{"robot_description": robot_description_config}') == 1
+    assert '{"robot_description": robot_description}' not in mock
+    assert '"robot_description": robot_description' in mock
+
+
+def test_ros2_control_adapter_is_executable():
+    # colcon --symlink-install keeps this mode. launch's which() skips a
+    # non-executable file and reports it missing from libexec.
+    listed = subprocess.check_output(
+        [
+            "git",
+            "ls-files",
+            "-s",
+            "--",
+            "omnibot-ros2/omnibot_bringup/scripts/ros2_control_adapter.py",
+        ],
+        cwd=REPO,
+        text=True,
+    )
+    assert listed.startswith("100755")
 
 
 def test_adapter_waits_for_arm_joints_and_times_out_twists():
     logic = _logic()
+    names = ("joint_state_broadcaster", "mecanum_drive_controller")
+    assert logic.controller_listing_active(
+        "joint_state_broadcaster joint_state_broadcaster/JointStateBroadcaster active\n"
+        "mecanum_drive_controller mecanum_drive_controller/MecanumDriveController active\n",
+        names,
+    )
+    assert logic.controller_listing_active(
+        "joint_state_broadcaster[joint_state_broadcaster/JointStateBroadcaster] \x1b[32mactive\x1b[0m\n"
+        "mecanum_drive_controller[mecanum_drive_controller/MecanumDriveController] active\n",
+        names,
+    )
+    assert not logic.controller_listing_active(
+        "joint_state_broadcaster joint_state_broadcaster/JointStateBroadcaster inactive\n"
+        "mecanum_drive_controller mecanum_drive_controller/MecanumDriveController active\n",
+        names,
+    )
     assert logic.cmd_vel_topic_for_bridge("sim_bridge.yaml") == "/cmd_vel"
     assert logic.cmd_vel_topic_for_bridge("sim_bridge_vr.yaml") == "/cmd_vel/out"
     assert logic.cmd_vel_topic_for_bridge("sim_bridge_mux.yaml") == "/cmd_vel/out"
@@ -187,3 +252,27 @@ def test_adapter_waits_for_arm_joints_and_times_out_twists():
     assert relay.sample(10.3) == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     relay.force_zero(11.0)
     assert relay.sample(11.1) == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    assert relay.stopped() is True
+    relay.update((0.2, 0.0, 0.0), (0.0, 0.0, 0.0), 12.0)
+    assert relay.stopped() is False
+    relay.update((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 12.01)
+    assert relay.stopped() is True
+
+    mock = (
+        REPO / "omnibot-ros2" / "omnibot_bringup" / "src" / "planar_wheel_mock.cpp"
+    ).read_text(encoding="utf-8")
+    assert "LinearVelocityCmd" in mock
+    assert "AngularVelocityCmd" in mock
+    assert "zero_base" in mock
+    assert "drop_link_velocity_cmd" in mock
+    assert "JointForceCmd(0) stops VelocityControl" in mock
+    assert "if (std::abs(command) >= 1e-3) {\n        stopped = false;\n      }" in mock
+    adapter = (
+        REPO / "omnibot-ros2" / "omnibot_bringup" / "scripts" / "ros2_control_adapter.py"
+    ).read_text(encoding="utf-8")
+    assert "def _on_twist" in adapter
+    assert adapter.count("self._publish_reference(now)") >= 3
+    assert "ReliabilityPolicy.BEST_EFFORT" in adapter
+    urdf = _xacro_text()
+    assert "<odom_publish_frequency>100</odom_publish_frequency>" in urdf
+    assert "<gz:system_priority>100</gz:system_priority>" in urdf

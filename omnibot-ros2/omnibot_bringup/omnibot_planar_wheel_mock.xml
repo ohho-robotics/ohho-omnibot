@@ -1,0 +1,10 @@
+<library path="omnibot_planar_wheel_mock">
+  <class name="omnibot_bringup/PlanarWheelMock"
+         type="omnibot_bringup::PlanarWheelMock"
+         base_class_type="gz_ros2_control::GazeboSimSystemInterface">
+    <description>
+      Planar-drive wheel interfaces. Commands stay in this process so
+      gz-sim VelocityControl is not locked by joint velocity writes.
+    </description>
+  </class>
+</library>

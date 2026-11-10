@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """CI hardware path: ros2_control_node, GenericSystem, no robot and no Gazebo.
 
+Jazzy controller_manager ignores a robot_description parameter and waits for
+the /robot_description topic. robot_state_publisher is that publisher.
+
 The four controllers in controllers.yaml must reach active. This file is a
 launch test, not part of the CPU pytest list.
 """
@@ -45,12 +48,19 @@ def generate_test_description():
     return LaunchDescription(
         [
             Node(
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                output="screen",
+                parameters=[
+                    {"robot_description": robot_description, "use_sim_time": False},
+                ],
+            ),
+            Node(
                 package="controller_manager",
                 executable="ros2_control_node",
                 name="controller_manager",
                 output="screen",
                 parameters=[
-                    {"robot_description": robot_description},
                     controllers,
                     {"use_sim_time": False},
                 ],
