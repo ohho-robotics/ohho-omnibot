@@ -43,6 +43,7 @@ def main() -> int:
         "omnibot-ros2/omnibot_bringup/test/test_sim_cameras.py",
         "omnibot-ros2/omnibot_bringup/test/test_sim_vr_launch.py",
         "omnibot-ros2/omnibot_bringup/test/test_docker_sim.py",
+        "omnibot-ros2/omnibot_bringup/test/test_dds_profile.py",
         "omnibot-ros2/omnibot_bringup/test/test_frame_launch_docs.py",
         "omnibot-ros2/omnibot_navigation/test",
         "omnibot-ros2/omnibot_description/test",

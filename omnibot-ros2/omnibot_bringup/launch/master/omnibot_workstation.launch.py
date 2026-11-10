@@ -33,18 +33,33 @@ Enable LangGraph AI agent (needs ANTHROPIC_API_KEY env var):
         use_langchain:=true
 
 Prerequisites:
-    export ROS_DOMAIN_ID=30
-    export ROS_STATIC_PEERS=<pi-ip>
+    source omnibot-ros2/omnibot_bringup/config/ros_domain.env
+    # rmw_cyclonedds_cpp, ROS_DOMAIN_ID, and the static-peer profile.
+    # This launch sets that environment on every child process.
+    # See docs/network.md.
     export ANTHROPIC_API_KEY=<key>   # only if use_langchain:=true
 """
 
 import os
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+
+def _cell_dds_actions():
+    """Workstation nodes inherit the cell RMW and cyclonedds.xml."""
+    import importlib.util
+
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dds_env.py")
+    spec = importlib.util.spec_from_file_location("omnibot_dds_env", helper)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"missing DDS helper: {helper}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.environment_actions(SetEnvironmentVariable)
 
 
 def generate_launch_description():
@@ -222,6 +237,7 @@ def generate_launch_description():
     # ── Assemble ──────────────────────────────────────────────────────────────
     return LaunchDescription(
         [
+            *_cell_dds_actions(),
             # Arguments
             declare_use_vla,
             declare_use_policy,

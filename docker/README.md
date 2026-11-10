@@ -69,6 +69,7 @@ Pass them to the launcher, or set the environment variables before
 | | `OMNIBOT_SHARED_DIR` | `./omnibot-shared` | Host folder mounted at `~/shared` |
 | | `OMNIBOT_DESKTOP_IMAGE` | `ghcr.io/ohho-robotics/omnibot-desktop:latest` | Image to run |
 | | `ROS_DOMAIN_ID` | `30` | ROS 2 domain inside the container |
+| | `RMW_IMPLEMENTATION` | `rmw_cyclonedds_cpp` | Same middleware as the Pi and the workstation ([docs/network.md](../docs/network.md)) |
 
 Example: port 6081 and the apartment world.
 
