@@ -9,6 +9,8 @@ Starts (physical robot):
 
 In simulation (use_sim_time:=true) the astra_camera driver is skipped;
 Gazebo's built-in RGBD sensor + ros_gz_bridge supply the same topics.
+If astra_camera is not installed, the driver is skipped with one warning
+instead of failing the launch.
 
 Topic layout from ros2_astra_camera driver / Gazebo bridge:
   /camera/color/image_raw    ← RGB 1280×960 (real) or 640×480 (sim)
@@ -44,9 +46,9 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import UnlessCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+from omnibot_hybrid.optional_package import PackageAvailable
 
 
 def generate_launch_description():
@@ -91,8 +93,20 @@ def generate_launch_description():
                 "enable_colored_point_cloud": False,  # unregistered cloud for Nav2
             }
         ],
-        # Only start on physical robot
-        condition=UnlessCondition(use_sim_time),
+        # Physical robot only, and only when astra_camera is installed.
+        # The driver is not in rosdep; a missing package logs one warning
+        # when this node would have started, and is silent under use_sim_time.
+        condition=PackageAvailable(
+            "astra_camera",
+            PythonExpression(
+                [
+                    "'false' if '",
+                    use_sim_time,
+                    "'.strip().lower() in ('true', '1') else 'true'",
+                ]
+            ),
+            warn_when_disabled=False,
+        ),
     )
 
     # ── RTAB-Map core node ────────────────────────────────────────────────────

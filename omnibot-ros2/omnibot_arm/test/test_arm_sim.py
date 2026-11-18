@@ -24,6 +24,9 @@ _ARM_PARAMS = os.path.join(_SCRIPTS, "..", "config", "arm_params.yaml")
 _XACRO = os.path.join(
     _REPO, "omnibot-ros2", "omnibot_description", "urdf", "omnibot.urdf.xacro"
 )
+_CONTROL_XACRO = os.path.join(
+    _REPO, "omnibot-ros2", "omnibot_description", "urdf", "omnibot.ros2_control.xacro"
+)
 _BRIDGE = os.path.join(
     _REPO, "omnibot-ros2", "omnibot_bringup", "config", "sim_bridge.yaml"
 )
@@ -250,11 +253,12 @@ class TestGazeboWiring:
         bridge = yaml.safe_load(open(_BRIDGE, encoding="utf-8").read())
         by_topic = {entry["ros_topic_name"]: entry for entry in bridge}
         xacro = open(_XACRO, encoding="utf-8").read()
-        assert "/arm/sim/${joint}/cmd_pos" in xacro
-        assert "gz-sim-joint-position-controller-system" in xacro
-        assert "<use_velocity_commands>true</use_velocity_commands>" in xacro
-        assert "<cmd_max>1.5</cmd_max>" in xacro
-        assert "<initial_position>0</initial_position>" in xacro
+        xacro += open(_CONTROL_XACRO, encoding="utf-8").read()
+        assert "gz-sim-joint-position-controller-system" not in xacro
+        assert "<transmission" not in xacro
+        assert "omnibot_hardware/OmniBotSystem" in xacro
+        assert "gz_ros2_control/GazeboSimSystem" in xacro
+        assert "mock_components/GenericSystem" in xacro
         for name in _params()["joint_names"]:
             topic = arm_sim_logic.command_topic(name)
             entry = by_topic[topic]
@@ -262,7 +266,7 @@ class TestGazeboWiring:
             assert entry["ros_type_name"] == "std_msgs/msg/Float64"
             assert entry["gz_type_name"] == "gz.msgs.Double"
             assert entry["direction"] == "ROS_TO_GZ"
-            assert f'joint="{name}"' in xacro
+            assert f'name="{name}"' in xacro
             assert f"<joint_name>{name}</joint_name>" in xacro
         feedback = by_topic[arm_sim_logic.FEEDBACK_TOPIC]
         assert feedback["direction"] == "GZ_TO_ROS"

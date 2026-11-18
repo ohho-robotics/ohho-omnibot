@@ -34,8 +34,17 @@ What this starts (in order):
   │  foxglove / web_video / rosbridge bind 127.0.0.1 behind that gateway     │
   └─────────────────────────────────────────────────────────────────────────┘
 
+DDS (same RMW on the Pi, the workstation, and the sim containers):
+    source omnibot-ros2/omnibot_bringup/config/ros_domain.env
+    rmw_cyclonedds_cpp and the static-peer profile. See docs/network.md.
+    This launch sets that environment on every child process.
+
 Usage:
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py
+
+Quest VR is a separate one-command profile. It does not start SLAM or Nav2,
+and it does not publish rosbridge on every interface:
+    ros2 launch omnibot_bringup robot_vr.launch.py
 
 Skip depth camera (save ~70% CPU):
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py depth_camera:=false
@@ -45,6 +54,13 @@ Skip SLAM (cameras + drive only):
 
 Skip Nav2 (drive + SLAM, no autonomous navigation):
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py nav2:=false
+
+Object perception is off by default. omnibot_perception is not in this
+repository; the node is skipped with one warning naming that package:
+    ros2 launch omnibot_bringup master/omnibot_pi.launch.py ai_perception:=false
+
+Start it only when omnibot_perception is installed:
+    ros2 launch omnibot_bringup master/omnibot_pi.launch.py ai_perception:=true
 
 Headless (no foxglove/web_video):
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py \
@@ -65,16 +81,28 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    SetEnvironmentVariable,
     TimerAction,
 )
 from launch.conditions import IfCondition
-from launch.launch_description_sources import (
-    AnyLaunchDescriptionSource,
-    PythonLaunchDescriptionSource,
-)
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
+from omnibot_hybrid.optional_package import PackageAvailable, optional_include_launch
+
+
+def _cell_dds_actions():
+    """Pi nodes inherit the cell RMW and cyclonedds.xml."""
+    import importlib.util
+
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dds_env.py")
+    spec = importlib.util.spec_from_file_location("omnibot_dds_env", helper)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"missing DDS helper: {helper}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.environment_actions(SetEnvironmentVariable)
 
 
 def generate_launch_description():
@@ -97,6 +125,16 @@ def generate_launch_description():
         "depth_camera",
         default_value="true",
         description="Start Orbbec Astra Pro RGB-D driver (~70% CPU)",
+    )
+    declare_ai_perception = DeclareLaunchArgument(
+        "ai_perception",
+        default_value="false",
+        description=(
+            "Start object_perception_node from omnibot_perception. "
+            "Default false. That package is not in this repository; "
+            "if it is missing, launch logs one warning and skips the node. "
+            "Pass ai_perception:=true only after the package is installed."
+        ),
     )
     declare_slam = DeclareLaunchArgument(
         "slam",
@@ -192,12 +230,17 @@ def generate_launch_description():
         remappings=[("cmd_vel", "/cmd_vel/out")],
     )
 
-    # -- AI perception: object distance + pose from depth camera ------------
+    # AI perception is optional and off by default. omnibot_perception is
+    # not in this repository.
     object_perception = Node(
         package="omnibot_perception",
         executable="object_perception_node",
         name="object_perception_node",
         output="screen",
+        condition=PackageAvailable(
+            "omnibot_perception",
+            LaunchConfiguration("ai_perception"),
+        ),
     )
 
     # -- Remote rosbag recorder (Android app record button) -----------------
@@ -312,14 +355,14 @@ def generate_launch_description():
     )
 
     # ── 5. Orbbec Astra Pro RGB-D ─────────────────────────────────────────────
-    astra_camera = IncludeLaunchDescription(
-        AnyLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("astra_camera"),
-                "launch",
-                "astra_pro.launch.xml",
-            )
-        ),
+    # astra_camera is not in rosdep. Resolve its launch file only when the
+    # package is installed so the default launch does not raise
+    # PackageNotFoundError.
+    astra_camera = optional_include_launch(
+        package="astra_camera",
+        relative_path=("launch", "astra_pro.launch.xml"),
+        when=LaunchConfiguration("depth_camera"),
+        warn_when_disabled=False,
         launch_arguments={
             "camera_name": "camera",
             "depth_registration": "true",
@@ -327,8 +370,7 @@ def generate_launch_description():
             "enable_colored_point_cloud": "false",
             "color_depth_synchronization": "false",
             "oni_log_level": "none",
-        }.items(),
-        condition=IfCondition(LaunchConfiguration("depth_camera")),
+        },
     )
 
     # ── 6. depth → /scan ─────────────────────────────────────────────────────
@@ -485,8 +527,10 @@ def generate_launch_description():
     # ── Assemble ──────────────────────────────────────────────────────────────
     return LaunchDescription(
         [
+            *_cell_dds_actions(),
             # Arguments
             declare_depth_camera,
+            declare_ai_perception,
             declare_slam,
             declare_nav2,
             declare_arm,

@@ -22,8 +22,8 @@ Prerequisites
   1. deployment.env configured for multi mode:  python deploy.py --mode multi
   2. Isaac Sim running with omni.isaac.ros2_bridge enabled, OR
      Gazebo running via:  ros2 launch omnibot_bringup simulation.launch.py
-  3. ROS_DOMAIN_ID=30 (default) set identically on all three machines.
-  4. ROS_STATIC_PEERS set in the calling shell (handled by launch_sim_pc.sh).
+  3. Source omnibot-ros2/omnibot_bringup/config/ros_domain.env so every
+     machine uses ROS_DOMAIN_ID=30 and rmw_cyclonedds_cpp (docs/network.md).
 
 Usage
 -----

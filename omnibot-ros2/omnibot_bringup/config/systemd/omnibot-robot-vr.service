@@ -1,0 +1,27 @@
+# OmniBot real-robot VR bringup (OHH-220).
+# This file is not installed or enabled by the repository.
+# On the Pi, after the on-blocks check, copy it to /etc/systemd/system/
+# and edit User, WorkingDirectory, and the setup.bash paths.
+# Put OHHO_GATEWAY_TOKEN in /etc/omnibot/robot-vr.env, which is not
+# committed. Do not paste the token into this unit.
+
+[Unit]
+Description=OmniBot real-robot VR bringup
+Documentation=https://github.com/ohho-robotics/OmniBot/blob/main/docs/vr.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=omnibot
+Group=omnibot
+SupplementaryGroups=dialout video
+WorkingDirectory=/opt/omnibot
+Environment=ROS_DOMAIN_ID=0
+EnvironmentFile=-/etc/omnibot/robot-vr.env
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /opt/omnibot/install/setup.bash && ros2 launch omnibot_bringup robot_vr.launch.py'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

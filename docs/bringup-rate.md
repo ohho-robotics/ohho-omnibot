@@ -2,6 +2,8 @@
 
 Pi and GPU workstation share one ROS domain (`ROS_DOMAIN_ID` in
 [`omnibot-ros2/omnibot_bringup/config/ros_domain.env`](../omnibot-ros2/omnibot_bringup/config/ros_domain.env)).
+Both use `rmw_cyclonedds_cpp` from that file. Setup and checks:
+[network.md](network.md).
 This document records measured topic rates from a **real** dual-machine session.
 
 ## Session metadata
@@ -59,4 +61,5 @@ the budget.
 
 - [ ] Varun confirmed Pi and workstation IPs in `ros_domain.env`
 - [ ] Both machines use the same `ROS_DOMAIN_ID`
+- [ ] `ros2 doctor --report` on each machine shows `rmw_cyclonedds_cpp`
 - [ ] `ros2 topic hz` table above filled from a real session (no fabricated numbers)

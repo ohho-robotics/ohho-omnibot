@@ -14,7 +14,14 @@ sys.path.insert(0, str(SCRIPTS))
 
 import export_web_model as export  # noqa: E402
 
-# Limits are the literals in omnibot.urdf.xacro (themselves from so101_new_calib.urdf).
+# Position limits are the so101_new_calib stops in omnibot.urdf.xacro.
+# Effort (N·m) and velocity (rad/s) are the Feetech STS3215 7.4 V output
+# ratings cited next to sts3215_effort / sts3215_velocity in that file.
+STS3215_EFFORT = 1.9123
+STS3215_VELOCITY = 5.4542
+# Wheel effort/velocity stay the documented estimates (100 N·m, 100 rad/s).
+WHEEL_EFFORT = 100.0
+WHEEL_VELOCITY = 100.0
 ARM_LIMITS = {
     "arm_shoulder_pan": (-1.91986, 1.91986),
     "arm_shoulder_lift": (-1.74533, 1.74533),
@@ -84,7 +91,7 @@ def test_export_joints_meshes_and_size_budget(tmp_path, capsys):
     assert manifest["gripper_joint"] == "arm_gripper"
     assert manifest["mecanum_wheel_joints"] == list(WHEEL_JOINTS)
     assert manifest["arm_joints"] == list(ARM_LIMITS)
-    assert manifest["base_geometry"] == "primitives"
+    assert manifest["base_geometry"] == "simplified-mesh"
 
     by_name = {joint["name"]: joint for joint in manifest["joints"]}
     assert {joint["name"] for joint in manifest["joints"] if joint["type"] == "revolute"} == set(ARM_LIMITS)
@@ -94,8 +101,8 @@ def test_export_joints_meshes_and_size_budget(tmp_path, capsys):
         assert (joint["parent"], joint["child"]) == ARM_PARENT_CHILD[name]
         assert joint["limit"]["lower"] == pytest.approx(lower)
         assert joint["limit"]["upper"] == pytest.approx(upper)
-        assert joint["limit"]["effort"] == pytest.approx(10.0)
-        assert joint["limit"]["velocity"] == pytest.approx(10.0)
+        assert joint["limit"]["effort"] == pytest.approx(STS3215_EFFORT)
+        assert joint["limit"]["velocity"] == pytest.approx(STS3215_VELOCITY)
         assert joint["axis"] == pytest.approx([0.0, 0.0, 1.0])
     for name in WHEEL_JOINTS:
         joint = by_name[name]
@@ -104,8 +111,8 @@ def test_export_joints_meshes_and_size_budget(tmp_path, capsys):
         assert joint["child"] == f"{prefix}_link"
         assert "lower" not in joint["limit"]
         assert "upper" not in joint["limit"]
-        assert joint["limit"]["effort"] == pytest.approx(100.0)
-        assert joint["limit"]["velocity"] == pytest.approx(100.0)
+        assert joint["limit"]["effort"] == pytest.approx(WHEEL_EFFORT)
+        assert joint["limit"]["velocity"] == pytest.approx(WHEEL_VELOCITY)
         assert joint["axis"] == pytest.approx([0.0, 1.0, 0.0])
 
     robot = _robot(output / "omnibot-pro.urdf")
@@ -115,16 +122,39 @@ def test_export_joints_meshes_and_size_budget(tmp_path, capsys):
     assert robot.find("link[@name='lidar_link']") is None
     assert robot.find("link[@name='so_fl_a_standoff_link']") is not None
 
-    base_box = robot.find("link[@name='base_link']/visual/geometry/box")
+    base_box = robot.find("link[@name='base_link']/collision/geometry/box")
     assert base_box is not None
     assert [float(part) for part in base_box.attrib["size"].split()] == pytest.approx([0.265, 0.250, 0.006])
-    assert robot.find("link[@name='base_link']//mesh") is None
-    assert robot.find("link[@name='top_plate_link']/visual/geometry/box") is not None
-    assert robot.find("link[@name='front_left_wheel_link']/visual/geometry/cylinder") is not None
-    assert robot.find("link[@name='front_left_wheel_link']//mesh") is None
+    base_mesh = robot.find("link[@name='base_link']/visual/geometry/mesh")
+    assert base_mesh is not None
+    assert base_mesh.attrib["filename"] == "meshes/chassis_plate.glb"
+    assert robot.find("link[@name='top_plate_link']/visual/geometry/mesh") is not None
+    wheel_mesh = robot.find("link[@name='front_left_wheel_link']/visual/geometry/mesh")
+    assert wheel_mesh is not None
+    assert wheel_mesh.attrib["filename"] == "meshes/mecanum_wheel_cs_pos.glb"
+    assert robot.find("link[@name='front_left_wheel_link']/collision/geometry/cylinder") is not None
+    assert robot.find("link[@name='so_fl_a_standoff_link']/visual/geometry/cylinder") is not None
+
+    source = export._expand_xacro(export.DEFAULT_XACRO, export.WEB_XACRO_ARGS)
+    export._drop_nominal_apriltag_mounts(source)
+    source_visuals = export.mesh_visuals(source)
+    assert len(source_visuals) == len(robot.findall(".//mesh"))
+    exported_visuals = export.mesh_visuals(robot)
+    assert [
+        (item.link, Path(item.filename).name, item.xyz, item.rpy) for item in exported_visuals
+    ] == [
+        (item.link, Path(item.filename).stem + ".glb", item.xyz, item.rpy)
+        for item in source_visuals
+    ]
+    base_so101 = next(item for item in source_visuals if item.filename.endswith("base_so101_v2.stl"))
+    assert base_so101.xyz == "-0.00636471 -8.97657e-09 -0.0024"
+    assert base_so101.rpy == "1.5708 -2.78073e-29 1.5708"
+    assert any(
+        item["source"].endswith("base_so101_v2.stl") and item["xyz"] == base_so101.xyz
+        for item in manifest["mesh_visuals"]
+    )
 
     mesh_nodes = robot.findall(".//mesh")
-    assert len(mesh_nodes) == sum(len(visuals) for visuals in export.ARM_LINK_VISUALS.values())
     for node in mesh_nodes:
         href = node.attrib["filename"]
         assert "://" not in href
@@ -143,6 +173,9 @@ def test_export_joints_meshes_and_size_budget(tmp_path, capsys):
     assert {item["source"] for item in manifest["meshes"]} == {
         f"meshes/so101/{path.name}"
         for path in (export.PACKAGE_ROOT / "meshes" / "so101").glob("*.stl")
+    } | {
+        f"meshes/base/{path.name}"
+        for path in (export.PACKAGE_ROOT / "meshes" / "base").glob("*.stl")
     }
     for item in manifest["meshes"]:
         assert item["faces"] <= item["source_faces"]

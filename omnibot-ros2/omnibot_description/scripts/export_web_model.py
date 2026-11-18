@@ -3,11 +3,12 @@
 """Export the OmniBot URDF to a browser folder for three.js urdf-loader.
 
 No ROS install is required. The PyPI ``xacro`` package expands
-``urdf/omnibot.urdf.xacro``. The mecanum base has no CAD: its box and
-cylinder visuals are left as primitives. The SO-101 arm meshes in
-``meshes/so101/`` are decimated with trimesh (fast-simplification) and
-written as binary GLB. ``package://`` mesh URIs become paths relative to
-the URDF so a browser can fetch them.
+``urdf/omnibot.urdf.xacro``. Mesh origins are read from that URDF.
+The SO-101 STLs and the simplified chassis and wheel STLs are decimated
+with trimesh (fast-simplification) and written as binary GLB.
+``package://`` mesh URIs become paths relative to the URDF so a browser
+can fetch them. Collision geometry stays the primitive shapes.
+Standoffs and cameras stay primitives. Nominal AprilTag cards are omitted.
 
 The compressed zip of the output folder must stay within 10 MiB.
 """
@@ -38,12 +39,6 @@ WEB_XACRO_ARGS = {
     "minimal_sensors": "false",
 }
 
-# Match the primitive colours already in omnibot.urdf.xacro (arm_white / arm_servo).
-MATERIALS = {
-    "so101_printed": "0.95 0.95 0.95 1",
-    "so101_servo": "0.12 0.12 0.12 1",
-}
-
 # Six actuated SO-101 joints (five arm axes + gripper), from omnibot.urdf.xacro.
 ARM_JOINTS = (
     "arm_shoulder_pan",
@@ -61,50 +56,33 @@ WHEEL_JOINTS = (
     "rear_right_wheel_joint",
 )
 
-# Visual origins copied from TheRobotStudio/SO-ARM100
-# Simulation/SO101/so101_new_calib.urdf. Joint frames in the xacro already
-# match that file; these poses put the checked-in STLs in the same link frames.
-# (stl, xyz, rpy, material)
-class ArmVisual(NamedTuple):
-    stl: str
+# Links whose visuals are meshes. Collision on these links stays primitive.
+ARM_MESH_LINKS = (
+    "arm_base_link",
+    "arm_shoulder_link",
+    "arm_upper_arm_link",
+    "arm_lower_arm_link",
+    "arm_wrist_link",
+    "arm_gripper_link",
+    "arm_moving_jaw_link",
+)
+CHASSIS_MESH_LINKS = ("base_link", "top_plate_link")
+WHEEL_MESH_LINKS = (
+    "front_left_wheel_link",
+    "front_right_wheel_link",
+    "rear_left_wheel_link",
+    "rear_right_wheel_link",
+)
+MESH_VISUAL_LINKS = ARM_MESH_LINKS + CHASSIS_MESH_LINKS + WHEEL_MESH_LINKS
+
+
+class MeshVisual(NamedTuple):
+    """One visual mesh, with the origin read from the URDF."""
+
+    link: str
+    filename: str
     xyz: str
     rpy: str
-    material: str
-
-
-ARM_LINK_VISUALS: dict[str, tuple[ArmVisual, ...]] = {
-    "arm_base_link": (
-        ArmVisual("base_motor_holder_so101_v1.stl", "-0.00636471 -9.94414e-05 -0.0024", "1.5708 -1.67685e-15 1.5708", "so101_printed"),
-        ArmVisual("base_so101_v2.stl", "-0.00636471 -8.97657e-09 -0.0024", "1.5708 -2.78073e-29 1.5708", "so101_printed"),
-        ArmVisual("sts3215_03a_v1.stl", "0.0263353 -8.97657e-09 0.0437", "-8.21148e-16 7.84513e-18 1.249e-15", "so101_servo"),
-        ArmVisual("waveshare_mounting_plate_so101_v2.stl", "-0.0309827 -0.000199441 0.0474", "1.5708 -1.35493e-14 1.5708", "so101_printed"),
-    ),
-    "arm_shoulder_link": (
-        ArmVisual("sts3215_03a_v1.stl", "-0.0303992 0.000422241 -0.0417", "1.5708 1.5708 0", "so101_servo"),
-        ArmVisual("motor_holder_so101_base_v1.stl", "-0.0675992 -0.000177759 0.0158499", "1.5708 -1.5708 0", "so101_printed"),
-        ArmVisual("rotation_pitch_so101_v1.stl", "0.0122008 2.22413e-05 0.0464", "-1.5708 2.35221e-33 0", "so101_printed"),
-    ),
-    "arm_upper_arm_link": (
-        ArmVisual("sts3215_03a_v1.stl", "-0.11257 -0.0155 0.0187", "-3.14159 -5.27356e-16 -1.5708", "so101_servo"),
-        ArmVisual("upper_arm_so101_v1.stl", "-0.065085 0.012 0.0182", "3.14159 -0 -1.30911e-30", "so101_printed"),
-    ),
-    "arm_lower_arm_link": (
-        ArmVisual("under_arm_so101_v1.stl", "-0.0648499 -0.032 0.0182", "3.14159 -0 6.67202e-31", "so101_printed"),
-        ArmVisual("motor_holder_so101_wrist_v1.stl", "-0.0648499 -0.032 0.018", "-3.14159 -2.55351e-15 -1.83387e-30", "so101_printed"),
-        ArmVisual("sts3215_03a_v1.stl", "-0.1224 0.0052 0.0187", "-3.14159 -7.88861e-31 -3.14159", "so101_servo"),
-    ),
-    "arm_wrist_link": (
-        ArmVisual("sts3215_03a_no_horn_v1.stl", "8.32667e-17 -0.0424 0.0306", "1.5708 1.5708 0", "so101_servo"),
-        ArmVisual("wrist_roll_pitch_so101_v2.stl", "0 -0.028 0.0181", "-1.5708 -1.5708 0", "so101_printed"),
-    ),
-    "arm_gripper_link": (
-        ArmVisual("sts3215_03a_v1.stl", "0.0077 0.0001 -0.0234", "-1.5708 -5.19179e-17 -1.66533e-16", "so101_servo"),
-        ArmVisual("wrist_roll_follower_so101_v1.stl", "8.32667e-17 -0.000218214 0.000949706", "-3.14159 -5.55112e-17 0", "so101_printed"),
-    ),
-    "arm_moving_jaw_link": (
-        ArmVisual("moving_jaw_so101_v1.stl", "-5.55112e-17 -5.55112e-17 0.0189", "9.53145e-17 6.93889e-18 1.24077e-24", "so101_printed"),
-    ),
-}
 
 # Quadric-decimation targets. Parts already under the target are kept whole.
 FACE_TARGETS = {
@@ -203,8 +181,8 @@ def _expand_xacro(xacro_path: Path, mappings: dict[str, str]) -> ET.Element:
 def _drop_nominal_apriltag_mounts(robot: ET.Element) -> None:
     """Leave tag36h11 cards in the Gazebo model and out of the browser URDF.
 
-    Those links are meshes for headset detection. This export converts only
-    the SO-101 STLs and keeps the chassis as primitives.
+    Those links are meshes for headset detection. This export converts the
+    SO-101 STLs and the simplified chassis and wheel STLs.
     """
     for element in list(robot):
         kind = _local(element.tag)
@@ -228,46 +206,25 @@ def _strip_gazebo(robot: ET.Element) -> None:
             robot.remove(child)
 
 
-def _ensure_materials(robot: ET.Element) -> None:
-    existing = {
-        element.attrib.get("name")
-        for element in robot
-        if _local(element.tag) == "material" and element.find("color") is not None
-    }
-    insert_at = 0
-    for name, rgba in MATERIALS.items():
-        if name in existing:
+def mesh_visuals(robot: ET.Element) -> list[MeshVisual]:
+    """Read visual mesh filenames and origins from an expanded URDF.
+
+    The xacro is the only place those origins are written. This does not
+    substitute a second table.
+    """
+    found: list[MeshVisual] = []
+    for element in robot:
+        if _local(element.tag) != "link" or "name" not in element.attrib:
             continue
-        material = ET.Element("material", {"name": name})
-        ET.SubElement(material, "color", {"rgba": rgba})
-        robot.insert(insert_at, material)
-        insert_at += 1
-
-
-def _replace_arm_visuals(robot: ET.Element) -> None:
-    links = {
-        element.attrib["name"]: element
-        for element in robot
-        if _local(element.tag) == "link" and "name" in element.attrib
-    }
-    for link_name, visuals in ARM_LINK_VISUALS.items():
-        link = links.get(link_name)
-        if link is None:
-            raise ExportError(f"arm link {link_name} is missing from the expanded URDF")
-        for child in list(link):
-            if _local(child.tag) == "visual":
-                link.remove(child)
-        for spec in visuals:
-            visual = ET.Element("visual")
-            ET.SubElement(visual, "origin", {"xyz": spec.xyz, "rpy": spec.rpy})
-            geometry = ET.SubElement(visual, "geometry")
-            ET.SubElement(
-                geometry,
-                "mesh",
-                {"filename": f"package://{PACKAGE_NAME}/meshes/so101/{spec.stl}"},
-            )
-            ET.SubElement(visual, "material", {"name": spec.material})
-            link.append(visual)
+        for visual in element.findall("visual"):
+            mesh = visual.find("geometry/mesh")
+            if mesh is None or not mesh.attrib.get("filename"):
+                continue
+            origin = visual.find("origin")
+            xyz = origin.attrib.get("xyz", "0 0 0") if origin is not None else "0 0 0"
+            rpy = origin.attrib.get("rpy", "0 0 0") if origin is not None else "0 0 0"
+            found.append(MeshVisual(element.attrib["name"], mesh.attrib["filename"], xyz, rpy))
+    return found
 
 
 def _bounds_center_delta(left, right) -> float:
@@ -403,7 +360,12 @@ def _geometry_kinds(link: ET.Element, section: str) -> list[str]:
     return kinds
 
 
-def _validate_tree(robot: ET.Element, joints: list[dict], meshes: list[MeshRecord]) -> None:
+def _validate_tree(
+    robot: ET.Element,
+    joints: list[dict],
+    meshes: list[MeshRecord],
+    visuals: list[MeshVisual],
+) -> None:
     by_name = {joint["name"]: joint for joint in joints}
     revolute = {joint["name"] for joint in joints if joint["type"] == "revolute"}
     continuous = {joint["name"] for joint in joints if joint["type"] == "continuous"}
@@ -425,34 +387,42 @@ def _validate_tree(robot: ET.Element, joints: list[dict], meshes: list[MeshRecor
                 raise ExportError(f"{name} is missing limit {key}")
         if "lower" in limit or "upper" in limit:
             raise ExportError(f"continuous wheel joint {name} should not have lower/upper")
-    checked_in = {path.name for path in (PACKAGE_ROOT / "meshes" / "so101").glob("*.stl")}
-    used = {spec.stl for visuals in ARM_LINK_VISUALS.values() for spec in visuals}
-    if used != checked_in:
+    so101_names = {path.name for path in (PACKAGE_ROOT / "meshes" / "so101").glob("*.stl")}
+    base_names = {path.name for path in (PACKAGE_ROOT / "meshes" / "base").glob("*.stl")}
+    used_names = {Path(item.filename).name for item in visuals}
+    missing = sorted((so101_names | base_names) - used_names)
+    if missing:
+        raise ExportError(f"URDF does not reference meshes: {missing}")
+    expected_sources = {f"meshes/so101/{name}" for name in so101_names} | {
+        f"meshes/base/{name}" for name in base_names
+    }
+    if {record.source for record in meshes} != expected_sources:
+        raise ExportError("export did not convert every SO-101 and simplified base STL")
+    mesh_links = {item.link for item in visuals}
+    if mesh_links != set(MESH_VISUAL_LINKS):
         raise ExportError(
-            f"SO-101 mesh set mismatch. missing={sorted(checked_in - used)} "
-            f"extra={sorted(used - checked_in)}"
+            f"mesh links {sorted(mesh_links)} != {list(MESH_VISUAL_LINKS)}"
         )
-    if {record.source for record in meshes} != {f"meshes/so101/{name}" for name in checked_in}:
-        raise ExportError("export did not convert every SO-101 STL")
     links = _link_map(robot)
-    for link_name, link in links.items():
+    for link_name in MESH_VISUAL_LINKS:
+        link = links.get(link_name)
+        if link is None:
+            raise ExportError(f"{link_name} is missing")
         visual_kinds = _geometry_kinds(link, "visual")
-        collision_kinds = _geometry_kinds(link, "collision")
-        if link_name in ARM_LINK_VISUALS:
-            if not visual_kinds or any(kind != "mesh" for kind in visual_kinds):
-                raise ExportError(f"{link_name} visuals are not all meshes: {visual_kinds}")
-            if any(kind == "mesh" for kind in collision_kinds):
-                raise ExportError(f"{link_name} collision was replaced with a mesh")
-        elif any(kind == "mesh" for kind in visual_kinds + collision_kinds):
-            raise ExportError(
-                f"{link_name} gained a mesh. The base has no CAD; leave its primitives."
-            )
+        if not visual_kinds or any(kind != "mesh" for kind in visual_kinds):
+            raise ExportError(f"{link_name} visuals are not all meshes: {visual_kinds}")
+    for link_name, link in links.items():
+        if any(kind == "mesh" for kind in _geometry_kinds(link, "collision")):
+            raise ExportError(f"{link_name} collision uses a mesh")
     base = links.get("base_link")
-    if base is None or "box" not in _geometry_kinds(base, "visual"):
-        raise ExportError("base_link box primitive is missing")
+    if base is None or "box" not in _geometry_kinds(base, "collision"):
+        raise ExportError("base_link collision box is missing")
     wheel = links.get("front_left_wheel_link")
-    if wheel is None or "cylinder" not in _geometry_kinds(wheel, "visual"):
-        raise ExportError("front_left wheel cylinder primitive is missing")
+    if wheel is None or "cylinder" not in _geometry_kinds(wheel, "collision"):
+        raise ExportError("front_left wheel collision cylinder is missing")
+    standoff = links.get("so_fl_a_standoff_link")
+    if standoff is None or "cylinder" not in _geometry_kinds(standoff, "visual"):
+        raise ExportError("standoff cylinder primitive is missing")
     for element in robot.iter("mesh"):
         filename = element.attrib.get("filename", "")
         if "://" in filename or filename.startswith("/") or "\\" in filename:
@@ -553,14 +523,15 @@ def export_web_model(
         0,
         ET.Comment(
             " Browser model for three.js urdf-loader. "
-            "Gazebo plugins removed. Arm visuals are decimated SO-101 GLBs. "
-            "Chassis, wheels, and cameras stay box/cylinder primitives. "
+            "Gazebo plugins removed. Mesh origins are copied from the xacro. "
+            "Arm visuals are decimated SO-101 GLBs. Chassis plate and mecanum "
+            "wheels are simplified procedural GLBs, not CAD. Standoffs and "
+            "cameras stay box/cylinder primitives. Collision stays primitive. "
             "Nominal AprilTag cards stay in the Gazebo model only. "
         ),
     )
     _strip_gazebo(robot)
-    _ensure_materials(robot)
-    _replace_arm_visuals(robot)
+    visuals = mesh_visuals(robot)
     mesh_dir = output_dir / "meshes"
     meshes = _rewrite_meshes(
         robot,
@@ -569,7 +540,7 @@ def export_web_model(
         mesh_dir=mesh_dir,
     )
     joints = _joint_records(robot)
-    _validate_tree(robot, joints, meshes)
+    _validate_tree(robot, joints, meshes, visuals)
     ET.indent(robot, space="  ")
     urdf_path = output_dir / URDF_NAME
     ET.ElementTree(robot).write(urdf_path, encoding="utf-8", xml_declaration=True)
@@ -583,8 +554,12 @@ def export_web_model(
             "xacro": "PyPI xacro (no ROS install)",
             "meshes": "trimesh quadric decimation via fast-simplification, binary GLB",
         },
-        "base_geometry": "primitives",
+        "base_geometry": "simplified-mesh",
         "arm_geometry": "decimated-glb",
+        "mesh_visuals": [
+            {"link": item.link, "source": item.filename, "xyz": item.xyz, "rpy": item.rpy}
+            for item in visuals
+        ],
         "joints": joints,
         "arm_joints": list(ARM_JOINTS),
         "gripper_joint": GRIPPER_JOINT,

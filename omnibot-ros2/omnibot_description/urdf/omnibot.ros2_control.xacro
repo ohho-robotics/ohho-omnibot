@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="omnibot_ros2_control">
+  <!-- ros2_control joints for the four mecanum wheels and the SO-101.
+       Command limits copy the URDF revolute stops. Do not widen them.
+       use_mock wins: GenericSystem, no serial port and no Gazebo hardware.
+       use_sim with drive:=planar puts the arm on GazeboSimSystem and the
+       wheels on omnibot_bringup/PlanarWheelMock. That plugin is a
+       GazeboSimSystemInterface, which is the only type the gz resource
+       manager can load. It does not write a non-zero wheel velocity, so
+       VelocityControl is not locked, and it brakes a claimed zero so the
+       wheels cannot free-roll. A live wheel command keeps that brake: a zero
+       joint force cancels VelocityControl. use_sim with any other drive puts
+       every joint on GazeboSimSystem. Otherwise this is the robot plugin. -->
+
+  <xacro:macro name="wheel_control_joint" params="name">
+    <joint name="${name}">
+      <command_interface name="velocity"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="arm_control_joint" params="name lower upper">
+    <joint name="${name}">
+      <command_interface name="position">
+        <param name="min">${lower}</param>
+        <param name="max">${upper}</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="omnibot_wheel_interfaces">
+    <xacro:wheel_control_joint name="front_left_wheel_joint"/>
+    <xacro:wheel_control_joint name="front_right_wheel_joint"/>
+    <xacro:wheel_control_joint name="rear_left_wheel_joint"/>
+    <xacro:wheel_control_joint name="rear_right_wheel_joint"/>
+  </xacro:macro>
+
+  <xacro:macro name="omnibot_arm_interfaces">
+    <xacro:arm_control_joint name="arm_shoulder_pan" lower="-1.91986" upper="1.91986"/>
+    <xacro:arm_control_joint name="arm_shoulder_lift" lower="-1.74533" upper="1.74533"/>
+    <xacro:arm_control_joint name="arm_elbow_flex" lower="-1.69" upper="1.69"/>
+    <xacro:arm_control_joint name="arm_wrist_flex" lower="-1.65806" upper="1.65806"/>
+    <xacro:arm_control_joint name="arm_wrist_roll" lower="-2.74385" upper="2.84121"/>
+    <xacro:arm_control_joint name="arm_gripper" lower="-0.174533" upper="1.74533"/>
+  </xacro:macro>
+
+  <xacro:macro name="omnibot_hardware_plugin">
+    <plugin>omnibot_hardware/OmniBotSystem</plugin>
+    <param name="base_port">$(arg base_port)</param>
+    <param name="base_baud">$(arg base_baud)</param>
+    <param name="wheel_radius">0.04</param>
+    <param name="wheel_separation_length">0.165</param>
+    <param name="wheel_separation_width">0.215</param>
+    <param name="encoder_ticks_per_revolution">1440</param>
+    <param name="arm_port">$(arg arm_port)</param>
+    <param name="arm_baud">$(arg arm_baud)</param>
+    <param name="servo_ids">1,2,3,4,5,6</param>
+    <param name="home_ticks">2048,2048,2048,2048,2048,2048</param>
+    <param name="ticks_per_rev">4096</param>
+    <param name="calibration_file">$(arg calibration_file)</param>
+  </xacro:macro>
+
+  <xacro:if value="$(arg use_mock)">
+    <ros2_control name="OmniBotMock" type="system">
+      <hardware>
+        <plugin>mock_components/GenericSystem</plugin>
+      </hardware>
+      <xacro:omnibot_wheel_interfaces/>
+      <xacro:omnibot_arm_interfaces/>
+    </ros2_control>
+  </xacro:if>
+
+  <xacro:unless value="$(arg use_mock)">
+    <xacro:if value="$(arg use_sim)">
+      <xacro:if value="${'$(arg drive)' == 'planar'}">
+        <ros2_control name="OmniBotArmSim" type="system">
+          <hardware>
+            <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+          </hardware>
+          <xacro:omnibot_arm_interfaces/>
+        </ros2_control>
+        <ros2_control name="OmniBotWheelMock" type="system">
+          <hardware>
+            <plugin>omnibot_bringup/PlanarWheelMock</plugin>
+          </hardware>
+          <xacro:omnibot_wheel_interfaces/>
+        </ros2_control>
+      </xacro:if>
+      <xacro:unless value="${'$(arg drive)' == 'planar'}">
+        <ros2_control name="OmniBotGazebo" type="system">
+          <hardware>
+            <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+          </hardware>
+          <xacro:omnibot_wheel_interfaces/>
+          <xacro:omnibot_arm_interfaces/>
+        </ros2_control>
+      </xacro:unless>
+    </xacro:if>
+    <xacro:unless value="$(arg use_sim)">
+      <ros2_control name="OmniBotSystem" type="system">
+        <hardware>
+          <xacro:omnibot_hardware_plugin/>
+        </hardware>
+        <xacro:omnibot_wheel_interfaces/>
+        <xacro:omnibot_arm_interfaces/>
+      </ros2_control>
+    </xacro:unless>
+  </xacro:unless>
+</robot>

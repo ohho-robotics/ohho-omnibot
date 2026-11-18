@@ -80,8 +80,19 @@ def test_ceilings_match_omnibot_profile_and_stop_budget():
     assert HEARTBEAT_TIMEOUT_S == 0.3
     assert MAX_JOINT_DELTA_RAD <= 0.15
     assert CMD_TIMEOUT_S + 0.01 <= 0.350
-    assert "TICK_PERIOD_S = 0.01" in NODE_SRC.read_text(encoding="utf-8")
-    assert "declare_parameter" not in NODE_SRC.read_text(encoding="utf-8")
+    source = NODE_SRC.read_text(encoding="utf-8")
+    assert "TICK_PERIOD_S = 0.01" in source
+    # OdometryPublisher keeps a 10-step mean (20 ms at 500 Hz) and the
+    # executor timer can sit behind joint-state callbacks. The thread tick
+    # has to leave that mean inside the 350 ms stop.
+    assert "WATCHDOG_TICK_S = 0.005" in source
+    assert CMD_TIMEOUT_S + 0.005 + 0.030 <= 0.350
+    assert "_watchdog_loop" in source
+    assert "declare_parameter" not in source
+    # Jazzy's rclpy.parameter does not export SetParametersResult. The callback
+    # result is the rcl_interfaces message.
+    assert "from rcl_interfaces.msg import SetParametersResult" in source
+    assert "from rclpy.parameter import SetParametersResult" not in source
 
 
 def test_callers_cannot_raise_caps_or_timeouts(tmp_path):
@@ -506,7 +517,36 @@ def test_launch_files_wire_teleop_safety():
     assert 'ros_topic_name: "/cmd_vel/out"' in vr_bridge
     assert 'ros_topic_name: "/cmd_vel"' not in vr_bridge
     assert 'ros_topic_name: "/cmd_vel"' in flat_bridge
+    sim_vr = (BRINGUP / "launch" / "sim_vr.launch.py").read_text(encoding="utf-8")
+    assert "sim.launch.py" in sim_vr
+    assert '"vr": "true"' in sim_vr
+    robot_vr = (BRINGUP / "launch" / "robot_vr_support.py").read_text(encoding="utf-8")
+    assert "teleop_safety.launch.py" in robot_vr
+    assert 'parameters=[{"default_mode": "teleop", "use_sim_time": False}]' in robot_vr
     assert "declare_parameter" not in GATE_SRC.read_text(encoding="utf-8")
+
+
+def test_sim_launch_nodes_install_into_package_libexec():
+    """Launch resolves executables in lib/<package>, which symlink installs miss."""
+    hybrid_cfg = (HYBRID_ROOT / "setup.cfg").read_text(encoding="utf-8")
+    rl_root = REPO / "omnibot-ai-ros2" / "omnibot_rl"
+    rl_cfg = (rl_root / "setup.cfg").read_text(encoding="utf-8")
+    assert "script_dir=$base/lib/omnibot_hybrid" in hybrid_cfg
+    assert "install_scripts=$base/lib/omnibot_hybrid" in hybrid_cfg
+    assert "script_dir=$base/lib/omnibot_rl" in rl_cfg
+    assert "install_scripts=$base/lib/omnibot_rl" in rl_cfg
+    hybrid_setup = (HYBRID_ROOT / "setup.py").read_text(encoding="utf-8")
+    rl_setup = (rl_root / "setup.py").read_text(encoding="utf-8")
+    assert "teleop_safety = omnibot_hybrid.teleop_safety:main" in hybrid_setup
+    assert "cmd_vel_mux = omnibot_hybrid.cmd_vel_mux:main" in hybrid_setup
+    assert "arm_cmd_mux        = omnibot_rl.arm_cmd_mux:main" in rl_setup
+
+
+def test_teleop_safety_imports_set_parameters_result_from_rcl_interfaces():
+    """Jazzy rclpy.parameter does not export SetParametersResult."""
+    source = NODE_SRC.read_text(encoding="utf-8")
+    assert "from rcl_interfaces.msg import SetParametersResult" in source
+    assert "from rclpy.parameter import SetParametersResult" not in source
 
 
 def _run_stubbed(script):
@@ -648,6 +688,7 @@ def test_node_wiring_latch_and_service_without_ros(tmp_path):
         assert node._state_pub.msgs[-1].data
         assert node._gate.latched is True
         assert node._gate.armed is False
+        assert node._watchdog is None
 
         t["n"] = 0.0
         node._heartbeat_cb(Empty())

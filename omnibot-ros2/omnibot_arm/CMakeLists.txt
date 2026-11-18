@@ -13,6 +13,7 @@ find_package(rclpy REQUIRED)
 install(
   PROGRAMS
     scripts/arm_driver_node.py
+    scripts/arm_joint_state_mirror.py
     scripts/arm_math.py
     scripts/arm_safety.py
     scripts/servo_offsets.py

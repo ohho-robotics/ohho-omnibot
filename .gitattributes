@@ -8,6 +8,8 @@ omnibot-vr/Packages/com.meta.xr.sdk.interaction/** linguist-vendored
 
 # Shell scripts must keep LF so they run on Linux when checked out on Windows.
 *.sh text eol=lf
+# Sourced by scripts/net_env.sh. CRLF makes bash treat `then` as a different word.
+omnibot-ros2/omnibot_bringup/config/ros_domain.env text eol=lf
 
 # Saved slam_toolbox map: byte-exact, no diffs.
 omnibot-ros2/omnibot_navigation/maps/*.pgm binary

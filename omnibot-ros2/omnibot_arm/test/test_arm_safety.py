@@ -450,10 +450,41 @@ class TestDriverWiring:
         node = _driver()
         assert node._params["max_joint_delta_rad"] == arm_safety.MAX_JOINT_DELTA_RAD
         assert node._params["command_timeout_sec"] == arm_safety.COMMAND_TIMEOUT_SEC
+        assert node.simulate is False
         topics = [topic for topic, _callback in node._subs]
         assert "/emergency_stop" in topics
         assert "/arm/enable" in topics
         assert "/arm/joint_commands/out" in topics
+
+    def test_open_hardware_bus_stays_closed_when_simulating(self):
+        assert arm_safety.open_hardware_bus(True, True) is False
+        assert arm_safety.open_hardware_bus(False, False) is False
+        assert arm_safety.open_hardware_bus(False, True) is True
+
+    def test_simulate_true_does_not_open_the_bus(self, monkeypatch):
+        monkeypatch.setattr(arm_driver_node, "LEROBOT_AVAILABLE", True)
+        opened = []
+
+        def declare(self, name, default=None):
+            if name == "simulate":
+                default = True
+            self._params[name] = default
+
+        monkeypatch.setattr(arm_driver_node.ArmDriverNode, "declare_parameter", declare)
+        monkeypatch.setattr(
+            arm_driver_node.ArmDriverNode,
+            "connect_follower",
+            lambda self: opened.append("follower"),
+        )
+        monkeypatch.setattr(
+            arm_driver_node.ArmDriverNode,
+            "connect_leader",
+            lambda self: opened.append("leader"),
+        )
+        node = arm_driver_node.ArmDriverNode()
+        assert node.simulate is True
+        assert opened == []
+        assert node.follower_bus is None
 
     def test_estop_writes_torque_enable_zero(self):
         node = _driver()

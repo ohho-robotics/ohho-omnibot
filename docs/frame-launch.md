@@ -97,7 +97,7 @@ For distributed physical deployment, compute is partitioned across two nodes:
 * **Raspberry Pi 5 Master Launch**: [`omnibot-ros2/omnibot_bringup/launch/master/omnibot_pi.launch.py`](../omnibot-ros2/omnibot_bringup/launch/master/omnibot_pi.launch.py)
 * **GPU Workstation Master Launch**: [`omnibot-ros2/omnibot_bringup/launch/master/omnibot_workstation.launch.py`](../omnibot-ros2/omnibot_bringup/launch/master/omnibot_workstation.launch.py)
 
-Both machines communicate over a shared ROS 2 domain (`ROS_DOMAIN_ID=30`) with static peers configured via `ROS_STATIC_PEERS`.
+Both machines communicate over a shared ROS 2 domain (`ROS_DOMAIN_ID=30`) using `rmw_cyclonedds_cpp` and the static-peer Cyclone profile in [network.md](network.md).
 
 ### Allocation Matrix
 
