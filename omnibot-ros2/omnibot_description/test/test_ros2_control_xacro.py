@@ -8,7 +8,9 @@ transmission tags.
 """
 
 import importlib.util
+import os
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 
@@ -189,18 +191,20 @@ def test_controller_manager_reads_robot_description_topic():
 def test_ros2_control_adapter_is_executable():
     # colcon --symlink-install keeps this mode. launch's which() skips a
     # non-executable file and reports it missing from libexec.
-    listed = subprocess.check_output(
-        [
-            "git",
-            "ls-files",
-            "-s",
-            "--",
-            "omnibot-ros2/omnibot_bringup/scripts/ros2_control_adapter.py",
-        ],
+    rel = "omnibot-ros2/omnibot_bringup/scripts/ros2_control_adapter.py"
+    script = REPO / rel
+    assert script.is_file()
+    assert os.stat(script).st_mode & stat.S_IXUSR
+    # The git index mode is what a fresh clone gets. CI may run the tests
+    # where git refuses the checkout (exit 128), so only check it when git can.
+    listed = subprocess.run(
+        ["git", "ls-files", "-s", "--", rel],
         cwd=REPO,
         text=True,
+        capture_output=True,
     )
-    assert listed.startswith("100755")
+    if listed.returncode == 0 and listed.stdout:
+        assert listed.stdout.startswith("100755")
 
 
 def test_adapter_waits_for_arm_joints_and_times_out_twists():
