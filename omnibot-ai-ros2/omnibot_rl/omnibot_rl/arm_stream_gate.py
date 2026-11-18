@@ -1,17 +1,26 @@
 """Pure arm-command gate. No ROS imports.
 
-``arm_cmd_mux`` is a thin wrapper. Policy and RL arm commands stay idle
-until ``/control_mode`` is vla, nav2, or rl_nav. ``/emergency_stop`` blocks
-both arm sources on the same call. ``/arm/joint_commands`` is shared by the
-visuomotor policy and Android teleop, so holding that source in teleop also
-holds Android joint commands. Base teleop is a separate topic and is not
-decided here.
+``arm_cmd_mux`` is a thin wrapper. ``/arm/joint_commands/teleop`` (Quest VR
+hand IK and Android joint teleop) is forwarded only while ``/control_mode``
+is teleop and ``/emergency_stop`` is clear. Policy (``/arm/joint_commands/policy``,
+plus the deprecated alias ``/arm/joint_commands``) and RL arm commands stay
+idle until ``/control_mode`` is vla, nav2, or rl_nav. ``/emergency_stop``
+blocks every arm source on the same call. Base teleop is a separate topic
+and is not decided here.
 """
 
 DEFAULT_CONTROL_MODE = "teleop"
 VALID_CONTROL_MODES = ("nav2", "vla", "teleop", "rl_nav")
 AUTONOMOUS_CONTROL_MODES = ("nav2", "vla", "rl_nav")
+# Selectable with /arm/cmd_mode. Teleop is selected by /control_mode only.
 ARM_SOURCES = ("policy", "rl_arm")
+TELEOP_SOURCE = "teleop"
+TOPIC_JOINT_COMMANDS_TELEOP = "/arm/joint_commands/teleop"
+TOPIC_JOINT_COMMANDS_POLICY = "/arm/joint_commands/policy"
+# Deprecated alias for TOPIC_JOINT_COMMANDS_POLICY. Same gate. One release.
+TOPIC_JOINT_COMMANDS_POLICY_ALIAS = "/arm/joint_commands"
+TOPIC_JOINT_COMMANDS_RL = "/arm/joint_commands/rl"
+TOPIC_JOINT_COMMANDS_OUT = "/arm/joint_commands/out"
 _VALID_CONTROL = frozenset(VALID_CONTROL_MODES)
 _ARM_SOURCES = frozenset(ARM_SOURCES)
 
@@ -53,11 +62,12 @@ class ArmStreamGate:
 
     @classmethod
     def from_default_mode(cls, default_mode):
-        """Start held in teleop.
+        """Start in teleop.
 
         ``default_mode`` selects the arm source used once a human sets an
         autonomous control mode. ``teleop`` (and any unknown value) keeps
-        the policy source as that later preference, and still starts held.
+        the policy source as that later preference. The teleop joint source
+        is forwarded immediately; policy and RL stay held.
         """
         arm_mode = normalize_arm_mode(default_mode)
         if arm_mode is None:
@@ -94,10 +104,19 @@ class ArmStreamGate:
         self.emergency_stop = bool(active)
 
     def allows(self, source):
-        """True when ``source`` may be forwarded on this cycle."""
+        """True when ``source`` may be forwarded on this cycle.
+
+        ``teleop`` is allowed only in teleop mode. Policy and ``rl_arm`` are
+        allowed only in an autonomous control mode, and only when they are
+        the selected arm source. Emergency stop blocks every source.
+        """
         if self.emergency_stop:
             return False
         if self.control_mode not in _VALID_CONTROL:
+            return False
+        if source == TELEOP_SOURCE:
+            return self.control_mode == "teleop"
+        if source not in _ARM_SOURCES:
             return False
         if self.control_mode not in AUTONOMOUS_CONTROL_MODES:
             return False

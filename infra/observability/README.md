@@ -34,9 +34,9 @@ In accordance with OHH-64 guidance (*"find the existing metrics node / Serve /me
    - **Metrics exposed**: `node_cpu_seconds_total`, `node_memory_MemAvailable_bytes`, `node_memory_MemTotal_bytes`, `node_filesystem_avail_bytes`, etc.
 
 3. **`omnibot_ros2_bridge` (`host.docker.internal:8888`)**:
-   - **Status**: Target configured; planned in ROS 2 bringup.
-   - **Source**: Configured in [`omnibot-ros2/omnibot_bringup/launch/robot.launch.py`](../../omnibot-ros2/omnibot_bringup/launch/robot.launch.py) via launch arguments `use_metrics:=true` and `metrics_port:=8888`.
-   - **Expected metrics**: `omnibot_estop_active`, `omnibot_control_mode`, `omnibot_node_cycle_*_ms`, `omnibot_robot_vx_ms`, `omnibot_robot_vy_ms`, `omnibot_robot_omega_rads`, `omnibot_missions_done_total`.
+   - **Status**: Optional. `omnibot_metrics` is not in this repository, so a public checkout does not expose this endpoint. The scrape job stays in `prometheus.yml` and is down until that package is installed and `robot.launch.py` is started with `use_metrics:=true`. No other process is scraped in its place.
+   - **Source**: [`robot.launch.py`](../../omnibot-ros2/omnibot_bringup/launch/robot.launch.py) arguments `use_metrics` (default `false`) and `metrics_port` (default `8888`).
+   - **Metrics when that package is running**: `omnibot_estop_active`, `omnibot_control_mode`, `omnibot_node_cycle_*_ms`, `omnibot_robot_vx_ms`, `omnibot_robot_vy_ms`, `omnibot_robot_omega_rads`, `omnibot_missions_done_total`.
 
 4. **Note on `vla_serve` (`host.docker.internal:8000`)**:
    - **Status**: Documented only; `/metrics` is **not** currently implemented on `vla_serve`.

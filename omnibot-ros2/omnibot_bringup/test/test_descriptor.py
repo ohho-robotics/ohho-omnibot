@@ -146,6 +146,62 @@ def test_publisher_is_latched_on_the_contract_topic():
     assert "descriptor_assemble" in text
 
 
+def test_so101_arm_only_descriptor_has_no_base_motion():
+    path = Path(__file__).resolve().parents[1] / "config" / "so101_arm_only_descriptor.yaml"
+    text = path.read_text(encoding="utf-8")
+    assert "cmd_vel" not in text
+    doc = load_descriptor_yaml(path, kind="sim")
+    assert doc["id"] == "so101-arm"
+    assert doc["model"] == "SO-101"
+    assert doc["v"] == "1.0.0"
+    assert doc["drive"]["kind"] == "fixed-base"
+    assert doc["drive"]["holonomic"] is False
+    assert doc["drive"]["caps"] == {"vx_mps": 0, "vy_mps": 0, "wz_rad_s": 0}
+    hard = doc["safety"]["hard"]
+    assert hard["max_vx_mps"] == 0
+    assert hard["max_vy_mps"] == 0
+    assert hard["max_wz_rad_s"] == 0
+    assert hard["max_accel_x_mps2"] == 0
+    assert hard["max_accel_y_mps2"] == 0
+    assert hard["max_accel_wz_rad_s2"] == 0
+    assert hard["max_joint_step_rad"] == MAX_JOINT_STEP_RAD
+    assert hard["max_joint_step_rad"] <= MAX_JOINT_STEP_RAD
+    assert doc["topics"]["cmd"] == "/arm/joint_commands"
+    assert doc["topics"]["state"] == "/arm/joint_states"
+    assert doc["topics"]["estop"] == "/emergency_stop"
+    assert "cmd_vel" not in doc["topics"]["cmd"]
+    assert doc["telemetry"]["kind"] == "sim"
+    assert doc["telemetry"]["robot_id"] == "so101-arm"
+    assert doc["telemetry"]["fields"] == ["joints", "gripper"]
+    assert "base" not in doc["telemetry"]["fields"]
+    joints = doc["arms"][0]["joints"]
+    assert doc["arms"][0]["name"] == "so101"
+    assert [joint["name"] for joint in joints] == list(JOINT_LIMITS)
+    for joint in joints:
+        lo, hi = JOINT_LIMITS[joint["name"]]
+        assert joint["min"] >= lo
+        assert joint["max"] <= hi
+        assert lo <= joint["home"] <= hi
+    assert doc["cameras"][0]["topic"] == "/camera/wrist/image_raw"
+    assert doc["cameras"][0]["topic"] in doc["topics"]["images"]
+
+
+def test_so101_arm_sim_launch_publishes_descriptor_without_a_base():
+    launch = (LAUNCH_DIR / "so101_arm_sim.launch.py").read_text(encoding="utf-8")
+    compile(launch, "so101_arm_sim.launch.py", "exec")
+    assert "arm_driver_node.py" in launch
+    assert "arm_params.yaml" in launch
+    assert "so101_arm_only_descriptor.yaml" in launch
+    assert "descriptor_node.py" in launch
+    assert '"/ohho/descriptor"' in (NODE_PATH.read_text(encoding="utf-8"))
+    assert '{"simulate": True}' in launch
+    assert '"kind": "sim"' in launch
+    assert '("/arm/joint_commands/out", "/arm/joint_commands")' in launch
+    assert "cmd_vel" not in launch
+    assert "yahboom" not in launch.lower()
+    assert "cmd_vel_mux" not in launch
+
+
 def test_robot_and_sim_launches_wire_the_publisher():
     robot = (LAUNCH_DIR / "robot.launch.py").read_text(encoding="utf-8")
     sim = (LAUNCH_DIR / "sim.launch.py").read_text(encoding="utf-8")
@@ -276,9 +332,15 @@ def test_nominal_poses_match_the_urdf_and_descriptor():
     assert width == chassis.width
     assert plate == chassis.plate_thickness
     assert standoff == chassis.standoff_height
-    assert 'box size="0.075 0.065 0.055"' in urdf
-    assert 'xyz="-0.031 0 0.068"' in urdf
-    assert 'box size="0.080 0.060 0.006"' in urdf
+    assert _xacro_property(urdf, "arm_body_x") == chassis.arm_body[0]
+    assert _xacro_property(urdf, "arm_body_y") == chassis.arm_body[1]
+    assert _xacro_property(urdf, "arm_body_z") == chassis.arm_body[2]
+    assert _xacro_property(urdf, "waveshare_origin_x") == chassis.waveshare_origin_x
+    assert _xacro_property(urdf, "waveshare_size_x") == chassis.waveshare_size_x
+    assert 'stl="base_so101_v2.stl"' in urdf
+    assert 'stl="waveshare_mounting_plate_so101_v2.stl"' in urdf
+    assert "package://omnibot_description/meshes/so101/" in urdf
+    assert 'box size="0.075 0.065 0.070"' in urdf
     arm = re.search(
         r'<joint name="arm_base_joint" type="fixed">\s*'
         r'<parent link="top_plate_link"/>\s*'

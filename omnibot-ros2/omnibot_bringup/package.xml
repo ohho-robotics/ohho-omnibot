@@ -10,6 +10,9 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>pluginlib</depend>
+  <depend>gz_sim_vendor</depend>
   <depend>omnibot_description</depend>
   <depend>robot_state_publisher</depend>
   <depend>joint_state_publisher</depend>
@@ -19,11 +22,35 @@
   <exec_depend>joy</exec_depend>
   <exec_depend>teleop_twist_joy</exec_depend>
 
+  <!-- Cell RMW. rosdep installs ros-<distro>-rmw-cyclonedds-cpp. -->
+  <exec_depend>rmw_cyclonedds_cpp</exec_depend>
+
   <!-- Simulation -->
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>
   <exec_depend>web_video_server</exec_depend>
   <exec_depend>omnibot_arm</exec_depend>
+  <exec_depend>omnibot_hybrid</exec_depend>
+  <exec_depend>omnibot_rl</exec_depend>
+  <exec_depend>omnibot_hardware</exec_depend>
+
+  <!-- ros2_control. Same controllers.yaml in sim and on the robot. -->
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>mecanum_drive_controller</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+  <exec_depend>parallel_gripper_controller</exec_depend>
+  <depend>gz_ros2_control</depend>
+  <!-- Jazzy builds mock_components/GenericSystem inside hardware_interface.
+       The CI mock path still uses that plugin. Planar wheels use
+       omnibot_bringup/PlanarWheelMock because the gz resource manager only
+       loads GazeboSimSystemInterface. -->
+  <depend>hardware_interface</depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>
@@ -31,14 +58,23 @@
   <test_depend>geometry_msgs</test_depend>
   <test_depend>nav_msgs</test_depend>
   <test_depend>sensor_msgs</test_depend>
+  <test_depend>std_msgs</test_depend>
+  <test_depend>rcl_interfaces</test_depend>
+  <test_depend>ros2controlcli</test_depend>
 
   <!-- Digital twin extras (simulation.launch.py) -->
   <!-- /scan from Astra Pro depth (no physical lidar on OmniBot) -->
   <exec_depend>depthimage_to_laserscan</exec_depend>
+  <!-- USB cameras, Orbbec Gemini/Astra (apt), and the joint-state relay. -->
+  <exec_depend>usb_cam</exec_depend>
+  <exec_depend>orbbec_camera</exec_depend>
+  <exec_depend>topic_tools</exec_depend>
   <!-- Browser visualisation — ws://localhost:8765 -->
   <exec_depend>foxglove_bridge</exec_depend>
-  <!-- Android app / web WebSocket bridge — ws://localhost:9090 -->
+  <!-- Android app / web WebSocket bridge — ws://127.0.0.1:9090 -->
   <exec_depend>rosbridge_server</exec_depend>
+  <!-- Quest MJPEG. sim_vr.launch.py binds it to rosbridge_address. -->
+  <exec_depend>web_video_server</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>

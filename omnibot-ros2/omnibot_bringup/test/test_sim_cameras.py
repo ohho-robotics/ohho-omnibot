@@ -117,6 +117,15 @@ class TestLaunchWiring:
         vr_arg = text.split('"vr",', 1)[1].split('"video",', 1)[0]
         assert 'default_value="false"' in vr_arg
 
+    def test_headless_sim_resolves_meshes_and_raises_sim_arm_effort(self):
+        text = LAUNCH.read_text(encoding="utf-8")
+        assert "GZ_SIM_RESOURCE_PATH" in text
+        assert "os.path.dirname(description)" in text
+        assert "gz_arm_effort:=10" in text
+        assert text.index("GZ_SIM_RESOURCE_PATH") < text.index(
+            "actions = [mesh_path, gazebo"
+        )
+
     def test_headless_rendering_flag_stays_on_without_a_measurement(self):
         text = LAUNCH.read_text(encoding="utf-8")
         assert 'gz_args = f"-r -s --headless-rendering {world_path}"' in text

@@ -1,0 +1,52 @@
+# SO-101 arm-only RobotDescriptor v1. Published latched as JSON on /ohho/descriptor.
+# Fixed base, zero drive caps: there is no mobile base and no velocity command.
+# topics.cmd is the arm joint command. topics.state is arm joint state.
+# Joint ranges match omnibot_arm arm_params.yaml. Do not widen them.
+# Joint step stays at 0.15 rad. Do not raise it.
+# No AprilTags are installed.
+
+v: "1.0.0"
+id: so101-arm
+model: SO-101
+drive:
+  kind: fixed-base
+  holonomic: false
+  caps:
+    vx_mps: 0
+    vy_mps: 0
+    wz_rad_s: 0
+arms:
+  - name: so101
+    joints:
+      - {name: arm_shoulder_pan, label: Pan, min: -3.14, max: 3.14, home: 0}
+      - {name: arm_shoulder_lift, label: Lift, min: -1.57, max: 1.57, home: 0}
+      - {name: arm_elbow_flex, label: Elbow, min: -1.57, max: 1.57, home: 0}
+      - {name: arm_wrist_flex, label: Wrist, min: -1.57, max: 1.57, home: 0}
+      - {name: arm_wrist_roll, label: Roll, min: -3.14, max: 3.14, home: 0}
+      - {name: arm_gripper, label: Grip, min: -0.1, max: 0.8, home: 0}
+topics:
+  cmd: /arm/joint_commands
+  state: /arm/joint_states
+  estop: /emergency_stop
+  heartbeat: /ohho/heartbeat
+  telemetry: /ohho/telemetry
+  images:
+    - /camera/wrist/image_raw
+cameras:
+  - {name: wrist, kind: rgb, frame: wrist_camera_link, topic: /camera/wrist/image_raw}
+urdf_url: package://omnibot_description/urdf/omnibot.urdf.xacro
+apriltags: []
+telemetry:
+  schema_id: ohho.telemetry.v1
+  robot_id: so101-arm
+  kind: sim
+  fields: [joints, gripper]
+safety:
+  hard:
+    max_vx_mps: 0
+    max_vy_mps: 0
+    max_wz_rad_s: 0
+    max_accel_x_mps2: 0
+    max_accel_y_mps2: 0
+    max_accel_wz_rad_s2: 0
+    max_joint_step_rad: 0.15

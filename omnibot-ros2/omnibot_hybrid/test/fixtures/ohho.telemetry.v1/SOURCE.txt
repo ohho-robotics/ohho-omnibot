@@ -1,0 +1,7 @@
+ohho.telemetry.v1 fixtures copied read-only from ohho-sdk.
+Do not edit ohho-sdk. Do not hand-edit these JSON files to match local code.
+
+Repository: https://github.com/ohho-robotics/ohho-sdk
+Branch: ohh-201-telemetry-schema
+Commit: ae1909439092bceac667553ea7f5cfeaf506c4f6
+Path: packages/schemas/ohho.telemetry.v1/

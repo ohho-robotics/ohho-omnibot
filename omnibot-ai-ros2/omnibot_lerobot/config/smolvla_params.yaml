@@ -1,5 +1,8 @@
-smolvla_node:
+# Deprecated filename — use policy_params.yaml for new launch files.
+# ROS parameter namespace must be policy_node (not smolvla_node).
+policy_node:
   ros__parameters:
+    model_type: "smolvla"
     checkpoint_path: "lerobot/smolvla_base"
     device: "cuda"
     policy_hz: 10.0
@@ -10,18 +13,9 @@ smolvla_node:
     image_height: 240
     task_description: "pick up the object and place it in the bin"
     base_vel_scale: 0.3
-    # Max joint-target change per accepted command (same 0.15 rad limit as arm driver)
     max_joint_delta_rad: 0.15
-    # Joint angle limits (matching arm driver)
     joint_min: [-3.14, -1.57, -1.57, -1.57, -3.14, -0.1]
     joint_max: [3.14, 1.57, 1.57, 1.57, 3.14, 0.8]
-    # TensorRT acceleration (Phase 1 — vision encoder only)
-    # Set use_trt: true and point trt_engine_path at the pre-built engine.
-    # Build the engine once with:
-    #   python -m vla_engine.trt.build_engine \
-    #       --checkpoint lerobot/smolvla_base \
-    #       --output /path/to/engines/smolvla_vision_fp16.trt \
-    #       --precision fp16
     use_trt: false
     trt_engine_path: ""
 

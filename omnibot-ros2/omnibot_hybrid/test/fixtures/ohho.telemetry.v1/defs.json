@@ -1,0 +1,410 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ohho-robotics.com/schemas/ohho.telemetry.v1/defs.json",
+  "title": "OhhoTelemetryV1Defs",
+  "$defs": {
+    "SchemaVersion": {
+      "title": "SchemaVersion",
+      "description": "Telemetry schema semver MAJOR.MINOR.PATCH. Minor versions only add optional fields. Major versions break. This schema accepts 1.0.x.",
+      "type": "string",
+      "pattern": "^1\\.0\\.(0|[1-9]\\d*)$"
+    },
+    "RobotId": {
+      "title": "RobotId",
+      "description": "Stable robot identifier. Required on every sample so streams cannot be mixed.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+    },
+    "UnixTimeSeconds": {
+      "title": "UnixTimeSeconds",
+      "description": "Seconds since the Unix epoch (UTC). SI second, not a ROS stamp and not milliseconds.",
+      "type": "number",
+      "minimum": 0
+    },
+    "ClientTimeSeconds": {
+      "title": "ClientTimeSeconds",
+      "description": "Client clock in seconds since the Unix epoch (UTC). Copied unchanged into a heartbeat echo.",
+      "type": "number",
+      "minimum": 0
+    },
+    "HeartbeatSeq": {
+      "title": "HeartbeatSeq",
+      "description": "Monotonic heartbeat counter for this client session, starting at 0.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "FrameId": {
+      "title": "FrameId",
+      "description": "Coordinate frame name for pose, for example odom or map.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_./:-]{0,63}$"
+    },
+    "JointName": {
+      "title": "JointName",
+      "description": "Joint name, unique within the joints array.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_./:-]{0,63}$"
+    },
+    "DisplayName": {
+      "title": "DisplayName",
+      "description": "Non-empty name without leading or trailing whitespace.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "Metres": {
+      "title": "Metres",
+      "description": "Length in metres (m). May be negative for a position.",
+      "type": "number"
+    },
+    "Radians": {
+      "title": "Radians",
+      "description": "Angle in radians (rad), right-hand rule. Not degrees.",
+      "type": "number"
+    },
+    "MetresPerSecond": {
+      "title": "MetresPerSecond",
+      "description": "Linear velocity in metres per second (m/s). No schema maximum; a safety cap is not raised by omitting one.",
+      "type": "number"
+    },
+    "RadiansPerSecond": {
+      "title": "RadiansPerSecond",
+      "description": "Angular velocity in radians per second (rad/s). No schema maximum.",
+      "type": "number"
+    },
+    "MetresPerSecondSquared": {
+      "title": "MetresPerSecondSquared",
+      "description": "Linear acceleration in metres per second squared (m/s^2).",
+      "type": "number"
+    },
+    "NewtonMetres": {
+      "title": "NewtonMetres",
+      "description": "Torque in newton-metres (N*m) for a revolute joint.",
+      "type": "number"
+    },
+    "Volts": {
+      "title": "Volts",
+      "description": "Electric potential in volts (V). No upper cap; do not clamp a reading.",
+      "type": "number",
+      "minimum": 0
+    },
+    "Percent": {
+      "title": "Percent",
+      "description": "Percent from 0 to 100 inclusive. Not a 0..1 fraction.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "Celsius": {
+      "title": "Celsius",
+      "description": "Temperature in degrees Celsius. Named exception to kelvin. Not a safety limit; do not clamp.",
+      "type": "number"
+    },
+    "Milliseconds": {
+      "title": "Milliseconds",
+      "description": "Duration in milliseconds. Named exception to the SI second. Minimum 0.",
+      "type": "number",
+      "minimum": 0
+    },
+    "Hertz": {
+      "title": "Hertz",
+      "description": "Frequency in hertz (Hz). Minimum 0. Zero reports a dead stream; it does not clear an e-stop.",
+      "type": "number",
+      "minimum": 0
+    },
+    "Seconds": {
+      "title": "Seconds",
+      "description": "Duration in seconds (s). Minimum 0.",
+      "type": "number",
+      "minimum": 0
+    },
+    "FrameCount": {
+      "title": "FrameCount",
+      "description": "Recorded frame count. An integer, not a rate.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "GripperMetres": {
+      "title": "GripperMetres",
+      "description": "Linear gripper opening in metres (m). Minimum 0.",
+      "type": "number",
+      "minimum": 0
+    },
+    "RobotKind": {
+      "title": "RobotKind",
+      "description": "sim is a simulator. real is a physical robot. Required so a simulated sample cannot be read as hardware.",
+      "type": "string",
+      "enum": ["sim", "real"]
+    },
+    "SubsystemMode": {
+      "title": "SubsystemMode",
+      "description": "Subsystem mode. not_present means it is not installed and must not be commanded. fault means that subsystem must not be commanded. None of these values is a motion permit by itself.",
+      "type": "string",
+      "enum": ["idle", "teleop", "auto", "hold", "fault", "not_present"]
+    },
+    "EstopSource": {
+      "title": "EstopSource",
+      "description": "none only when active and latched are both false. Otherwise hardware, software, remote, or watchdog.",
+      "type": "string",
+      "enum": ["none", "hardware", "software", "remote", "watchdog"]
+    },
+    "NavPhase": {
+      "title": "NavPhase",
+      "description": "Navigation phase. aborted and failed are not success.",
+      "type": "string",
+      "enum": ["idle", "navigating", "succeeded", "aborted", "failed"]
+    },
+    "PolicyPhase": {
+      "title": "PolicyPhase",
+      "description": "Policy execution phase.",
+      "type": "string",
+      "enum": ["idle", "running", "paused", "fault"]
+    },
+    "EstopState": {
+      "title": "EstopState",
+      "description": "E-stop report. Motion must not be commanded when active or latched is true. There is no default that means clear.",
+      "type": "object",
+      "additionalProperties": false,
+      "x-ohho-estop-source": true,
+      "required": ["active", "latched", "source"],
+      "properties": {
+        "active": {
+          "description": "True while an e-stop is asserted.",
+          "type": "boolean"
+        },
+        "latched": {
+          "description": "True after an e-stop until an explicit human release. Stays true after the button is cleared.",
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/EstopSource"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "active": { "const": true }
+                },
+                "required": ["active"]
+              },
+              {
+                "properties": {
+                  "latched": { "const": true }
+                },
+                "required": ["latched"]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "source": {
+                "enum": ["hardware", "software", "remote", "watchdog"]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "source": { "const": "none" }
+            }
+          }
+        }
+      ]
+    },
+    "ModeState": {
+      "title": "ModeState",
+      "description": "Base and arm modes. Both are required. A robot with no arm sends arm not_present rather than omitting it. fault on either subsystem is not a motion permit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "arm"],
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/SubsystemMode"
+        },
+        "arm": {
+          "$ref": "#/$defs/SubsystemMode"
+        }
+      }
+    },
+    "LinkStatus": {
+      "title": "LinkStatus",
+      "description": "Link that carried this sample. Required even when the stream is dead: use hz 0. Do not omit link to mean disconnected.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rtt_ms", "hz"],
+      "properties": {
+        "rtt_ms": {
+          "$ref": "#/$defs/Milliseconds"
+        },
+        "hz": {
+          "$ref": "#/$defs/Hertz"
+        }
+      }
+    },
+    "BaseVelocity": {
+      "title": "BaseVelocity",
+      "description": "Body-frame planar velocity. vx is forward, vy is left, wz is about +Z. Not in the pose frame.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vx", "vy", "wz"],
+      "properties": {
+        "vx": { "$ref": "#/$defs/MetresPerSecond" },
+        "vy": { "$ref": "#/$defs/MetresPerSecond" },
+        "wz": { "$ref": "#/$defs/RadiansPerSecond" }
+      }
+    },
+    "BasePose": {
+      "title": "BasePose",
+      "description": "Planar pose in the parent frame. yaw is radians about +Z.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "yaw"],
+      "properties": {
+        "x": { "$ref": "#/$defs/Metres" },
+        "y": { "$ref": "#/$defs/Metres" },
+        "yaw": { "$ref": "#/$defs/Radians" }
+      }
+    },
+    "BaseState": {
+      "title": "BaseState",
+      "description": "Planar base command, measured velocity, and pose. Omit the whole object when there is no base sample. Do not send zeros to mean missing.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cmd", "meas", "pose", "frame"],
+      "properties": {
+        "cmd": { "$ref": "#/$defs/BaseVelocity" },
+        "meas": { "$ref": "#/$defs/BaseVelocity" },
+        "pose": { "$ref": "#/$defs/BasePose" },
+        "frame": { "$ref": "#/$defs/FrameId" }
+      }
+    },
+    "JointSample": {
+      "title": "JointSample",
+      "description": "One revolute joint. Position, command, min, and max are radians. Velocity is rad/s. Effort is N*m. min and max describe the joint; they do not raise a safety cap. Omit the joints array when there is no arm.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "pos", "vel", "effort", "cmd", "min", "max"],
+      "properties": {
+        "name": { "$ref": "#/$defs/JointName" },
+        "pos": { "$ref": "#/$defs/Radians" },
+        "vel": { "$ref": "#/$defs/RadiansPerSecond" },
+        "effort": { "$ref": "#/$defs/NewtonMetres" },
+        "cmd": { "$ref": "#/$defs/Radians" },
+        "min": { "$ref": "#/$defs/Radians" },
+        "max": { "$ref": "#/$defs/Radians" }
+      }
+    },
+    "GripperState": {
+      "title": "GripperState",
+      "description": "Linear gripper opening. Omit when there is no gripper.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pos", "cmd"],
+      "properties": {
+        "pos": { "$ref": "#/$defs/GripperMetres" },
+        "cmd": { "$ref": "#/$defs/GripperMetres" }
+      }
+    },
+    "ImuSample": {
+      "title": "ImuSample",
+      "description": "Orientation in radians and linear acceleration in m/s^2 in the sensor frame, gravity included. Omit when there is no IMU.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roll", "pitch", "yaw", "ax", "ay", "az"],
+      "properties": {
+        "roll": { "$ref": "#/$defs/Radians" },
+        "pitch": { "$ref": "#/$defs/Radians" },
+        "yaw": { "$ref": "#/$defs/Radians" },
+        "ax": { "$ref": "#/$defs/MetresPerSecondSquared" },
+        "ay": { "$ref": "#/$defs/MetresPerSecondSquared" },
+        "az": { "$ref": "#/$defs/MetresPerSecondSquared" }
+      }
+    },
+    "BatteryState": {
+      "title": "BatteryState",
+      "description": "Battery. v is volts. pct is percent 0..100, not the legacy transport battery fraction of 0..1. simulated is true for a fake pack.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "pct", "simulated"],
+      "properties": {
+        "v": { "$ref": "#/$defs/Volts" },
+        "pct": { "$ref": "#/$defs/Percent" },
+        "simulated": {
+          "description": "True when the pack reading is simulated.",
+          "type": "boolean"
+        }
+      }
+    },
+    "NavGoal": {
+      "title": "NavGoal",
+      "description": "Navigation goal in the map frame. x and y are metres. yaw is radians.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "yaw"],
+      "properties": {
+        "x": { "$ref": "#/$defs/Metres" },
+        "y": { "$ref": "#/$defs/Metres" },
+        "yaw": { "$ref": "#/$defs/Radians" }
+      }
+    },
+    "NavState": {
+      "title": "NavState",
+      "description": "Navigation status. Omit the whole object when navigation is not part of the sample. eta is seconds from t.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "goal", "eta"],
+      "properties": {
+        "state": { "$ref": "#/$defs/NavPhase" },
+        "goal": { "$ref": "#/$defs/NavGoal" },
+        "eta": { "$ref": "#/$defs/Seconds" }
+      }
+    },
+    "PolicyState": {
+      "title": "PolicyState",
+      "description": "Policy status. latency_ms is inference latency in milliseconds. Omit when no policy is loaded in the sample.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "state", "latency_ms"],
+      "properties": {
+        "name": { "$ref": "#/$defs/DisplayName" },
+        "state": { "$ref": "#/$defs/PolicyPhase" },
+        "latency_ms": { "$ref": "#/$defs/Milliseconds" }
+      }
+    },
+    "RecordingState": {
+      "title": "RecordingState",
+      "description": "Recorder status. Omit when the sample does not report recording. frames is a count.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "episode", "frames"],
+      "properties": {
+        "active": {
+          "description": "True while an episode is being recorded.",
+          "type": "boolean"
+        },
+        "episode": { "$ref": "#/$defs/DisplayName" },
+        "frames": { "$ref": "#/$defs/FrameCount" }
+      }
+    },
+    "HostStatus": {
+      "title": "HostStatus",
+      "description": "Host computer. cpu is percent 0..100. temp is degrees Celsius and is not a safety limit. Omit when host stats are unknown.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpu", "temp"],
+      "properties": {
+        "cpu": { "$ref": "#/$defs/Percent" },
+        "temp": { "$ref": "#/$defs/Celsius" }
+      }
+    }
+  }
+}

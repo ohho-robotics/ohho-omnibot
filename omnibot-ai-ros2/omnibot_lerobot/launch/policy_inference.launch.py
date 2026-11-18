@@ -57,7 +57,8 @@ def generate_launch_description():
         ],
     )
 
-    # Holds /arm/joint_commands until /control_mode is vla, nav2, or rl_nav.
+    # Forwards /arm/joint_commands/teleop in teleop. Holds
+    # /arm/joint_commands/policy until /control_mode is vla or nav2.
     arm_cmd_mux_node = Node(
         package="omnibot_rl",
         executable="arm_cmd_mux",

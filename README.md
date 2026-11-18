@@ -23,21 +23,28 @@
     &nbsp;
     <a href="https://github.com/ohho-robotics/OmniBot/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ohho-robotics/OmniBot/ci.yml?branch=main&label=CI" alt="CI"/></a>
     &nbsp;
+    <a href="docs/test-coverage.md"><img src="https://img.shields.io/badge/CPU_coverage-see_CI_logs-lightgrey" alt="CPU coverage"/></a>
+    &nbsp;
     <img src="https://img.shields.io/badge/ROS_2-Jazzy-brightgreen"/>
     &nbsp;
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue" alt="Apache-2.0"/></a>
   </p>
 </div>
 
-<p align="center"><strong>An open-source ROS 2 Jazzy mobile manipulator (mecanum base + SO-101 arm) that you can run in simulation on a laptop in three commands, then build at home.</strong></p>
+<p align="center"><strong>Ohho is the open harness layer for physical AI. Bring any model, we make it run on a real robot. OmniBot is the reference robot: an open-source ROS 2 Jazzy mobile manipulator (mecanum base + SO-101 arm) that you can run in simulation on a laptop in three commands, then build at home.</strong></p>
 
 <p align="center">⭐ <strong>If OmniBot is useful or interesting to you, please star the repo</strong>: it helps other robotics people find it.</p>
 
 ## Why OmniBot
 
-- **Full mobile-manipulation stack in one repo**: mecanum base driver and kinematics, SO-101 arm with e-stop and joint-limit safety, Nav2/SLAM, Gazebo Harmonic sim, and LeRobot data capture feeding VLA/RL policies.
-- **Teleop from anywhere**: Xbox gamepad, Android app, Meta Quest VR, or the browser via rosbridge.
-- **Honest and tested**: README commands run in CI. Anything that needs a robot or GPU is labelled as such in [docs/reference.md](docs/reference.md).
+A model alone isn't a robot. An LLM needs an agent harness (tools, memory, guardrails) before it can do real work; a VLA or RL policy needs the same around it before it can move real motors. OmniBot is that harness, end to end, in one repo:
+
+- **Simulation**: Gazebo Harmonic worlds, Nav2/SLAM, a CPU-only Docker sim, and Gazebo + RViz in the browser. Test a policy before it touches hardware.
+- **Data**: `teleop_recorder_node` writes LeRobot datasets and is started from `omnibot_lerobot` `teleop_record.launch.py` (not the default bring-up). Default `action_source` is `leader` (Xbox gamepad and leader arm). Quest and Android teleop on `/cmd_vel/teleop` and `/arm/joint_commands/teleop` need `action_source:=vr` and the `/ohho/record/start` and `/ohho/record/stop` services. Android record buttons publish rosbag topics `/rosbag_recorder/start` and `/rosbag_recorder/stop`. Documented browser sim teleop publishes `/cmd_vel` ([docs/reference.md](docs/reference.md)); the recorder's teleop action source is `/cmd_vel/teleop`.
+- **Policy runtime**: OpenVLA, SmolVLA, and RL policies drive the mecanum base and SO-101 arm over ROS 2, through one command mux per actuator.
+- **Safety guards**: e-stop torque latch, joint limits and per-cycle delta clamps, stale-inference rejection, refusal on missing or black camera frames, and a source-staleness watchdog on base velocity. See [docs/safety.md](docs/safety.md).
+- **Deployment**: `pip install ohho-os`, Prometheus + Grafana observability (fleet v0: one robot today), and an opt-in OTA update agent that needs the `omnibot_ota` ROS package, which this workspace does not build.
+- **Honest and tested**: README commands run in CI. CPU Python line coverage is reported in the [CI `cpu` job](.github/workflows/ci.yml) (see [docs/test-coverage.md](docs/test-coverage.md)). Anything that needs a robot or GPU is labelled as such in [docs/reference.md](docs/reference.md).
 
 ## Quickstart (no robot, no GPU)
 
@@ -130,17 +137,30 @@ colcon test --base-paths src --event-handlers console_direct+ --return-code-on-t
 colcon test-result --verbose
 ```
 
-Then start the Gazebo sim with `ros2 launch omnibot_bringup sim.launch.py world:=flat`. That launch also drives the SO-101 arm, including the gripper, through `arm_sim_driver` using the joint limits and safety rules in [`omnibot_arm/config/arm_params.yaml`](omnibot-ros2/omnibot_arm/config/arm_params.yaml). See [docs/reference.md](docs/reference.md) for worlds, bridged topics and browser teleop.
+Then start the Gazebo sim with `ros2 launch omnibot_bringup sim.launch.py world:=flat`. That launch also drives the SO-101 arm, including the gripper, through `arm_sim_driver` using the joint limits and safety rules in [`omnibot_arm/config/arm_params.yaml`](omnibot-ros2/omnibot_arm/config/arm_params.yaml). The Quest camera profile is `ros2 launch omnibot_bringup sim_vr.launch.py` (apartment world, headless, rosbridge and MJPEG). The teleop gate is `ros2 launch omnibot_bringup sim_teleop.launch.py`. Topic contract: [docs/vr.md](docs/vr.md). See [docs/reference.md](docs/reference.md) for worlds, bridged topics and browser teleop.
 
 On the physical robot (docs-test skips this):
 
 <!-- docs-test: skip hardware -->
 ```bash
 ros2 launch omnibot_bringup robot_with_joy.launch.py
+ros2 launch omnibot_bringup robot_vr.launch.py
 ros2 launch omnibot_bringup perception.launch.py
 ros2 launch omnibot_arm arm.launch.py
 ros2 launch omnibot_lerobot teleop_record.launch.py
 ```
+
+The Pi and the GPU workstation use one RMW, `rmw_cyclonedds_cpp`, and a Cyclone DDS profile with static peers. Domain id, peer addresses, firewall ports, WSL2, and the checks (`ros2 doctor --report`, `ros2 node list`, `ros2 topic hz`) are in [docs/network.md](docs/network.md).
+
+Three nodes stay off unless you opt in. Their packages are not in this repository. If the package is missing, launch logs one warning that names it and does not start the node.
+
+| Node | Package | How to enable | What it needs |
+|---|---|---|---|
+| `object_perception_node` | `omnibot_perception` | `ai_perception:=true` on [`perception.launch.py`](omnibot-ros2/omnibot_bringup/launch/perception.launch.py) and [`master/omnibot_pi.launch.py`](omnibot-ros2/omnibot_bringup/launch/master/omnibot_pi.launch.py) (default `false`) | The `omnibot_perception` package installed separately. It estimates object distance and pose from the depth camera. |
+| `metrics_bridge` (`ros2_prometheus_bridge`) | `omnibot_metrics` | `use_metrics:=true` on [`robot.launch.py`](omnibot-ros2/omnibot_bringup/launch/robot.launch.py) (default `false`). `metrics_port` defaults to `8888`. | The `omnibot_metrics` package installed separately. The Prometheus job `omnibot_ros2_bridge` scrapes that port only while this node is running. |
+| `ota_agent` (`ota_agent_node`) | `omnibot_ota` | `use_ota:=true` on [`robot.launch.py`](omnibot-ros2/omnibot_bringup/launch/robot.launch.py) and [`hybrid_robot.launch.py`](omnibot-ros2/omnibot_hybrid/launch/hybrid_robot.launch.py) (default `false`), plus `ota_manifest_url` | The `omnibot_ota` package installed separately, and a manifest URL. |
+
+`astra_camera` is not an apt package either. `perception.launch.py` and `omnibot_pi.launch.py` still default `depth_camera` to true, and skip that driver with one warning when the package is not installed. The Pi master launch documents `ai_perception:=false` as the default way to leave object perception off.
 
 ## Nav2 + slam_toolbox in Gazebo (OHH-30)
 
@@ -294,7 +314,7 @@ flowchart LR
   AD --> LR
 ```
 
-Details: control-mode gating in [docs/reference.md](docs/reference.md#bring-up-control-mode), arm and policy safety in [docs/safety.md](docs/safety.md). October pick-and-place fill-in: [docs/october-task.md](docs/october-task.md).
+Details: control-mode gating in [docs/reference.md](docs/reference.md#bring-up-control-mode), arm and policy safety in [docs/safety.md](docs/safety.md), the model adapter interface in [docs/model-adapter.md](docs/model-adapter.md), and Pi/workstation DDS in [docs/network.md](docs/network.md). October pick-and-place fill-in: [docs/october-task.md](docs/october-task.md).
 
 ## Observability (1 robot)
 

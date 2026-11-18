@@ -38,6 +38,8 @@
   <!-- Gazebo apartment sim: sim_navigation.launch.py / sim_mapping.launch.py -->
   <exec_depend>omnibot_bringup</exec_depend>
   <exec_depend>omnibot_description</exec_depend>
+  <!-- rtabmap.launch.py imports the optional-package launch helper. -->
+  <exec_depend>omnibot_hybrid</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>
@@ -46,6 +48,7 @@
 
   <!-- 3-D mapping stack -->
   <depend>rtabmap_ros</depend>
+  <depend>rtabmap_slam</depend>
   <depend>octomap_server</depend>
   <depend>pcl_ros</depend>
   <depend>octomap_msgs</depend>

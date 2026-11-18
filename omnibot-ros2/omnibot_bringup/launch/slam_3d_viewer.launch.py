@@ -6,8 +6,7 @@ Run this on ANY machine that has ROS_DOMAIN_ID=30 and can reach the Pi.
 The Pi must be running both perception.launch.py AND slam_3d_mapping.launch.py.
 
 Setup on workstation (once):
-    export ROS_DOMAIN_ID=30
-    export ROS_STATIC_PEERS=<pi-ip>       # if not on the same subnet
+    source omnibot-ros2/omnibot_bringup/config/ros_domain.env
     source /opt/ros/jazzy/setup.bash
     source ~/robot_ws/install/setup.bash
 

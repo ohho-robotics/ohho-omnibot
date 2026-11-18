@@ -18,7 +18,8 @@ lerobot_engine/
 ├── infer.py                 # Standalone inference test against a live/dummy camera
 ├── models/                  # Model registry + adapters
 │   ├── registry.py          # register() / make_policy() / list_models()
-│   ├── base.py              # PolicyAdapter interface
+│   ├── base.py              # PolicyAdapter interface (docs/model-adapter.md)
+│   ├── reference.py         # CPU numpy reference adapters (random weights)
 │   ├── act.py               # ACT policy adapter (OHH-51) + ONNX export
 │   ├── smolvla.py           # SmolVLA multimodal VLA adapter
 │   ├── diffusion.py         # Diffusion Policy adapter
@@ -53,7 +54,10 @@ pip install -e omnibot-ai-engines/learning_engine
 
 The registry (`models/registry.py`) selects the backend by name. Available
 adapters: `act` (Action Chunking Transformer, recommended baseline), `smolvla`
-(default VLA), `diffusion`, `openvla`.
+(default VLA), `diffusion`, `openvla`, and `serve`. `reference_linear` and
+`reference_mlp` are randomly initialised numpy models for the CPU interface
+check. They are not trained checkpoints. The contract is
+[docs/model-adapter.md](../../docs/model-adapter.md).
 
 ```bash
 python lerobot_engine/train.py --list-models
@@ -61,7 +65,8 @@ python lerobot_engine/train.py --list-models
 
 These names match `policy_node`'s `model_type` parameter, so a checkpoint trained
 here drops directly into `ros2 launch omnibot_lerobot policy_inference.launch.py
-model_type:=<name> checkpoint:=<path>`.
+model_type:=<name> checkpoint:=<path>`. The reference adapters take
+`checkpoint:=random` and are not training runs.
 
 ---
 

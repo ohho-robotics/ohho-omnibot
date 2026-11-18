@@ -1,0 +1,52 @@
+# Synthetic CI fixture. Not a physical SO-101. Do not load this on a robot.
+robot_id: "ci_fixture"
+home_ticks: [100, 200, 300, 400, 500, 600]
+joints:
+  - lerobot_name: shoulder_pan
+    joint_name: arm_shoulder_pan
+    id: 1
+    drive_mode: 0
+    homing_offset: -17
+    range_min: 0
+    range_max: 200
+    home_tick: 100
+  - lerobot_name: shoulder_lift
+    joint_name: arm_shoulder_lift
+    id: 2
+    drive_mode: 0
+    homing_offset: 31
+    range_min: 100
+    range_max: 300
+    home_tick: 200
+  - lerobot_name: elbow_flex
+    joint_name: arm_elbow_flex
+    id: 3
+    drive_mode: 0
+    homing_offset: -5
+    range_min: 200
+    range_max: 400
+    home_tick: 300
+  - lerobot_name: wrist_flex
+    joint_name: arm_wrist_flex
+    id: 4
+    drive_mode: 0
+    homing_offset: 8
+    range_min: 300
+    range_max: 500
+    home_tick: 400
+  - lerobot_name: wrist_roll
+    joint_name: arm_wrist_roll
+    id: 5
+    drive_mode: 0
+    homing_offset: 2048
+    range_min: 400
+    range_max: 600
+    home_tick: 500
+  - lerobot_name: gripper
+    joint_name: arm_gripper
+    id: 6
+    drive_mode: 0
+    homing_offset: 44
+    range_min: 500
+    range_max: 700
+    home_tick: 600

@@ -84,10 +84,12 @@ def generate_launch_description():
     )
 
     # ── Arm Command Mux ───────────────────────────────────────────────────────
-    # Subscribes: /arm/joint_commands (SmolVLA), /arm/joint_commands/rl, /arm/cmd_mode
+    # Subscribes: /arm/joint_commands/teleop, /arm/joint_commands/policy,
+    #   /arm/joint_commands (deprecated policy alias), /arm/joint_commands/rl,
+    #   /arm/cmd_mode
     # Publishes:  /arm/joint_commands/out  → arm_driver_node
-    # Starts held. Arm commands forward only after /control_mode is
-    # vla, nav2, or rl_nav, and /emergency_stop is false.
+    # Teleop source forwards in teleop when /emergency_stop is false.
+    # Policy and RL forward only after /control_mode is vla, nav2, or rl_nav.
     # Skip with include_arm_mux:=false when a parent launch already starts it.
     arm_cmd_mux_node = Node(
         package="omnibot_rl",

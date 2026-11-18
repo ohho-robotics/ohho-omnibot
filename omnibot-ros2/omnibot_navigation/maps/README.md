@@ -28,7 +28,7 @@ in [`.github/workflows/nav-sim.yml`](../../../.github/workflows/nav-sim.yml)). S
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-colcon build --symlink-install --base-paths src --packages-select omnibot_description omnibot_arm omnibot_bringup omnibot_navigation
+colcon build --symlink-install --base-paths src --packages-select omnibot_description omnibot_arm omnibot_hybrid omnibot_rl omnibot_bringup omnibot_navigation
 source install/setup.bash
 omnibot-ros2/omnibot_navigation/scripts/generate_sim_map.sh
 ```

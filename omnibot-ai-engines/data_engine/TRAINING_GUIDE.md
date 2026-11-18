@@ -93,20 +93,9 @@ ros2 topic echo /odom --once
 
 ## 2. Arm Calibration (one-time, when arm arrives)
 
-```bash
-# Install lerobot tooling
-pip install "lerobot[feetech]"
+`arm_params.yaml` keeps the factory home ticks `[2048, 2048, 2048, 2048, 2048, 2048]`. Those are not this robot. Do not paste measured ticks into that file.
 
-# 1. Configure motor IDs on follower (run once per motor, motors ship as ID=1)
-lerobot-setup-motors --robot-type=so101 --robot-port=/dev/ttyACM0 --mock
-
-# 2. Calibrate both arms (move to requested positions, saves ~/.cache/lerobot/)
-lerobot-calibrate --robot-type=so101 --robot-port=/dev/ttyACM0  # follower
-lerobot-calibrate --robot-type=so101 --robot-port=/dev/ttyACM1  # leader
-
-# 3. Update home_ticks in arm_params.yaml with values from calibration output
-nano robot_ws/src/omnibot_arm/config/arm_params.yaml
-```
+On the robot, run leader and follower `lerobot-calibrate`, convert the JSON with `lerobot_calibration_to_yaml.py`, and launch with `calibration_file:=` or `robot_id:=`. The steps, the env vars, and what still has to be checked on the arm are in [`omnibot-ros2/omnibot_arm/CALIBRATION.md`](../../omnibot-ros2/omnibot_arm/CALIBRATION.md).
 
 ---
 
@@ -433,7 +422,7 @@ SmolVLA conditions on the task string at inference time, so multi-task training 
 | `robot_ws/src/omnibot_lerobot/omnibot_lerobot/teleop_recorder_node.py` | ROS 2 recorder (live robot) |
 | `robot_ws/src/omnibot_lerobot/omnibot_lerobot/policy_node.py` | ROS 2 inference node (multi-backend) |
 | `robot_ws/src/omnibot_lerobot/config/policy_params.yaml` | Inference node parameters |
-| `robot_ws/src/omnibot_arm/config/arm_params.yaml` | Arm motor IDs, ports, home ticks |
+| `robot_ws/src/omnibot_arm/config/arm_params.yaml` | Arm motor IDs, ports, factory home ticks (not a measured calibration) |
 | `data_engine/ingestion/bag_to_omnibot.py` | ROS bag → LeRobot Parquet + MP4 |
 | `data_engine/ingestion/ros_parser.py` | Low-level ROS bag parsing (cameras, odom, cmd_vel) |
 | `data_engine/ingestion/sync_topics.py` | Multi-modal timestamp synchronisation |

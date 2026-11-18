@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ohho-robotics.com/schemas/ohho.telemetry.v1/heartbeat_echo.json",
+  "title": "HeartbeatEcho",
+  "description": "Server echo of a heartbeat. seq and t_client are copied unchanged from the request. t is the server clock in seconds since the Unix epoch when the heartbeat was received.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "seq", "t_client", "t"],
+  "properties": {
+    "v": { "$ref": "defs.json#/$defs/SchemaVersion" },
+    "seq": { "$ref": "defs.json#/$defs/HeartbeatSeq" },
+    "t_client": { "$ref": "defs.json#/$defs/ClientTimeSeconds" },
+    "t": { "$ref": "defs.json#/$defs/UnixTimeSeconds" }
+  }
+}

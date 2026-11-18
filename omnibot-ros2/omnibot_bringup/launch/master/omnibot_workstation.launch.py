@@ -8,7 +8,7 @@ Requires NVIDIA GPU with ≥16 GB VRAM for OpenVLA / SmolVLA.
 What this starts:
   ┌─ VLA POLICY ────────────────────────────────────────────────────────────┐
   │  vla_node        OpenVLA 7B — /image_raw + /vla/prompt → /cmd_vel/vla   │
-  │  smolvla_node    SmolVLA 9-DOF — wrist+BEV+joints+odom → arm+base cmds  │
+  │  policy_node     visuomotor policy — wrist+BEV+joints+odom → arm+base   │
   ├─ RL INFERENCE ──────────────────────────────────────────────────────────┤
   │  rl_nav_node         ONNX nav policy → /cmd_vel/rl (20 Hz)              │
   │  rl_arm_node         ONNX arm policy → /arm/joint_commands/rl (20 Hz)   │
@@ -20,31 +20,46 @@ What this starts:
 Usage (after starting Pi):
     ros2 launch omnibot_bringup master/omnibot_workstation.launch.py
 
-Run only SmolVLA (skip OpenVLA and RL):
+Run only visuomotor policy (skip OpenVLA and RL):
     ros2 launch omnibot_bringup master/omnibot_workstation.launch.py \
         use_vla:=false use_rl:=false
 
-Run only RL (no VLA):
+Run only RL (no visuomotor policy):
     ros2 launch omnibot_bringup master/omnibot_workstation.launch.py \
-        use_vla:=false use_smolvla:=false
+        use_vla:=false use_policy:=false
 
 Enable LangGraph AI agent (needs ANTHROPIC_API_KEY env var):
     ros2 launch omnibot_bringup master/omnibot_workstation.launch.py \
         use_langchain:=true
 
 Prerequisites:
-    export ROS_DOMAIN_ID=30
-    export ROS_STATIC_PEERS=<pi-ip>
+    source omnibot-ros2/omnibot_bringup/config/ros_domain.env
+    # rmw_cyclonedds_cpp, ROS_DOMAIN_ID, and the static-peer profile.
+    # This launch sets that environment on every child process.
+    # See docs/network.md.
     export ANTHROPIC_API_KEY=<key>   # only if use_langchain:=true
 """
 
 import os
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+
+def _cell_dds_actions():
+    """Workstation nodes inherit the cell RMW and cyclonedds.xml."""
+    import importlib.util
+
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dds_env.py")
+    spec = importlib.util.spec_from_file_location("omnibot_dds_env", helper)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"missing DDS helper: {helper}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.environment_actions(SetEnvironmentVariable)
 
 
 def generate_launch_description():
@@ -55,10 +70,15 @@ def generate_launch_description():
         default_value="true",
         description="Start OpenVLA 7B node (needs ≥16 GB VRAM)",
     )
-    declare_use_smolvla = DeclareLaunchArgument(
-        "use_smolvla",
+    declare_use_policy = DeclareLaunchArgument(
+        "use_policy",
         default_value="true",
-        description="Start SmolVLA unified 9-DOF policy node",
+        description="Start policy_node (LeRobot visuomotor inference)",
+    )
+    declare_policy_model_type = DeclareLaunchArgument(
+        "policy_model_type",
+        default_value="smolvla",
+        description="policy_node model_type: smolvla | act | diffusion | openvla",
     )
     declare_use_rl = DeclareLaunchArgument(
         "use_rl",
@@ -77,10 +97,10 @@ def generate_launch_description():
         default_value="openvla/openvla-7b",
         description="OpenVLA HuggingFace model path or local dir",
     )
-    declare_smolvla_checkpoint = DeclareLaunchArgument(
-        "smolvla_checkpoint",
+    declare_policy_checkpoint = DeclareLaunchArgument(
+        "policy_checkpoint",
         default_value="lerobot/smolvla_base",
-        description="SmolVLA checkpoint path or HuggingFace repo",
+        description="policy_node checkpoint path or HuggingFace repo",
     )
     declare_device = DeclareLaunchArgument(
         "device",
@@ -117,20 +137,21 @@ def generate_launch_description():
         remappings=[("/image_raw", "/camera/front/image_raw")],
     )
 
-    # ── 2. SmolVLA unified 9-DOF policy ──────────────────────────────────────
+    # ── 2. Visuomotor policy_node ─────────────────────────────────────────────
     # Subscribes: /camera/wrist/image_raw, /camera/base/bev/image_raw,
     #             /arm/joint_states, /odom
-    # Publishes:  /arm/joint_commands → arm_cmd_mux on Pi
+    # Publishes:  /arm/joint_commands/policy → arm_cmd_mux on Pi
     #             /cmd_vel → cmd_vel_mux on Pi
-    smolvla_node = Node(
+    policy_node = Node(
         package="omnibot_lerobot",
         executable="policy_node",
-        name="smolvla_node",
+        name="policy_node",
         output="screen",
-        condition=IfCondition(LaunchConfiguration("use_smolvla")),
+        condition=IfCondition(LaunchConfiguration("use_policy")),
         parameters=[
             {
-                "checkpoint_path": LaunchConfiguration("smolvla_checkpoint"),
+                "model_type": LaunchConfiguration("policy_model_type"),
+                "checkpoint_path": LaunchConfiguration("policy_checkpoint"),
                 "device": LaunchConfiguration("device"),
                 "policy_hz": 10.0,
                 "task_description": "pick up the object and place it",
@@ -216,19 +237,21 @@ def generate_launch_description():
     # ── Assemble ──────────────────────────────────────────────────────────────
     return LaunchDescription(
         [
+            *_cell_dds_actions(),
             # Arguments
             declare_use_vla,
-            declare_use_smolvla,
+            declare_use_policy,
+            declare_policy_model_type,
             declare_use_rl,
             declare_use_langchain,
             declare_vla_model,
-            declare_smolvla_checkpoint,
+            declare_policy_checkpoint,
             declare_device,
             declare_nav_policy,
             declare_arm_policy,
             # VLA policies
             vla_node,
-            smolvla_node,
+            policy_node,
             # RL inference
             rl_nav_node,
             rl_arm_node,

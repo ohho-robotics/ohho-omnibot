@@ -2,6 +2,8 @@
 
 This repository is a meta-workspace (ROS 2 robot, AI engines, Android, Unity Quest). On a headless Linux VM without a robot, GPU, Unity, or the Android SDK, develop the pure-Python cores below. Standard install and test commands are in each package README (`mecanum-kinematics/README.md`, `omnibot-ai-engines/learning_engine/README.md`, `omnibot-ai-engines/agent_engine/ARCHITECTURE.md`, `yahboom-python-driver/README.md`, `ros2-bev-stitcher/README.md`).
 
+ROS node and mux naming (`policy_node`, arm mode `policy` | `rl_arm`, LeRobot `model_type` `smolvla`, and topics) lives in [CLAUDE.md](CLAUDE.md). CPU test line coverage is described in [docs/test-coverage.md](docs/test-coverage.md); reproduce with `python scripts/run_cpu_coverage.py` in `.venv`.
+
 - Use the repo-local virtualenv at `.venv` (`source .venv/bin/activate`). It is not committed. Editable installs: `mecanum-kinematics`, `omnibot-ai-engines/learning_engine`, `omnibot-ai-engines/agent_engine`, `yahboom-python-driver`. Dev extras in that env: `pytest`, `numpy`, `pyserial`, `pyyaml`.
 - Tests that pass with only that env:
   - `pytest mecanum-kinematics/tests`

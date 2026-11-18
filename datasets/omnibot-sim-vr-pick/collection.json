@@ -1,0 +1,23 @@
+{
+  "collector": "scripted-sim",
+  "human_vr": false,
+  "action_source": "vr",
+  "operator": "scripted-sim",
+  "robot_kind": "sim",
+  "sim_world": "apartment",
+  "task": "scripted-sim pick cube into bin",
+  "pick_place_seed": 237,
+  "episodes_requested": 3,
+  "headset_topics": [
+    "/arm/joint_commands/teleop_raw",
+    "/cmd_vel/teleop_raw",
+    "/ohho/heartbeat",
+    "/control_mode"
+  ],
+  "gated_topics": [
+    "/arm/joint_commands/teleop",
+    "/cmd_vel/teleop"
+  ],
+  "heartbeat_hz": 10.0,
+  "note": "Scripted virtual headset in simulation. Not a human Quest demonstration. Commands are published on the VR client topics and must pass through teleop_safety and the muxes."
+}

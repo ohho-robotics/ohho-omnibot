@@ -1,0 +1,38 @@
+{
+  "v": "1.0.0",
+  "t": 1735689600.5,
+  "robot_id": "omnibot-sim",
+  "kind": "sim",
+  "mode": {
+    "base": "idle",
+    "arm": "not_present"
+  },
+  "estop": {
+    "active": false,
+    "latched": false,
+    "source": "none"
+  },
+  "deadman": false,
+  "link": {
+    "rtt_ms": 5,
+    "hz": 20
+  },
+  "base": {
+    "cmd": {
+      "vx": 0,
+      "vy": 0,
+      "wz": 0
+    },
+    "meas": {
+      "vx": 0,
+      "vy": 0,
+      "wz": 0
+    },
+    "pose": {
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
+    "frame": "odom"
+  }
+}

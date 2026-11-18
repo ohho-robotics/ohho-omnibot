@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # Copyright 2026 OhhO Robotics
 # SPDX-License-Identifier: Apache-2.0
-"""Publish the OmniBot RobotDescriptor as latched JSON on /ohho/descriptor.
+"""Publish a RobotDescriptor as latched JSON on /ohho/descriptor.
 
-QoS is transient-local, depth 1, so a subscriber that joins later still
-receives the last document. The payload is assembled from YAML with no
-safety cap raised.
+The YAML path is a parameter. OmniBot and the SO-101 arm-only sim each
+pass their own file. QoS is transient-local, depth 1, so a subscriber
+that joins later still receives the last document. The payload is
+assembled from YAML with no safety cap raised.
 """
 
 from __future__ import annotations
