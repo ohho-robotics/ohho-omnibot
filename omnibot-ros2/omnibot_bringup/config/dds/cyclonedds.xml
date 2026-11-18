@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  OmniBot cell Cyclone DDS profile (OHH-397).
+
+  Multicast discovery is off. Peers are the Pi, the workstation, and
+  localhost (same-host nodes). Addresses come from the environment:
+  OMNIBOT_PI_IP and OMNIBOT_WS_IP, set by ros_domain.env. Do not put
+  LAN addresses in this file.
+
+  CYCLONEDDS_URI=file://<this-file>
+  RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+-->
+<CycloneDDS xmlns="https://cdds.io/config"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+  <Domain id="any">
+    <General>
+      <Interfaces>
+        <!-- Default route, multicast off. scripts/net_env.sh can pin a name
+             via OMNIBOT_DDS_INTERFACE when autodetermine picks a virtual NIC. -->
+        <NetworkInterface autodetermine="true" priority="default" multicast="false"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+      <!-- Camera frames are fragmented UDP. 65500B is the IPv4 UDP ceiling. -->
+      <MaxMessageSize>65500B</MaxMessageSize>
+      <FragmentSize>8192B</FragmentSize>
+    </General>
+    <Discovery>
+      <Peers>
+        <Peer address="localhost"/>
+        <Peer address="${OMNIBOT_PI_IP}"/>
+        <Peer address="${OMNIBOT_WS_IP}"/>
+      </Peers>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+    </Discovery>
+    <Internal>
+      <!-- Camera topics. max is a request: Cyclone uses it when the kernel
+           allows (net.core.rmem_max). A min above the kernel cap aborts
+           rmw_create_node, so there is no hard minimum. See docs/network.md. -->
+      <SocketReceiveBufferSize max="16MB"/>
+      <Watermarks>
+        <WhcHigh>1MB</WhcHigh>
+      </Watermarks>
+    </Internal>
+  </Domain>
+</CycloneDDS>

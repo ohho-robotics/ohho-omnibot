@@ -332,9 +332,15 @@ def test_nominal_poses_match_the_urdf_and_descriptor():
     assert width == chassis.width
     assert plate == chassis.plate_thickness
     assert standoff == chassis.standoff_height
-    assert 'box size="0.075 0.065 0.055"' in urdf
-    assert 'xyz="-0.031 0 0.068"' in urdf
-    assert 'box size="0.080 0.060 0.006"' in urdf
+    assert _xacro_property(urdf, "arm_body_x") == chassis.arm_body[0]
+    assert _xacro_property(urdf, "arm_body_y") == chassis.arm_body[1]
+    assert _xacro_property(urdf, "arm_body_z") == chassis.arm_body[2]
+    assert _xacro_property(urdf, "waveshare_origin_x") == chassis.waveshare_origin_x
+    assert _xacro_property(urdf, "waveshare_size_x") == chassis.waveshare_size_x
+    assert 'stl="base_so101_v2.stl"' in urdf
+    assert 'stl="waveshare_mounting_plate_so101_v2.stl"' in urdf
+    assert "package://omnibot_description/meshes/so101/" in urdf
+    assert 'box size="0.075 0.065 0.070"' in urdf
     arm = re.search(
         r'<joint name="arm_base_joint" type="fixed">\s*'
         r'<parent link="top_plate_link"/>\s*'
