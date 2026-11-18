@@ -66,7 +66,7 @@ echo "[ohh-237] colcon build"
 # console scripts without a libexec directory on this image.
 if ! colcon build \
   --base-paths "${REPO}/omnibot-ros2" "${REPO}/omnibot-ai-ros2" \
-  --packages-select omnibot_description omnibot_arm omnibot_bringup \
+  --packages-select omnibot_description omnibot_arm omnibot_hardware omnibot_bringup \
     omnibot_hybrid omnibot_rl omnibot_lerobot \
   2>&1 | tee /tmp/ohh237-build.log; then
   echo "[ohh-237] colcon build failed" >&2
