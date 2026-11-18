@@ -98,7 +98,7 @@ def test_contract_locks_the_sim_topics_and_the_loopback_bind():
 
 def test_default_plan_puts_safety_before_the_muxes_and_binds_loopback():
     support = _support()
-    result = _plan(support)
+    result = _plan(support, gateway_launch_exists=False)
     actions = result["actions"]
     assert result["bind"] == "127.0.0.1"
     assert result["clamped_public_bind"] is False
@@ -221,7 +221,12 @@ def test_optional_descriptor_webrtc_and_camera_flags():
     assert node["parameters"][0]["kind"] == "real"
     assert node["parameters"][0]["use_sim_time"] is False
 
-    fallback = _plan(support, video_backend="webrtc", webrtc_launch_exists=False)
+    fallback = _plan(
+        support,
+        video_backend="webrtc",
+        webrtc_launch_exists=False,
+        gateway_launch_exists=False,
+    )
     assert _by_name(fallback["actions"], "web_video_server")
     assert _includes(fallback["actions"], "webrtc") == []
     logs = " ".join(item["msg"] for item in fallback["actions"] if item["kind"] == "log")
@@ -453,7 +458,9 @@ def _fake_main():
         if item.__class__.__name__ == "OpaqueFunction"
     )
     shares = dict(SHARES)
-    actions = opaque.function(Context(defaults, shares))
+    values = dict(defaults)
+    values["gateway"] = "false"
+    actions = opaque.function(Context(values, shares))
     names = [getattr(item, "name", "") for item in actions]
     assert "robot_state_publisher" in names
     assert "yahboom_controller_node" in names
