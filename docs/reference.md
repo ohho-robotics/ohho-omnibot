@@ -17,7 +17,7 @@ Detailed notes moved from the top-level README. Back to [README](../README.md).
 | OmniVLA engine (`vla_engine`) / OpenVLA / SmolVLA weights | GPU for real inference | [vla_engine/README.md](../omnibot-ai-engines/vla_engine/README.md), editable `pip install -e "omnibot-ai-engines/vla_engine[serve,gpu]"`, and the `vla-engine` job in [ci.yml](../.github/workflows/ci.yml) (CPU torch, mocked server tests) |
 | Isaac Lab RL | GPU | [rl_engine/README.md](../omnibot-ai-engines/rl_engine/README.md) and [requirements.txt](../omnibot-ai-engines/rl_engine/requirements.txt) (`isaaclab`, `onnxruntime-gpu`) |
 | Android controller | Robot | [omnibot-android/](../omnibot-android/). Building it needs the Android SDK and JDK 17 ([`build.gradle.kts`](../omnibot-android/build.gradle.kts)), which is separate from a desktop GPU. |
-| Quest teleop | Robot | [omnibot-vr/](../omnibot-vr/). Unity **6000.5.2f1** is pinned in [`ProjectSettings/ProjectVersion.txt`](../omnibot-vr/ProjectSettings/ProjectVersion.txt). |
+| Quest teleop | Robot | Canonical app: [OhhO-VR](https://github.com/ohho-robotics/OhhO-VR). [omnibot-vr/](../omnibot-vr/) in this repo was retired under OHH-192. |
 | ACT GPU fine-tune and 20-trial robot eval (OHH-52) | GPU and robot | [gpu-train-runbook.md](gpu-train-runbook.md) and [results.md](results.md). From the repo root: `python scripts/ohh52_act_train_dry_run.py`. Needs Varun: budget + robot. |
 | Optional perception, metrics, and OTA nodes | Separate packages, not in this repo | [Optional packages](#optional-packages-not-in-this-repository). A public `colcon` build skips each missing node with one warning. |
 

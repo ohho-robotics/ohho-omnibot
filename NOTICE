@@ -1,25 +1,30 @@
 Third-party notices
 
 The Apache-2.0 LICENSE at the repository root covers OhhO Robotics code in this
-tree. Vendored third-party code keeps its own licence:
+tree.
 
-- omnibot-vr/Packages/com.meta.xr.sdk.core/LICENSE.md
-- omnibot-vr/Packages/com.meta.xr.sdk.interaction/LICENSE.md
+The Meta XR SDK, the CoplayDev unity-mcp package, and the TextMesh Pro sample
+fonts used to be vendored under omnibot-vr/. That Unity tree was retired under
+OHH-192. Those third-party licences now live in the canonical Quest app,
+https://github.com/ohho-robotics/OhhO-VR (see that repository's NOTICE):
+
+- Packages/com.meta.xr.sdk.core/LICENSE.md
+- Packages/com.meta.xr.sdk.interaction/LICENSE.md
   Meta Platforms, Inc. Meta XR SDK, Oculus SDK License:
   https://developers.meta.com/horizon/licenses/oculussdk/
 
-- omnibot-vr/Packages/com.coplaydev.unity-mcp/LICENSE
+- Packages/com.coplaydev.unity-mcp/LICENSE
   Copyright (c) 2025 CoplayDev. MIT License.
   Upstream: https://github.com/CoplayDev/unity-mcp/blob/main/LICENSE
 
-- omnibot-vr/Packages/com.meta.xr.sdk.interaction/Runtime/ThirdParty/
-- omnibot-vr/Packages/com.meta.xr.sdk.interaction/Runtime/Sample/ThirdParty/
+- Packages/com.meta.xr.sdk.interaction/Runtime/ThirdParty/
+- Packages/com.meta.xr.sdk.interaction/Runtime/Sample/ThirdParty/
   Further notices shipped inside the Meta XR Interaction package.
 
-- omnibot-vr/Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt
+- Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt
   SIL Open Font License 1.1.
 
-- omnibot-vr/Assets/TextMesh Pro/Examples & Extras/Fonts/
+- Assets/TextMesh Pro/Examples & Extras/Fonts/
   Anton, Bangers, Oswald, and Unity: SIL Open Font License 1.1 (OFL.txt beside each font).
   Roboto-Bold: Apache-2.0 (Roboto-Bold - License.txt and Roboto-Bold - AFL.txt).
 

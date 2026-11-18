@@ -37,6 +37,7 @@
 
 ## Why OmniBot
 
+- **Teleop from anywhere**: Xbox gamepad, Android app, Meta Quest VR ([OhhO-VR](https://github.com/ohho-robotics/OhhO-VR)), or the browser via rosbridge.
 A model alone isn't a robot. An LLM needs an agent harness (tools, memory, guardrails) before it can do real work; a VLA or RL policy needs the same around it before it can move real motors. OmniBot is that harness, end to end, in one repo:
 
 - **Simulation**: Gazebo Harmonic worlds, Nav2/SLAM, a CPU-only Docker sim, and Gazebo + RViz in the browser. Test a policy before it touches hardware.
@@ -277,7 +278,7 @@ These are the parts referenced in this repo's code and docs. Prices are not yet 
 | Orbbec Astra Pro RGB-D camera | 1 | [sensor guide](omnibot-ros2/omnibot_navigation/docs/SENSOR_INTEGRATION.md) | TBD |
 | Wrist camera | 1 | [`perception.launch.py`](omnibot-ros2/omnibot_bringup/launch/perception.launch.py) | TBD |
 | Xbox controller (teleop) | 1 | [`robot_with_joy.launch.py`](omnibot-ros2/omnibot_bringup/launch/robot_with_joy.launch.py) | TBD |
-| Meta Quest 3 / 3S (optional VR teleop) | 0–1 | [`omnibot-vr/`](omnibot-vr/) | TBD |
+| Meta Quest 3 / 3S (optional VR teleop) | 0–1 | [OhhO-VR](https://github.com/ohho-robotics/OhhO-VR) | TBD |
 | Desktop PC with NVIDIA GPU (optional, VLA/RL) | 0–1 | [`omnibot-ai-ros2/omnibot_vla/README.md`](omnibot-ai-ros2/omnibot_vla/README.md) | TBD |
 | Battery, wiring, mounts | — | Not documented yet | TBD |
 
@@ -289,7 +290,7 @@ Full system diagram, launch graph, launch-derived topics table, and [known limit
 flowchart LR
   subgraph Inputs
     T["Xbox / keyboard teleop<br/>/cmd_vel/teleop"]
-    A[Android app & Quest VR<br/>via rosbridge]
+    A[Android app & OhhO-VR<br/>via rosbridge]
     N[Nav2 / SLAM]
     V[VLA policy_node]
     R[RL policy]
@@ -353,10 +354,10 @@ Demos and updates: [YouTube](https://www.youtube.com/@varun.vaidhiya/videos) · 
 | [`omnibot-digital-twin/`](omnibot-digital-twin/) | Gazebo world and compose files |
 | [`infra/observability/`](infra/observability/) | Prometheus, Grafana dashboards, alert rules, and Loki stack |
 | [`omnibot-android/`](omnibot-android/) | Kotlin controller |
-| [`omnibot-vr/`](omnibot-vr/) | Unity Quest project |
+| [`omnibot-vr/`](omnibot-vr/) | Retired pointer to the Quest app ([OhhO-VR](https://github.com/ohho-robotics/OhhO-VR)) |
 
 ## License
 
-[Apache-2.0](LICENSE) for OhhO code in this repository. Vendored Meta XR SDK and CoplayDev unity-mcp packages keep their own licences. See [NOTICE](NOTICE).
+[Apache-2.0](LICENSE) for OhhO code in this repository. Quest-app licences live in [OhhO-VR](https://github.com/ohho-robotics/OhhO-VR). See [NOTICE](NOTICE).
 
 ⭐ **Star the repo** to follow progress.

@@ -1,11 +1,3 @@
-# Third-party Unity packages checked into the tree. GitHub Linguist
-# otherwise counts their C# and reports this ROS 2 repo as mostly C#.
-# omnibot-vr/Packages/manifest.json is this project's dependency list
-# and is left unmarked.
-omnibot-vr/Packages/com.coplaydev.unity-mcp/** linguist-vendored
-omnibot-vr/Packages/com.meta.xr.sdk.core/** linguist-vendored
-omnibot-vr/Packages/com.meta.xr.sdk.interaction/** linguist-vendored
-
 # Shell scripts must keep LF so they run on Linux when checked out on Windows.
 *.sh text eol=lf
 # Sourced by scripts/net_env.sh. CRLF makes bash treat `then` as a different word.
