@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ohho_webrtc</name>
+  <version>0.1.0</version>
+  <description>
+    Robot-side WebRTC streamer. Subscribes to sensor_msgs/Image topics
+    (chase, front, wrist) and serves H.264 tracks plus a signaling WebSocket
+    that ohho-gateway exposes at /webrtc/signaling (OHH-210).
+  </description>
+  <maintainer email="varunvaidhiya@example.com">Varun Vaidhiya</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-numpy</test_depend>
+  <test_depend>python3-yaml</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -1,24 +1,24 @@
-import sys
-import os
 import io
+import sys
 import base64
+import types
 import numpy as np
 import pytest
 from PIL import Image
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 # Skip entire module when torch (and other heavy GPU deps) are not installed
 pytest.importorskip(
-    "torch", reason="torch not installed — vla_engine tests require GPU dependencies"
+    "torch", reason="torch not installed — install omnibot-vla-engine with [gpu] extras"
 )
 
-# Add vla_engine to path
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+# Stub openvla so server import does not pull transformers / HF weights
+_openvla_stub = types.ModuleType("vla_engine.models.openvla")
+_openvla_stub.OpenVLAModel = MagicMock(name="OpenVLAModel")
+sys.modules["vla_engine.models.openvla"] = _openvla_stub
 
-# Mock the model before importing server
-with patch("vla_engine.models.openvla.OpenVLAModel") as MockModel:
-    from vla_engine.inference.server import app
+from vla_engine.inference.server import app  # noqa: E402
 
 client = TestClient(app)
 

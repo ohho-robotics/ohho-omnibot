@@ -13,9 +13,9 @@
 #        world:=$(pwd)/digital_twin/worlds/omnibot_lab.sdf
 #   2. Drive robot to robot_pose (or set 2D Pose Estimate in RViz).
 #   3. Publish the task_prompt:
-#      ros2 topic pub --once /smolvla/task std_msgs/msg/String \
+#      ros2 topic pub --once /policy/task std_msgs/msg/String \
 #        "data: '<task_prompt>'"
-#      ros2 topic pub --once /smolvla/enable std_msgs/msg/Bool "data: true"
+#      ros2 topic pub --once /policy/enable std_msgs/msg/Bool "data: true"
 
 world: digital_twin/worlds/omnibot_lab.sdf
 
@@ -35,7 +35,7 @@ scenarios:
     task_prompt: "pick up the yellow mustard bottle"
     success_criterion: >
       mustard_bottle z-position > 0.90 m for at least 0.5 s
-    vla_node: smolvla   # smolvla | openvla
+    policy_model: smolvla   # smolvla | openvla (model_type for policy_node)
 
   - name: pick_soup_can
     description: >
@@ -50,7 +50,7 @@ scenarios:
     task_prompt: "pick up the red soup can"
     success_criterion: >
       tomato_soup_can z-position > 0.85 m for at least 0.5 s
-    vla_node: smolvla
+    policy_model: smolvla
 
   - name: pick_cracker_box
     description: >
@@ -65,7 +65,7 @@ scenarios:
     task_prompt: "pick up the orange cracker box"
     success_criterion: >
       cracker_box z-position > 0.88 m for at least 0.5 s
-    vla_node: smolvla
+    policy_model: smolvla
 
   - name: pick_foam_brick
     description: >
@@ -80,7 +80,7 @@ scenarios:
     task_prompt: "pick up the blue foam brick"
     success_criterion: >
       foam_brick z-position > 0.83 m for at least 0.5 s
-    vla_node: smolvla
+    policy_model: smolvla
 
   - name: navigate_then_pick
     description: >
@@ -98,7 +98,7 @@ scenarios:
     mission_command: "navigate:lab_table,vla:pick up the yellow mustard bottle"
     success_criterion: >
       robot reaches x≈-2.0, y≈-1.0 (±0.3 m) then mustard_bottle z > 0.90 m
-    vla_node: smolvla
+    policy_model: smolvla
 
 # Named locations used by mission_planner (mirrors named_locations.yaml)
 named_locations:

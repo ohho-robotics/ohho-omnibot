@@ -60,7 +60,15 @@ python -m data_engine.scripts.ingest_dataset \
 ### Validate
 ```bash
 python -m data_engine.scripts.validate_dataset --dataset /data/lerobot/pick_place
+python -m data_engine.scripts.validate_lerobot_load --dataset /data/lerobot/pick_place
 ```
+
+### Sync jitter (dataset card)
+```bash
+python -m data_engine.scripts.measure_sync_jitter --dataset /data/lerobot/pick_place
+```
+
+See `dataset_card_template.md` for fields to publish after a real robot capture.
 
 ### Quality filter (OHH-99)
 
@@ -88,6 +96,8 @@ The filter outputs a JSON report with summary statistics, lists of `kept` and `r
 
 > **Demonstration Count Rule (OHH-49)**:
 > OHH-49 ("Collect 50–100 demonstrations of one manipulation task") demonstration counts must **only** include episodes that this quality filter keeps (`status == "keep"`, listed in `kept`). Flawed episodes (frozen camera, timestamp skew, long pauses, or joint jumps) must be discarded and excluded from demonstration counts and policy training sets.
+
+The collection procedure (two sessions, varied object positions, this filter) is [docs/demo-collection-checklist.md](../../docs/demo-collection-checklist.md). The Hugging Face card for `varunvaidhiya/omnibot-pick-place` is the blank template [docs/datasets/omnibot-pick-place/README.md](../../docs/datasets/omnibot-pick-place/README.md). Recording stays on the OHH-48 teleop recorder / LeRobot v2 writer; this tree does not add a second recorder.
 
 ### Visualise an episode
 ```bash

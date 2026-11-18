@@ -34,6 +34,7 @@ from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -54,6 +55,8 @@ GOAL_XY_TOLERANCE_M = 0.30
 GOAL_YAW_TOLERANCE_RAD = 0.50
 DEFAULT_TIMEOUT_S = 60.0
 START_POSE_TOLERANCE_M = 0.15
+# Lidar proximity proxy for regression reporting (not Gazebo contact events).
+COLLISION_SCAN_RANGE_M = 0.20
 
 LIFECYCLE_MANAGERS = (
     "lifecycle_manager_localization/is_active",
@@ -71,12 +74,23 @@ class WaypointGoalClient(Node):
         )
         self.client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self.odom = None
+        self._collision_proximity_hits = 0
+        self._track_collisions = False
         self.create_subscription(Odometry, "/odom", self._on_odom, 10)
+        self.create_subscription(LaserScan, "/scan", self._on_scan, 10)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
     def _on_odom(self, msg: Odometry):
         self.odom = msg
+
+    def _on_scan(self, msg: LaserScan):
+        if not self._track_collisions:
+            return
+        for range_m in msg.ranges:
+            if msg.range_min < range_m < COLLISION_SCAN_RANGE_M:
+                self._collision_proximity_hits += 1
+                break
 
     # -- helpers ---------------------------------------------------------
     def spin_for(self, seconds_wall: float):
@@ -171,6 +185,8 @@ class WaypointGoalClient(Node):
             result["reason"] = "goal rejected by Nav2"
             return result
 
+        self._collision_proximity_hits = 0
+        self._track_collisions = True
         sim_start = self.sim_seconds()
         wall_start = time.monotonic()
         result_future = handle.get_result_async()
@@ -187,6 +203,8 @@ class WaypointGoalClient(Node):
                 result["reason"] = "wall-clock guard hit (sim clock stalled?)"
                 break
 
+        self._track_collisions = False
+        result["collision_proximity_hits"] = self._collision_proximity_hits
         if timed_out:
             cancel = handle.cancel_goal_async()
             end = time.monotonic() + 5.0

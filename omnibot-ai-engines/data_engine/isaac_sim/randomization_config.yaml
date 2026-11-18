@@ -40,7 +40,7 @@ policy_hz: 10.0
 max_base_vel_ms: 0.15   # m/s — kept below safety limit of 0.2 m/s
 
 # ── Camera sensors ───────────────────────────────────────────────────────────
-# These must match data_engine/schema/constants.py and smolvla_params.yaml.
+# These must match data_engine/schema/constants.py and policy_params.yaml.
 cameras:
   wrist:
     resolution: [320, 240]

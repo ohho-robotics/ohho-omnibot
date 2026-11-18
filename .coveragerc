@@ -1,0 +1,18 @@
+[run]
+source =
+    mecanum_drive_ros2
+    yahboom_ros2
+    ros2_bev_stitcher
+    omnibot-ros2/omnibot_arm/scripts
+    omnibot-ai-ros2/omnibot_lerobot/omnibot_lerobot
+    omnibot-ai-ros2/omnibot_rl/omnibot_rl
+    omnibot-ai-engines/learning_engine
+    omnibot-ai-engines/agent_engine
+    omnibot-ai-engines/data_engine
+omit =
+    */tests/*
+    */test_*
+
+[report]
+skip_empty = True
+show_missing = False

@@ -1,0 +1,48 @@
+# Extra cameras bridged only when sim.launch.py is started with vr:=true.
+# sim_cameras.launch.py loads this file into ros_gz_camera_bridge.
+# The front camera stays in sim_bridge.yaml so the default launch and the
+# sim-smoke test are unchanged.
+#
+# Quest resolution is 960x540 at 30 Hz (vr_cam_* in omnibot.urdf.xacro).
+#   /camera/wrist/image_raw       SO-101 gripper (arm_gripper_link)
+#   /camera/base/bev/image_raw    synthetic top-down camera on base_link
+#   /sim/chase_cam/image_raw      fixed chase camera behind base_link
+#
+# Once web_video_server is up (port 8080):
+#   http://<host>:8080/stream?topic=/sim/chase_cam/image_raw
+---
+- ros_topic_name: "/camera/wrist/image_raw"
+  gz_topic_name: "/camera/wrist/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/camera/wrist/camera_info"
+  gz_topic_name: "/camera/wrist/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/camera/base/bev/image_raw"
+  gz_topic_name: "/camera/base/bev/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/camera/base/bev/camera_info"
+  gz_topic_name: "/camera/base/bev/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/sim/chase_cam/image_raw"
+  gz_topic_name: "/sim/chase_cam/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/sim/chase_cam/camera_info"
+  gz_topic_name: "/sim/chase_cam/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS

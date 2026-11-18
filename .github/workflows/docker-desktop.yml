@@ -1,0 +1,247 @@
+name: Docker Desktop
+
+# Browser desktop image (Dockerfile.sim, target "desktop"): Gazebo GUI and
+# RViz on a virtual display, streamed with noVNC on port 6080.
+#
+#   pull_request / push: build for amd64, start it with the compose service,
+#                        check the healthcheck, that port 6080 answers 200 and
+#                        that Gazebo publishes the OmniBot topics.
+#   push to main / tag:  build amd64 and arm64 on native runners and publish
+#                        one multi-arch tag, ghcr.io/<owner>/omnibot-desktop.
+
+on:
+  pull_request:
+    paths:
+      - "Dockerfile.sim"
+      - "docker-compose.yml"
+      - "docker/**"
+      - ".dockerignore"
+      - ".github/workflows/docker-desktop.yml"
+      - "omnibot-ros2/**"
+      - "src/**"
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+    paths:
+      - "Dockerfile.sim"
+      - "docker-compose.yml"
+      - "docker/**"
+      - ".dockerignore"
+      - ".github/workflows/docker-desktop.yml"
+      - "omnibot-ros2/**"
+      - "src/**"
+  workflow_dispatch:
+
+concurrency:
+  group: docker-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/omnibot-desktop
+
+jobs:
+  smoke:
+    name: Build and smoke test (noVNC on 6080, Gazebo topics)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build desktop image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.sim
+          target: desktop
+          load: true
+          tags: omnibot-desktop:test
+          cache-from: type=gha,scope=desktop-amd64
+          cache-to: type=gha,scope=desktop-amd64,mode=max
+
+      - name: Compose configuration check
+        run: docker compose --profile desktop config
+
+      - name: Start the desktop service
+        env:
+          OMNIBOT_DESKTOP_IMAGE: omnibot-desktop:test
+          OMNIBOT_PORT: "6080"
+        run: |
+          mkdir -p omnibot-shared
+          docker compose --profile desktop up -d --no-build desktop
+          docker ps
+
+      - name: Wait for a healthy container
+        run: |
+          for i in $(seq 1 60); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' omnibot_desktop)"
+            echo "health: ${status}"
+            [ "${status}" = "healthy" ] && exit 0
+            [ "$(docker inspect -f '{{.State.Running}}' omnibot_desktop)" = "true" ] || exit 1
+            sleep 5
+          done
+          exit 1
+
+      - name: noVNC answers on 127.0.0.1:6080
+        run: |
+          for path in / /vnc.html; do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:6080${path}")"
+            echo "GET ${path} -> ${code}"
+            [ "${code}" = "200" ]
+          done
+          # Published on loopback only.
+          docker port omnibot_desktop 6080/tcp | tee /dev/stderr | grep -q '^127.0.0.1:6080$'
+
+      - name: Gazebo starts and publishes the OmniBot topics
+        run: |
+          docker exec -i omnibot_desktop bash -s <<'CHECK'
+          set -uo pipefail
+          set +u
+          source /opt/ros/jazzy/setup.bash
+          source /opt/omnibot/install/setup.bash
+          set -u
+          want="/clock /cmd_vel /odom /scan /joint_states /tf"
+          for i in $(seq 1 60); do
+            topics="$(ros2 topic list --no-daemon 2>/dev/null || true)"
+            missing=""
+            for t in ${want}; do grep -qx "${t}" <<<"${topics}" || missing="${missing} ${t}"; done
+            if [ -z "${missing}" ] && pgrep -f "gz sim" >/dev/null; then
+              echo "${topics}"
+              echo "Gazebo is running; all of: ${want}"
+              # Simulation time advances (the world is not paused).
+              # Types are given so echo does not depend on graph discovery.
+              timeout 60 ros2 topic echo --once /clock rosgraph_msgs/msg/Clock \
+                || { echo "no /clock message"; exit 1; }
+              timeout 60 ros2 topic echo --once --field header /odom nav_msgs/msg/Odometry \
+                || { echo "no /odom message"; exit 1; }
+              exit 0
+            fi
+            echo "waiting (${i}): missing${missing}"
+            sleep 5
+          done
+          echo "Gazebo did not come up"
+          exit 1
+          CHECK
+
+      - name: Container logs
+        if: always()
+        run: |
+          docker logs omnibot_desktop || true
+          docker exec omnibot_desktop bash -c 'tail -n 80 /tmp/omnibot-desktop/*.log' || true
+
+      - name: Stop
+        if: always()
+        run: docker compose --profile desktop down -v
+
+  publish:
+    name: Build and push (${{ matrix.platform }})
+    if: github.event_name == 'push'
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.sim
+          target: desktop
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=desktop-${{ matrix.arch }}
+          cache-to: type=gha,scope=desktop-${{ matrix.arch }},mode=max
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  manifest:
+    name: Publish multi-arch tag
+    if: github.event_name == 'push'
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect
+        run: docker buildx imagetools inspect ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}

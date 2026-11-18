@@ -11,7 +11,7 @@ Hybrid Robot Launch — Nav2 + VLA with cmd_vel mux and mission planner.
           │                     cmd_vel_mux                          │
           │  /cmd_vel       ← Nav2 (native output)                  │
           │  /cmd_vel/vla   ← VLA inference node                    │
-          │  /cmd_vel/teleop← keyboard / joystick                   │
+          │  /cmd_vel/teleop← teleop_safety (raw client input)      │
           │                     selects by /control_mode            │
           │                   → /cmd_vel/out                        │
           └────────────────────────────┬────────────────────────────┘
@@ -59,6 +59,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
+from omnibot_hybrid.optional_package import PackageAvailable
 
 # RL inference nodes are included when use_rl:=true.
 # arm_driver reads /arm/joint_commands/out (routed via arm_cmd_mux)
@@ -133,10 +134,10 @@ def generate_launch_description():
     )
 
     # ── Arm Command Mux (always required) ────────────────────────────────────
-    # Bridges /arm/joint_commands (SmolVLA / Android) → /arm/joint_commands/out
-    # → arm_driver_node. Also routes /arm/joint_commands/rl from rl_arm_node
-    # when use_rl:=true. Started unconditionally. Arm commands stay idle until
-    # /control_mode is vla, nav2, or rl_nav.
+    # Routes /arm/joint_commands/teleop in teleop, and
+    # /arm/joint_commands/policy (alias /arm/joint_commands) or
+    # /arm/joint_commands/rl once /control_mode is autonomous, to
+    # /arm/joint_commands/out → arm_driver_node. Started unconditionally.
     arm_cmd_mux_node = Node(
         package="omnibot_rl",
         executable="arm_cmd_mux",
@@ -165,7 +166,7 @@ def generate_launch_description():
 
     # ── Visuomotor policy (optional, use_policy:=true) ────────────────────────
     # Model selected via policy_model_type. Requires BEV stitcher and wrist camera.
-    # arm_cmd_mux above routes /arm/joint_commands to the arm driver.
+    # arm_cmd_mux above routes the selected arm source to the arm driver.
     policy_inference = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_lerobot, "launch", "policy_inference.launch.py")
@@ -255,6 +256,18 @@ def generate_launch_description():
         remappings=[
             ("/image_raw", vla_image_topic),
         ],
+    )
+
+    # ── teleop_safety ─────────────────────────────────────────────────────────
+    # Raw client topics in, mux teleop topics out. Wall-clock watchdogs.
+    teleop_safety = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("omnibot_hybrid"),
+                "launch",
+                "teleop_safety.launch.py",
+            )
+        ),
     )
 
     # ── cmd_vel Mux ───────────────────────────────────────────────────────────
@@ -417,7 +430,11 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "use_ota",
                 default_value="false",
-                description="Start OTA update agent — exposes /ota/* services for Android app",
+                description=(
+                    "Start the OTA update agent from omnibot_ota. Default false. "
+                    "That package is not in this repository; if it is missing, "
+                    "launch logs one warning and skips the node."
+                ),
             ),
             DeclareLaunchArgument(
                 "ota_manifest_url",
@@ -435,6 +452,7 @@ def generate_launch_description():
             slam_toolbox,
             autonomous_navigation,
             vla_node,
+            teleop_safety,
             cmd_vel_mux_node,
             rosbag_recorder_node,
             mission_planner_node,
@@ -448,7 +466,7 @@ def generate_launch_description():
                 name="ota_agent_node",
                 output="screen",
                 parameters=[{"manifest_url": ota_manifest_url}],
-                condition=IfCondition(use_ota),
+                condition=PackageAvailable("omnibot_ota", use_ota),
             ),
         ]
     )

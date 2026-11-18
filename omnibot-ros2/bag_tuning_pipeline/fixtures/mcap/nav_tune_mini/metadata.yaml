@@ -1,0 +1,46 @@
+rosbag2_bagfile_information:
+  compression_format: ''
+  compression_mode: ''
+  custom_data: null
+  duration:
+    nanoseconds: 1000000000
+  files:
+  - duration:
+      nanoseconds: 1000000000
+    message_count: 43
+    path: nav_tune_mini.mcap
+    starting_time:
+      nanoseconds_since_epoch: 1700000000000000000
+  message_count: 43
+  relative_file_paths:
+  - nav_tune_mini.mcap
+  ros_distro: rosbags
+  starting_time:
+    nanoseconds_since_epoch: 1700000000000000000
+  storage_identifier: mcap
+  topics_with_message_count:
+  - message_count: 21
+    topic_metadata:
+      name: /odom
+      offered_qos_profiles: []
+      serialization_format: cdr
+      type: nav_msgs/msg/Odometry
+      type_description_hash: 
+        RIHS01_3cc97dc7fb7502f8714462c526d369e35b603cfc34d946e3f2eda2766dfec6e0
+  - message_count: 21
+    topic_metadata:
+      name: /imu/data
+      offered_qos_profiles: []
+      serialization_format: cdr
+      type: sensor_msgs/msg/Imu
+      type_description_hash: 
+        RIHS01_7d9a00ff131080897a5ec7e26e315954b8eae3353c3f995c55faf71574000b5b
+  - message_count: 1
+    topic_metadata:
+      name: /goal_pose
+      offered_qos_profiles: []
+      serialization_format: cdr
+      type: geometry_msgs/msg/PoseStamped
+      type_description_hash: 
+        RIHS01_10f3786d7d40fd2b54367835614bff85d4ad3b5dab62bf8bca0cc232d73b4cd8
+  version: 9

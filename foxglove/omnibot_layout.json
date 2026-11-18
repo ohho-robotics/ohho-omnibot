@@ -1,0 +1,208 @@
+{
+  "configById": {
+    "3D!main": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 4.5,
+        "phi": 55,
+        "thetaOffset": 0,
+        "targetOffset": [0, 0, 0.3],
+        "fovy": 45,
+        "near": 0.01,
+        "far": 5000
+      },
+      "followTf": "base_link",
+      "followMode": "follow-pose",
+      "scene": {
+        "enableStats": false,
+        "backgroundColor": "#1a1a2e"
+      },
+      "topics": {
+        "/tf": { "visible": true },
+        "/scan": {
+          "visible": true,
+          "pointSize": 3,
+          "colorMode": "flat",
+          "flatColor": "#ff4444"
+        },
+        "/map": {
+          "visible": true,
+          "alpha": 0.65,
+          "colorMode": "costmap"
+        },
+        "/odom": { "visible": true },
+        "/camera/depth/points": {
+          "visible": false,
+          "pointSize": 1,
+          "colorMode": "colormap",
+          "colorMap": "turbo"
+        },
+        "/local_costmap/costmap": {
+          "visible": false,
+          "alpha": 0.5,
+          "colorMode": "costmap"
+        }
+      },
+      "layers": {
+        "urdf": {
+          "type": "foxglove.URDFLayer",
+          "visible": true
+        }
+      }
+    },
+    "Image!front": {
+      "cameraTopic": "/camera/front/image_raw",
+      "flipHorizontal": false,
+      "flipVertical": false,
+      "rotation": 0,
+      "smooth": true,
+      "title": "Front Camera"
+    },
+    "Image!wrist": {
+      "cameraTopic": "/camera/wrist/image_raw",
+      "flipHorizontal": false,
+      "flipVertical": false,
+      "rotation": 0,
+      "smooth": true,
+      "title": "Wrist Camera"
+    },
+    "Image!bev": {
+      "cameraTopic": "/camera/base/bev/image_raw",
+      "flipHorizontal": false,
+      "flipVertical": false,
+      "rotation": 0,
+      "smooth": true,
+      "title": "BEV Camera"
+    },
+    "Image!depth": {
+      "cameraTopic": "/camera/depth/image_raw",
+      "flipHorizontal": false,
+      "flipVertical": false,
+      "rotation": 0,
+      "smooth": true,
+      "title": "Depth Camera"
+    },
+    "Plot!odom": {
+      "title": "Odometry",
+      "isSynced": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "xAxisVal": "timestamp",
+      "paths": [
+        {
+          "value": "/odom.pose.pose.position.x",
+          "enabled": true,
+          "color": "#4e98e2",
+          "label": "x (m)"
+        },
+        {
+          "value": "/odom.pose.pose.position.y",
+          "enabled": true,
+          "color": "#e2904e",
+          "label": "y (m)"
+        },
+        {
+          "value": "/odom.twist.twist.linear.x",
+          "enabled": true,
+          "color": "#50c878",
+          "label": "vx (m/s)"
+        }
+      ]
+    },
+    "Plot!imu": {
+      "title": "IMU — Linear Acceleration",
+      "isSynced": true,
+      "legendDisplay": "floating",
+      "xAxisVal": "timestamp",
+      "paths": [
+        {
+          "value": "/imu/data.linear_acceleration.x",
+          "enabled": true,
+          "color": "#e24e4e",
+          "label": "ax"
+        },
+        {
+          "value": "/imu/data.linear_acceleration.y",
+          "enabled": true,
+          "color": "#4ee2a0",
+          "label": "ay"
+        },
+        {
+          "value": "/imu/data.linear_acceleration.z",
+          "enabled": true,
+          "color": "#4e7ae2",
+          "label": "az"
+        }
+      ]
+    },
+    "RawMessages!arm": {
+      "topicPath": "/arm/joint_states",
+      "title": "Arm Joint States"
+    },
+    "RawMessages!mission": {
+      "topicPath": "/mission/status",
+      "title": "Mission Status"
+    },
+    "RawMessages!agent_trace": {
+      "topicPath": "/agent/trace",
+      "title": "Agent Trace"
+    },
+    "Log!rosout": {
+      "searchTerms": [],
+      "minLogLevel": 1,
+      "title": "ROS Log"
+    }
+  },
+  "layout": {
+    "direction": "row",
+    "splitPercentage": 58,
+    "first": {
+      "direction": "column",
+      "splitPercentage": 62,
+      "first": "3D!main",
+      "second": {
+        "direction": "row",
+        "splitPercentage": 33,
+        "first": "Image!front",
+        "second": {
+          "direction": "row",
+          "splitPercentage": 50,
+          "first": "Image!wrist",
+          "second": "Image!bev"
+        }
+      }
+    },
+    "second": {
+      "direction": "column",
+      "splitPercentage": 28,
+      "first": "Plot!odom",
+      "second": {
+        "direction": "column",
+        "splitPercentage": 32,
+        "first": "Plot!imu",
+        "second": {
+          "direction": "column",
+          "splitPercentage": 45,
+          "first": "RawMessages!arm",
+          "second": {
+            "direction": "column",
+            "splitPercentage": 50,
+            "first": {
+              "direction": "row",
+              "splitPercentage": 50,
+              "first": "RawMessages!mission",
+              "second": "RawMessages!agent_trace"
+            },
+            "second": "Log!rosout"
+          }
+        }
+      }
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "version": "foxglove.studio@1"
+}

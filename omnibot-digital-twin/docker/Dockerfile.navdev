@@ -1,0 +1,38 @@
+# navdev — headless ROS 2 Jazzy + Gazebo Harmonic + Nav2 for local sim work.
+# Matches the nightly scenario regression suite CI image (no ML stack).
+#
+# Build (repo root):
+#   docker build -f omnibot-digital-twin/docker/Dockerfile.navdev -t omnibot-navdev .
+#
+# Run headless regression (after colcon build mounted at /ws):
+#   docker run --rm -v "$PWD":/ws -w /ws omnibot-navdev bash -lc '
+#     source /opt/ros/jazzy/setup.bash && source install/setup.bash &&
+#     omnibot-ros2/omnibot_navigation/scripts/run_nav_regression_suite.sh
+#   '
+
+FROM ros:jazzy-ros-base-noble
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    ROS_DISTRO=jazzy \
+    LANG=en_US.UTF-8 \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    GALLIUM_DRIVER=llvmpipe \
+    QT_QPA_PLATFORM=offscreen \
+    MESA_GL_VERSION_OVERRIDE=3.3
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git sudo ca-certificates \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    python3-pytest \
+    libgl1-mesa-dri \
+    libegl1 \
+    libegl-mesa0 \
+    libglx-mesa0 \
+    libglu1-mesa \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rosdep init || true
+
+WORKDIR /ws

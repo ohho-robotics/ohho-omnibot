@@ -1,0 +1,86 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="omnibot_apriltags">
+  <!-- Nominal tag36h11 planes for the chase cam. CAD poses, not measured.
+       docs/apriltags.md. No cameras and no sensors in this file. -->
+  <link name="apriltag_front_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://omnibot_description/meshes/apriltags/tag36h11_id0.obj"/>
+      </geometry>
+      <material name="apriltag_front_matte">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.000250" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.100 0.100 0.000500"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.004"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="3.4e-6" ixy="0" ixz="0" iyy="3.4e-6" iyz="0" izz="6.7e-6"/>
+    </inertial>
+  </link>
+  <joint name="apriltag_front_joint" type="fixed">
+    <parent link="top_plate_link"/>
+    <child link="apriltag_front_link"/>
+    <origin xyz="0.137855339 0.000000000 0.042355339" rpy="-2.356194490 0.000000000 1.570796327"/>
+  </joint>
+  <link name="apriltag_rear_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://omnibot_description/meshes/apriltags/tag36h11_id1.obj"/>
+      </geometry>
+      <material name="apriltag_rear_matte">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.000250" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.100 0.100 0.000500"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.004"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="3.4e-6" ixy="0" ixz="0" iyy="3.4e-6" iyz="0" izz="6.7e-6"/>
+    </inertial>
+  </link>
+  <joint name="apriltag_rear_joint" type="fixed">
+    <parent link="top_plate_link"/>
+    <child link="apriltag_rear_link"/>
+    <origin xyz="-0.092144661 -0.070000000 0.042355339" rpy="-2.356194490 0.000000000 -1.570796327"/>
+  </joint>
+  <link name="apriltag_arm_base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://omnibot_description/meshes/apriltags/tag36h11_id2.obj"/>
+      </geometry>
+      <material name="apriltag_arm_base_matte">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.000250" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.100 0.100 0.000500"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.004"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="3.4e-6" ixy="0" ixz="0" iyy="3.4e-6" iyz="0" izz="6.7e-6"/>
+    </inertial>
+  </link>
+  <joint name="apriltag_arm_base_joint" type="fixed">
+    <parent link="arm_base_link"/>
+    <child link="apriltag_arm_base_link"/>
+    <origin xyz="-0.133000000 0.079855339 0.039355339" rpy="-2.356194490 0.000000000 3.141592654"/>
+  </joint>
+</robot>

@@ -1,0 +1,86 @@
+solid simplified_chassis_plate
+  facet normal -1.00000000 0.00000000 0.00000000
+    outer loop
+      vertex -0.13250000 -0.12500000 -0.00300000
+      vertex -0.13250000 -0.12500000 0.00300000
+      vertex -0.13250000 0.12500000 0.00300000
+    endloop
+  endfacet
+  facet normal -1.00000000 0.00000000 0.00000000
+    outer loop
+      vertex -0.13250000 -0.12500000 -0.00300000
+      vertex -0.13250000 0.12500000 0.00300000
+      vertex -0.13250000 0.12500000 -0.00300000
+    endloop
+  endfacet
+  facet normal 1.00000000 0.00000000 0.00000000
+    outer loop
+      vertex 0.13250000 -0.12500000 -0.00300000
+      vertex 0.13250000 0.12500000 -0.00300000
+      vertex 0.13250000 0.12500000 0.00300000
+    endloop
+  endfacet
+  facet normal 1.00000000 0.00000000 0.00000000
+    outer loop
+      vertex 0.13250000 -0.12500000 -0.00300000
+      vertex 0.13250000 0.12500000 0.00300000
+      vertex 0.13250000 -0.12500000 0.00300000
+    endloop
+  endfacet
+  facet normal 0.00000000 -1.00000000 0.00000000
+    outer loop
+      vertex -0.13250000 -0.12500000 -0.00300000
+      vertex 0.13250000 -0.12500000 -0.00300000
+      vertex 0.13250000 -0.12500000 0.00300000
+    endloop
+  endfacet
+  facet normal 0.00000000 -1.00000000 0.00000000
+    outer loop
+      vertex -0.13250000 -0.12500000 -0.00300000
+      vertex 0.13250000 -0.12500000 0.00300000
+      vertex -0.13250000 -0.12500000 0.00300000
+    endloop
+  endfacet
+  facet normal 0.00000000 1.00000000 0.00000000
+    outer loop
+      vertex -0.13250000 0.12500000 -0.00300000
+      vertex -0.13250000 0.12500000 0.00300000
+      vertex 0.13250000 0.12500000 0.00300000
+    endloop
+  endfacet
+  facet normal 0.00000000 1.00000000 0.00000000
+    outer loop
+      vertex -0.13250000 0.12500000 -0.00300000
+      vertex 0.13250000 0.12500000 0.00300000
+      vertex 0.13250000 0.12500000 -0.00300000
+    endloop
+  endfacet
+  facet normal 0.00000000 0.00000000 -1.00000000
+    outer loop
+      vertex -0.13250000 -0.12500000 -0.00300000
+      vertex -0.13250000 0.12500000 -0.00300000
+      vertex 0.13250000 0.12500000 -0.00300000
+    endloop
+  endfacet
+  facet normal 0.00000000 0.00000000 -1.00000000
+    outer loop
+      vertex -0.13250000 -0.12500000 -0.00300000
+      vertex 0.13250000 0.12500000 -0.00300000
+      vertex 0.13250000 -0.12500000 -0.00300000
+    endloop
+  endfacet
+  facet normal 0.00000000 0.00000000 1.00000000
+    outer loop
+      vertex -0.13250000 -0.12500000 0.00300000
+      vertex 0.13250000 -0.12500000 0.00300000
+      vertex 0.13250000 0.12500000 0.00300000
+    endloop
+  endfacet
+  facet normal 0.00000000 0.00000000 1.00000000
+    outer loop
+      vertex -0.13250000 -0.12500000 0.00300000
+      vertex 0.13250000 0.12500000 0.00300000
+      vertex -0.13250000 0.12500000 0.00300000
+    endloop
+  endfacet
+endsolid simplified_chassis_plate

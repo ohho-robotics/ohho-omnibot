@@ -19,11 +19,16 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 try:
-    from lerobot.common.policies.diffusion.modeling_diffusion import DiffusionPolicy
+    from lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
 
     LEROBOT_DIFFUSION_AVAILABLE = True
 except ImportError:
-    LEROBOT_DIFFUSION_AVAILABLE = False
+    try:
+        from lerobot.common.policies.diffusion.modeling_diffusion import DiffusionPolicy
+
+        LEROBOT_DIFFUSION_AVAILABLE = True
+    except ImportError:
+        LEROBOT_DIFFUSION_AVAILABLE = False
 
 
 @register("diffusion")

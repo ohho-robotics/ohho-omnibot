@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omnibot-vla-engine"
+version = "0.1.0"
+description = "OmniVLA engine — OpenVLA / SmolVLA inference server and tooling for OmniBot"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+serve = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.24.0",
+]
+gpu = [
+    "torch>=2.0.0",
+    "transformers>=4.36.0",
+    "accelerate>=0.25.0",
+    "bitsandbytes>=0.41.0",
+]
+test = ["pytest>=7.0.0"]
+
+# pyproject lives inside the package directory (omnibot-ai-engines/vla_engine),
+# so packages are declared explicitly with the dir mapped onto the package name.
+[tool.setuptools]
+package-dir = {"vla_engine" = "."}
+packages = [
+    "vla_engine",
+    "vla_engine.models",
+    "vla_engine.inference",
+    "vla_engine.trt",
+    "vla_engine.utils",
+]

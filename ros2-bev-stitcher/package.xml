@@ -10,7 +10,7 @@
     Includes a checkerboard calibration tool to compute homographies automatically.
   </description>
 
-  <maintainer email="varunvaidhiya@example.com">Varun Vaidhiya</maintainer>
+  <maintainer email="varun@ohho-robotics.com">Varun Vaidhiya</maintainer>
   <license>Apache-2.0</license>
 
   <url type="website">https://github.com/varunvaidhiya/Mecanum-Wheel-Robot</url>

@@ -1,0 +1,9 @@
+<library path="omnibot_hardware">
+  <class name="omnibot_hardware/OmniBotSystem"
+         type="omnibot_hardware::OmniBotSystem"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Yahboom STM32 base (FUNC_MOTION / TYPE_VELOCITY) and Feetech STS3215 arm.
+    </description>
+  </class>
+</library>

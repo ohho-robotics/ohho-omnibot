@@ -1,0 +1,17 @@
+.git
+.github
+build/
+install/
+log/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+omnibot-vr/
+omnibot-android/
+nav-sim-out/
+.pytest_cache/
+omnibot-shared/

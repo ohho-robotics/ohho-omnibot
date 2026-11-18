@@ -15,11 +15,16 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 try:
-    from lerobot.common.policies.smolvla.modeling_smolvla import SmolVLAPolicy
+    from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
 
     LEROBOT_AVAILABLE = True
 except ImportError:
-    LEROBOT_AVAILABLE = False
+    try:
+        from lerobot.common.policies.smolvla.modeling_smolvla import SmolVLAPolicy
+
+        LEROBOT_AVAILABLE = True
+    except ImportError:
+        LEROBOT_AVAILABLE = False
 
 
 @register("smolvla")

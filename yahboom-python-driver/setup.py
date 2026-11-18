@@ -17,7 +17,7 @@ setup(
     install_requires=["setuptools", "pyserial", "numpy"],
     zip_safe=True,
     maintainer="Varun Vaidhiya",
-    maintainer_email="varunvaidhiya@example.com",
+    maintainer_email="varun@ohho-robotics.com",
     description="ROS 2 driver for the Yahboom ROS Robot Expansion Board",
     license="Apache-2.0",
     tests_require=["pytest"],

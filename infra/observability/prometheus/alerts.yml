@@ -1,0 +1,65 @@
+groups:
+  - name: omnibot_robot_alerts
+    rules:
+      - alert: EmergencyStopActive
+        expr: omnibot_estop_active > 0
+        for: 5s
+        labels:
+          severity: critical
+        annotations:
+          summary: "OmniBot Emergency Stop is active"
+          description: "Robot E-stop triggered (value {{ $value }}). Motors and arm halted."
+
+      - alert: HighDriverCycleLatency
+        expr: omnibot_node_cycle_p95_ms{node="yahboom_controller_node"} > 50
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Yahboom driver cycle p95 latency high"
+          description: "Driver p95 cycle latency is {{ $value }} ms (threshold: 50 ms)."
+
+      - alert: CriticalDriverCycleLatency
+        expr: omnibot_node_cycle_max_ms{node="yahboom_controller_node"} > 100
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Yahboom driver cycle max latency exceeded safety budget"
+          description: "Driver max cycle latency spike: {{ $value }} ms (safety limit: 100 ms)."
+
+      - alert: HighPiCpuUsage
+        expr: (100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle",machine="raspberry_pi"}[1m])) * 100)) > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Raspberry Pi CPU utilization high"
+          description: "Pi CPU usage is at {{ $value | printf \"%.1f\" }}%."
+
+      - alert: HighPiRamUsage
+        expr: ((1 - node_memory_MemAvailable_bytes{machine="raspberry_pi"} / node_memory_MemTotal_bytes{machine="raspberry_pi"}) * 100) > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Raspberry Pi RAM utilization high"
+          description: "Pi memory usage is at {{ $value | printf \"%.1f\" }}%."
+
+      - alert: DiskSpaceRunningLow
+        expr: ((1 - node_filesystem_avail_bytes{machine="raspberry_pi",mountpoint="/"} / node_filesystem_size_bytes{machine="raspberry_pi",mountpoint="/"}) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Raspberry Pi root disk space low"
+          description: "Pi root filesystem is {{ $value | printf \"%.1f\" }}% full."
+
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus scrape target is down"
+          description: "Target {{ $labels.job }} ({{ $labels.instance }}) unreachable."

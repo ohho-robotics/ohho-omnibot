@@ -1,0 +1,8 @@
+numpy>=1.24.0
+rosbags>=0.9.16
+pyyaml>=6.0
+matplotlib>=3.7.0
+mcap>=1.2.0
+mcap-ros2-support>=0.5.0
+# mcap-ros2-support optional: standalone .mcap file reads only
+pytest>=7.4.0

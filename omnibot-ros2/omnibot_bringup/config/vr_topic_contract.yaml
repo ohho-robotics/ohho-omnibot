@@ -1,0 +1,183 @@
+# Shared VR topic contract for sim_vr.launch.py and robot_vr.launch.py.
+# Both launches load this file. sim_vr.launch.py refuses to start if a
+# value here drifts from the profile it already runs. Caps, the 300 ms
+# heartbeat, and the e-stop latch are not parameters in this file.
+# They live in teleop_gate.py. Do not add a speed, joint, or timeout key.
+version: 1
+
+safety:
+  default_control_mode: teleop
+  use_sim_time: false
+  heartbeat_timeout_ms: 300
+
+ports:
+  rosbridge: 9090
+  web_video: 8080
+  foxglove: 8765
+  bind: 127.0.0.1
+
+telemetry_hz: 20
+
+video_streams:
+  - id: front
+    topic: /camera/front/image_raw
+    camera_info: /camera/front/camera_info
+  - id: wrist
+    topic: /camera/wrist/image_raw
+    camera_info: /camera/wrist/camera_info
+  - id: bev
+    topic: /camera/base/bev/image_raw
+
+teleop_paths:
+  - raw: /cmd_vel/teleop_raw
+    gated: /cmd_vel/teleop
+    mux: cmd_vel_mux
+    driver_output: /cmd_vel/out
+    driver_remap_from: cmd_vel
+  - raw: /arm/joint_commands/teleop_raw
+    gated: /arm/joint_commands/teleop
+    mux: arm_cmd_mux
+    driver_output: /arm/joint_commands/out
+    driver_remap_from: joint_commands
+
+topics:
+  - name: /cmd_vel/teleop_raw
+    type: geometry_msgs/Twist
+    publisher: Quest, Android, browser
+    consumer: teleop_safety
+  - name: /arm/joint_commands/teleop_raw
+    type: sensor_msgs/JointState
+    publisher: Quest, Android, browser
+    consumer: teleop_safety
+  - name: /ohho/heartbeat
+    type: std_msgs/Empty
+    publisher: client
+    consumer: teleop_safety
+  - name: /emergency_stop
+    type: std_msgs/Bool
+    publisher: client
+    consumer: teleop_safety, muxes, drivers
+  - name: /ohho/estop_reset
+    type: std_srvs/Trigger
+    publisher: client
+    consumer: teleop_safety
+  - name: /ohho/safety/state
+    type: std_msgs/String
+    publisher: teleop_safety
+    consumer: clients
+  - name: /cmd_vel/teleop
+    type: geometry_msgs/Twist
+    publisher: teleop_safety
+    consumer: cmd_vel_mux
+  - name: /arm/joint_commands/teleop
+    type: sensor_msgs/JointState
+    publisher: teleop_safety
+    consumer: arm_cmd_mux
+  - name: /cmd_vel
+    type: geometry_msgs/Twist
+    publisher: Nav2
+    consumer: cmd_vel_mux
+  - name: /cmd_vel/vla
+    type: geometry_msgs/Twist
+    publisher: VLA
+    consumer: cmd_vel_mux
+  - name: /cmd_vel/rl
+    type: geometry_msgs/Twist
+    publisher: RL nav
+    consumer: cmd_vel_mux
+  - name: /cmd_vel/out
+    type: geometry_msgs/Twist
+    publisher: cmd_vel_mux
+    consumer: base driver
+  - name: /control_mode
+    type: std_msgs/String
+    publisher: client
+    consumer: muxes
+  - name: /control_mode/active
+    type: std_msgs/String
+    publisher: cmd_vel_mux
+    consumer: clients
+  - name: /arm/joint_commands/policy
+    type: sensor_msgs/JointState
+    publisher: policy_node
+    consumer: arm_cmd_mux
+  - name: /arm/joint_commands
+    type: sensor_msgs/JointState
+    publisher: deprecated policy alias
+    consumer: arm_cmd_mux
+  - name: /arm/joint_commands/rl
+    type: sensor_msgs/JointState
+    publisher: RL arm
+    consumer: arm_cmd_mux
+  - name: /arm/joint_commands/out
+    type: sensor_msgs/JointState
+    publisher: arm_cmd_mux
+    consumer: arm driver
+  - name: /arm/cmd_mode
+    type: std_msgs/String
+    publisher: client
+    consumer: arm_cmd_mux
+  - name: /arm/cmd_mode/active
+    type: std_msgs/String
+    publisher: arm_cmd_mux
+    consumer: clients
+  - name: /odom
+    type: nav_msgs/Odometry
+    publisher: base driver or Gazebo bridge
+    consumer: clients
+  - name: /scan
+    type: sensor_msgs/LaserScan
+    publisher: depth scan or Gazebo bridge
+    consumer: clients
+  - name: /imu
+    type: sensor_msgs/Imu
+    publisher: Gazebo bridge
+    consumer: clients
+  - name: /imu/data
+    type: sensor_msgs/Imu
+    publisher: base driver
+    consumer: EKF, telemetry
+  - name: /camera/front/image_raw
+    type: sensor_msgs/Image
+    publisher: front camera
+    consumer: web_video_server, clients
+  - name: /camera/front/camera_info
+    type: sensor_msgs/CameraInfo
+    publisher: front camera
+    consumer: clients
+  - name: /camera/wrist/image_raw
+    type: sensor_msgs/Image
+    publisher: wrist camera
+    consumer: web_video_server, clients
+  - name: /camera/wrist/camera_info
+    type: sensor_msgs/CameraInfo
+    publisher: wrist camera
+    consumer: clients
+  - name: /camera/rear/image_raw
+    type: sensor_msgs/Image
+    publisher: rear camera
+    consumer: bev stitcher
+  - name: /camera/left/image_raw
+    type: sensor_msgs/Image
+    publisher: left camera
+    consumer: bev stitcher
+  - name: /camera/right/image_raw
+    type: sensor_msgs/Image
+    publisher: right camera
+    consumer: bev stitcher
+  - name: /camera/base/bev/image_raw
+    type: sensor_msgs/Image
+    publisher: bev stitcher
+    consumer: web_video_server, clients
+  - name: /tf
+    type: tf2_msgs/TFMessage
+    publisher: robot_state_publisher or Gazebo bridge
+    consumer: clients
+  - name: /ohho/telemetry
+    type: std_msgs/String
+    publisher: telemetry_aggregator
+    consumer: VR HUD
+  - name: /ohho/descriptor
+    type: std_msgs/String
+    publisher: ohho_descriptor
+    consumer: clients

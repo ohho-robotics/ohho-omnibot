@@ -9,4 +9,5 @@ through a bare pytest collection, unless OMNIBOT_NAV_SIM=1 is set.
 
 import os
 
-collect_ignore = [] if os.environ.get("OMNIBOT_NAV_SIM") == "1" else ["test_nav_sim_scenarios.py"]
+_GAZEBO_TESTS = ["test_nav_sim_scenarios.py", "test_nav_regression_sim.py"]
+collect_ignore = [] if os.environ.get("OMNIBOT_NAV_SIM") == "1" else _GAZEBO_TESTS

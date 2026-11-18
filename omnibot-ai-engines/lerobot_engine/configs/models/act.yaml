@@ -1,27 +1,63 @@
-# ACT (Action Chunking Transformer) configuration for OmniBot.
+# ACT (Action Chunking Transformer) configuration for OmniBot mobile manipulation.
 #
-# Faster than SmolVLA (~20 Hz vs 10 Hz). Not language-conditioned.
-# Good for: ablation baseline, precise pick-and-place, lower-VRAM machines.
+# Faster than SmolVLA (~20 Hz vs 10 Hz). Non-language-conditioned baseline.
+# Controls unified 9-DOF mobile manipulator: 6 arm joints + 3 base velocities.
+# Input observations: wrist camera (640x480), BEV camera (800x800), 9-DOF state.
 #
 # Usage:
-#   python lerobot_engine/train.py \
-#     --model act \
-#     --checkpoint lerobot/act_base \
-#     --dataset-path ~/datasets/mobile_manipulation \
-#     --output-dir ~/checkpoints/act_run1
+#   python lerobot_engine/train.py --config lerobot_engine/configs/models/act.yaml
+#   or:
+#   bash lerobot_engine/train_act.sh
 
 model:
   type: act
   pretrained: "lerobot/act_base"
   device: cuda
   policy_hz: 20.0
-  chunk_size: 100
+  chunk_size: 50
+  n_action_steps: 50
+  dim_model: 512
+  n_heads: 8
+  dim_feedforward: 3200
+  feedforward_activation: relu
+  n_encoder_layers: 4
+  n_decoder_layers: 1
+  use_vae: true
+  latent_dim: 32
+  n_vae_encoder_layers: 4
+  kl_weight: 10.0
+  dropout: 0.1
+
+robot:
+  config: "lerobot_engine/configs/robot/omnibot_mobile_manip.yaml"
+  action_dim: 9
+  state_dim: 9
+
+dataset:
+  path: "/data/lerobot/pick_and_place_cube"
+  split_ratio: 0.9
 
 training:
-  num_epochs: 200
+  num_epochs: 100
   batch_size: 16
   lr: 1.0e-4
   lr_scheduler: cosine
   grad_clip_norm: 10.0
-  save_every: 20
+  save_every: 10
   num_workers: 4
+  output_dir: "~/checkpoints/act_run1"
+
+logging:
+  # Public W&B project for ACT training runs
+  # TODO (human/Varun): Create public project at https://wandb.ai/ohho-robotics/omnibot-act
+  wandb_project: "omnibot-act"
+  wandb_run_name: "act-mobile-manip-v1"
+
+export:
+  # Hugging Face Hub checkpoint export destination
+  # TODO (human/Varun): Set HF_TOKEN and push to https://huggingface.co/ohho-robotics/omnibot-act-mobile-manip
+  push_to_hub: false
+  hf_repo_id: "ohho-robotics/omnibot-act-mobile-manip"
+  # Export to ONNX format (requires onnx package)
+  export_onnx: true
+  onnx_output_path: "~/checkpoints/act_run1/act_policy.onnx"

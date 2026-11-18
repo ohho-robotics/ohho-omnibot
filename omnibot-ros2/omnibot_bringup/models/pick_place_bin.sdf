@@ -1,0 +1,76 @@
+<?xml version="1.0" ?>
+<!--
+  Copyright 2026 OhhO Robotics
+  SPDX-License-Identifier: Apache-2.0
+
+  Open-top bin spawned only by sim.launch.py pick_place:=true.
+  Outer size 0.18 x 0.16 x 0.08 m. Origin is the bottom centre, so the
+  launch z is the table top.
+-->
+<sdf version="1.8">
+  <model name="pick_place_bin">
+    <static>true</static>
+    <link name="link">
+      <collision name="bottom">
+        <pose>0 0 0.004 0 0 0</pose>
+        <geometry><box><size>0.18 0.16 0.008</size></box></geometry>
+      </collision>
+      <collision name="wall_px">
+        <pose>0.086 0 0.04 0 0 0</pose>
+        <geometry><box><size>0.008 0.16 0.08</size></box></geometry>
+      </collision>
+      <collision name="wall_nx">
+        <pose>-0.086 0 0.04 0 0 0</pose>
+        <geometry><box><size>0.008 0.16 0.08</size></box></geometry>
+      </collision>
+      <collision name="wall_py">
+        <pose>0 0.076 0.04 0 0 0</pose>
+        <geometry><box><size>0.18 0.008 0.08</size></box></geometry>
+      </collision>
+      <collision name="wall_ny">
+        <pose>0 -0.076 0.04 0 0 0</pose>
+        <geometry><box><size>0.18 0.008 0.08</size></box></geometry>
+      </collision>
+      <visual name="bottom">
+        <pose>0 0 0.004 0 0 0</pose>
+        <geometry><box><size>0.18 0.16 0.008</size></box></geometry>
+        <material>
+          <ambient>0.15 0.35 0.75 1</ambient>
+          <diffuse>0.15 0.35 0.75 1</diffuse>
+        </material>
+      </visual>
+      <visual name="wall_px">
+        <pose>0.086 0 0.04 0 0 0</pose>
+        <geometry><box><size>0.008 0.16 0.08</size></box></geometry>
+        <material>
+          <ambient>0.15 0.35 0.75 1</ambient>
+          <diffuse>0.15 0.35 0.75 1</diffuse>
+        </material>
+      </visual>
+      <visual name="wall_nx">
+        <pose>-0.086 0 0.04 0 0 0</pose>
+        <geometry><box><size>0.008 0.16 0.08</size></box></geometry>
+        <material>
+          <ambient>0.15 0.35 0.75 1</ambient>
+          <diffuse>0.15 0.35 0.75 1</diffuse>
+        </material>
+      </visual>
+      <visual name="wall_py">
+        <pose>0 0.076 0.04 0 0 0</pose>
+        <geometry><box><size>0.18 0.008 0.08</size></box></geometry>
+        <material>
+          <ambient>0.15 0.35 0.75 1</ambient>
+          <diffuse>0.15 0.35 0.75 1</diffuse>
+        </material>
+      </visual>
+      <visual name="wall_ny">
+        <pose>0 -0.076 0.04 0 0 0</pose>
+        <geometry><box><size>0.18 0.008 0.08</size></box></geometry>
+        <material>
+          <ambient>0.15 0.35 0.75 1</ambient>
+          <diffuse>0.15 0.35 0.75 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

@@ -5,9 +5,16 @@ import com.varunvaidhiya.robotcontrol.network.ROSBridgeListener
 import com.varunvaidhiya.robotcontrol.network.ROSBridgeManager
 import com.varunvaidhiya.robotcontrol.ui.views.PointCloudView
 import com.varunvaidhiya.robotcontrol.utils.Constants
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.atan2
 import kotlin.math.sqrt
@@ -22,6 +29,17 @@ import javax.inject.Singleton
 class RobotRepository @Inject constructor() {
 
     private var rosManager: ROSBridgeManager? = null
+    private val heartbeatScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    @Volatile
+    private var heartbeatJob: Job? = null
+
+    /**
+     * Generation captured by the listener for the current socket.
+     * [connect] and [disconnect] advance it so a manager that is still
+     * closing cannot cancel the heartbeat of the connection that replaced it.
+     */
+    @Volatile
+    private var connectionGeneration = 0
 
     // ── Connection ─────────────────────────────────────────────────────────────
     private val _connectionState = MutableStateFlow(ROSBridgeManager.ConnectionState.DISCONNECTED)
@@ -77,39 +95,88 @@ class RobotRepository @Inject constructor() {
     val otaProgress: StateFlow<Int> = _otaProgress.asStateFlow()
 
     // ── ROSBridge listener ─────────────────────────────────────────────────────
-    private val rosListener = object : ROSBridgeListener {
+    private fun listenerFor(generation: Int) = object : ROSBridgeListener {
+        private fun isCurrentManager() = generation == connectionGeneration
+
         override fun onConnected() {
+            if (!isCurrentManager()) return
             _connectionState.value = ROSBridgeManager.ConnectionState.CONNECTED
             _robotStatus.value = _robotStatus.value.copy(isConnected = true)
             subscribeToTopics()
+            startSafetyHeartbeat()
         }
 
         override fun onDisconnected() {
+            if (!isCurrentManager()) return
+            stopSafetyHeartbeat()
             _connectionState.value = ROSBridgeManager.ConnectionState.DISCONNECTED
             _robotStatus.value = _robotStatus.value.copy(isConnected = false)
         }
 
         override fun onError(error: String) {
+            if (!isCurrentManager()) return
+            stopSafetyHeartbeat()
             _connectionState.value = ROSBridgeManager.ConnectionState.ERROR
             Timber.e("ROS Error: $error")
         }
 
         override fun onMessageReceived(topic: String, message: Map<String, Any>) {
+            if (!isCurrentManager()) return
             handleMessage(topic, message)
         }
     }
 
+    /**
+     * Bumps [connectionGeneration] and stops the heartbeat before a new socket
+     * exists. Returns the listener bound to that generation.
+     */
+    internal fun openManagerListener(): ROSBridgeListener {
+        connectionGeneration += 1
+        stopSafetyHeartbeat()
+        return listenerFor(connectionGeneration)
+    }
+
+    internal val safetyHeartbeatActive: Boolean
+        get() = heartbeatJob?.isActive == true
+
     // ── Public API ─────────────────────────────────────────────────────────────
 
     fun connect(ip: String = Constants.DEFAULT_ROBOT_IP, port: Int = Constants.DEFAULT_ROSBRIDGE_PORT) {
-        _robotStatus.value = _robotStatus.value.copy(ipAddress = ip)
-        rosManager?.disconnect()  // clean up previous manager if any
-        rosManager = ROSBridgeManager("ws://$ip:$port", rosListener)
-        rosManager?.connect()
+        _robotStatus.value = _robotStatus.value.copy(ipAddress = ip, isConnected = false)
+        val listener = openManagerListener()
+        val previous = rosManager
+        rosManager = ROSBridgeManager("ws://$ip:$port", listener)
         _connectionState.value = ROSBridgeManager.ConnectionState.CONNECTING
+        previous?.disconnect()
+        rosManager?.connect()
     }
 
-    fun disconnect() = rosManager?.disconnect()
+    fun disconnect() {
+        connectionGeneration += 1
+        stopSafetyHeartbeat()
+        _connectionState.value = ROSBridgeManager.ConnectionState.DISCONNECTED
+        _robotStatus.value = _robotStatus.value.copy(isConnected = false)
+        rosManager?.disconnect()
+    }
+
+    /**
+     * Keep teleop_safety armed. The gate zeros the base when this topic is
+     * silent for 300 ms, so the loop stops as soon as the socket drops.
+     */
+    private fun startSafetyHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = heartbeatScope.launch {
+            while (isActive) {
+                rosManager?.publish(Constants.TOPIC_HEARTBEAT, emptyMap())
+                delay(Constants.HEARTBEAT_PERIOD_MS)
+            }
+        }
+    }
+
+    private fun stopSafetyHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
 
     fun sendVelocity(command: VelocityCommand) =
         rosManager?.publish(Constants.TOPIC_CMD_VEL, command.toROSTwist())

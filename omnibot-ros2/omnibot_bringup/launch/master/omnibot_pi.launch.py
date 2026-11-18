@@ -25,8 +25,9 @@ What this starts (in order):
   │  Nav2 stack              controller, planner, behavior, bt_navigator      │
   │                          velocity_smoother, lifecycle_manager             │
   ├─ CONTROL ROUTING ───────────────────────────────────────────────────────┤
+  │  teleop_safety           raw teleop → caps, watchdog, latched e-stop    │
   │  cmd_vel_mux             routes nav2/vla/teleop/rl_nav → motors           │
-  │  arm_cmd_mux             routes smolvla/rl_arm → arm driver               │
+  │  arm_cmd_mux             routes teleop/policy/rl_arm → arm driver         │
   │  mission_planner         parses /mission/command → Nav2 + VLA goals       │
   ├─ CONNECTIVITY ──────────────────────────────────────────────────────────┤
   │  foxglove_bridge         ws://pi-ip:8765  (workstation Foxglove viewer)   │
@@ -34,8 +35,17 @@ What this starts (in order):
   │  rosbridge_websocket     ws://pi-ip:9090  (Android app)                   │
   └─────────────────────────────────────────────────────────────────────────┘
 
+DDS (same RMW on the Pi, the workstation, and the sim containers):
+    source omnibot-ros2/omnibot_bringup/config/ros_domain.env
+    rmw_cyclonedds_cpp and the static-peer profile. See docs/network.md.
+    This launch sets that environment on every child process.
+
 Usage:
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py
+
+Quest VR is a separate one-command profile. It does not start SLAM or Nav2,
+and it does not publish rosbridge on every interface:
+    ros2 launch omnibot_bringup robot_vr.launch.py
 
 Skip depth camera (save ~70% CPU):
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py depth_camera:=false
@@ -45,6 +55,13 @@ Skip SLAM (cameras + drive only):
 
 Skip Nav2 (drive + SLAM, no autonomous navigation):
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py nav2:=false
+
+Object perception is off by default. omnibot_perception is not in this
+repository; the node is skipped with one warning naming that package:
+    ros2 launch omnibot_bringup master/omnibot_pi.launch.py ai_perception:=false
+
+Start it only when omnibot_perception is installed:
+    ros2 launch omnibot_bringup master/omnibot_pi.launch.py ai_perception:=true
 
 Headless (no foxglove/web_video):
     ros2 launch omnibot_bringup master/omnibot_pi.launch.py \
@@ -61,16 +78,28 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    SetEnvironmentVariable,
     TimerAction,
 )
 from launch.conditions import IfCondition
-from launch.launch_description_sources import (
-    AnyLaunchDescriptionSource,
-    PythonLaunchDescriptionSource,
-)
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
+from omnibot_hybrid.optional_package import PackageAvailable, optional_include_launch
+
+
+def _cell_dds_actions():
+    """Pi nodes inherit the cell RMW and cyclonedds.xml."""
+    import importlib.util
+
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dds_env.py")
+    spec = importlib.util.spec_from_file_location("omnibot_dds_env", helper)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"missing DDS helper: {helper}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.environment_actions(SetEnvironmentVariable)
 
 
 def generate_launch_description():
@@ -93,6 +122,16 @@ def generate_launch_description():
         default_value="true",
         description="Start Orbbec Astra Pro RGB-D driver (~70% CPU)",
     )
+    declare_ai_perception = DeclareLaunchArgument(
+        "ai_perception",
+        default_value="false",
+        description=(
+            "Start object_perception_node from omnibot_perception. "
+            "Default false. That package is not in this repository; "
+            "if it is missing, launch logs one warning and skips the node. "
+            "Pass ai_perception:=true only after the package is installed."
+        ),
+    )
     declare_slam = DeclareLaunchArgument(
         "slam",
         default_value="true",
@@ -105,6 +144,22 @@ def generate_launch_description():
     )
     declare_arm = DeclareLaunchArgument(
         "arm", default_value="true", description="Start SO-101 arm driver"
+    )
+    declare_calibration_file = DeclareLaunchArgument(
+        "calibration_file",
+        default_value="",
+        description=(
+            "SO-101 so101_<id>.yaml. Empty uses OMNIBOT_ARM_CALIBRATION, "
+            "then robot_id. See omnibot_arm/CALIBRATION.md."
+        ),
+    )
+    declare_robot_id = DeclareLaunchArgument(
+        "robot_id",
+        default_value="",
+        description=(
+            "Load so101_<robot_id>.yaml for the arm. Empty uses "
+            "OMNIBOT_ARM_ROBOT_ID."
+        ),
     )
     declare_foxglove = DeclareLaunchArgument(
         "foxglove",
@@ -160,12 +215,17 @@ def generate_launch_description():
         remappings=[("cmd_vel", "/cmd_vel/out")],
     )
 
-    # -- AI perception: object distance + pose from depth camera ------------
+    # AI perception is optional and off by default. omnibot_perception is
+    # not in this repository.
     object_perception = Node(
         package="omnibot_perception",
         executable="object_perception_node",
         name="object_perception_node",
         output="screen",
+        condition=PackageAvailable(
+            "omnibot_perception",
+            LaunchConfiguration("ai_perception"),
+        ),
     )
 
     # -- Remote rosbag recorder (Android app record button) -----------------
@@ -188,6 +248,8 @@ def generate_launch_description():
                 "follower_port": "/dev/ttyACM0",
                 "baudrate": 1000000,
                 "publish_rate": 100.0,
+                "calibration_file": LaunchConfiguration("calibration_file"),
+                "robot_id": LaunchConfiguration("robot_id"),
             }
         ],
         remappings=[("joint_commands", "/arm/joint_commands/out")],
@@ -278,14 +340,14 @@ def generate_launch_description():
     )
 
     # ── 5. Orbbec Astra Pro RGB-D ─────────────────────────────────────────────
-    astra_camera = IncludeLaunchDescription(
-        AnyLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("astra_camera"),
-                "launch",
-                "astra_pro.launch.xml",
-            )
-        ),
+    # astra_camera is not in rosdep. Resolve its launch file only when the
+    # package is installed so the default launch does not raise
+    # PackageNotFoundError.
+    astra_camera = optional_include_launch(
+        package="astra_camera",
+        relative_path=("launch", "astra_pro.launch.xml"),
+        when=LaunchConfiguration("depth_camera"),
+        warn_when_disabled=False,
         launch_arguments={
             "camera_name": "camera",
             "depth_registration": "true",
@@ -293,8 +355,7 @@ def generate_launch_description():
             "enable_colored_point_cloud": "false",
             "color_depth_synchronization": "false",
             "oni_log_level": "none",
-        }.items(),
-        condition=IfCondition(LaunchConfiguration("depth_camera")),
+        },
     )
 
     # ── 6. depth → /scan ─────────────────────────────────────────────────────
@@ -385,7 +446,20 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("nav2")),
     )
 
-    # ── 13. cmd_vel mux ───────────────────────────────────────────────────────
+    # ── 13. teleop_safety ─────────────────────────────────────────────────────
+    # /cmd_vel/teleop_raw and /arm/joint_commands/teleop_raw → gated
+    # /cmd_vel/teleop and /arm/joint_commands/teleop. Caps are not parameters.
+    teleop_safety = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("omnibot_hybrid"),
+                "launch",
+                "teleop_safety.launch.py",
+            )
+        ),
+    )
+
+    # ── 14. cmd_vel mux ───────────────────────────────────────────────────────
     # Routes: nav2 | vla | teleop | rl_nav → /cmd_vel/out → yahboom_controller
     cmd_vel_mux = Node(
         package="omnibot_hybrid",
@@ -395,8 +469,8 @@ def generate_launch_description():
         parameters=[{"default_mode": "nav2"}],
     )
 
-    # ── 14. arm_cmd_mux ───────────────────────────────────────────────────────
-    # Routes: smolvla | rl_arm → /arm/joint_commands/out → arm_driver
+    # ── 15. arm_cmd_mux ───────────────────────────────────────────────────────
+    # Routes: teleop | policy | rl_arm → /arm/joint_commands/out → arm_driver
     arm_cmd_mux = Node(
         package="omnibot_rl",
         executable="arm_cmd_mux",
@@ -405,7 +479,7 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("arm")),
     )
 
-    # ── 15. Mission planner ───────────────────────────────────────────────────
+    # ── 16. Mission planner ───────────────────────────────────────────────────
     # Parses /mission/command → Nav2 + VLA + RL goals
     mission_planner = Node(
         package="omnibot_hybrid",
@@ -414,7 +488,7 @@ def generate_launch_description():
         output="screen",
     )
 
-    # ── 16. Foxglove bridge ───────────────────────────────────────────────────
+    # ── 17. Foxglove bridge ───────────────────────────────────────────────────
     foxglove_bridge = TimerAction(
         period=4.0,
         actions=[
@@ -429,7 +503,7 @@ def generate_launch_description():
         ],
     )
 
-    # ── 17. web_video_server ──────────────────────────────────────────────────
+    # ── 18. web_video_server ──────────────────────────────────────────────────
     web_video_server = TimerAction(
         period=4.0,
         actions=[
@@ -444,7 +518,7 @@ def generate_launch_description():
         ],
     )
 
-    # ── 18. ROSBridge WebSocket (Android app) ─────────────────────────────────
+    # ── 19. ROSBridge WebSocket (Android app) ─────────────────────────────────
     rosbridge = TimerAction(
         period=4.0,
         actions=[
@@ -462,11 +536,15 @@ def generate_launch_description():
     # ── Assemble ──────────────────────────────────────────────────────────────
     return LaunchDescription(
         [
+            *_cell_dds_actions(),
             # Arguments
             declare_depth_camera,
+            declare_ai_perception,
             declare_slam,
             declare_nav2,
             declare_arm,
+            declare_calibration_file,
+            declare_robot_id,
             declare_foxglove,
             declare_web_video,
             declare_rosbridge,
@@ -499,6 +577,7 @@ def generate_launch_description():
             # Navigation
             nav2,
             # Control routing
+            teleop_safety,
             cmd_vel_mux,
             arm_cmd_mux,
             mission_planner,

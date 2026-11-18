@@ -1,6 +1,5 @@
 {
   "configById": {
-
     "3D!main": {
       "cameraState": {
         "perspective": true,
@@ -51,7 +50,6 @@
         }
       }
     },
-
     "Image!front": {
       "cameraTopic": "/camera/front/image_raw",
       "flipHorizontal": false,
@@ -60,7 +58,6 @@
       "smooth": true,
       "title": "Front Camera"
     },
-
     "Image!wrist": {
       "cameraTopic": "/camera/wrist/image_raw",
       "flipHorizontal": false,
@@ -69,7 +66,6 @@
       "smooth": true,
       "title": "Wrist Camera"
     },
-
     "Image!bev": {
       "cameraTopic": "/camera/base/bev/image_raw",
       "flipHorizontal": false,
@@ -78,7 +74,6 @@
       "smooth": true,
       "title": "BEV Camera"
     },
-
     "Image!depth": {
       "cameraTopic": "/camera/depth/image_raw",
       "flipHorizontal": false,
@@ -87,7 +82,6 @@
       "smooth": true,
       "title": "Depth Camera"
     },
-
     "Plot!odom": {
       "title": "Odometry",
       "isSynced": true,
@@ -115,7 +109,6 @@
         }
       ]
     },
-
     "Plot!imu": {
       "title": "IMU — Linear Acceleration",
       "isSynced": true,
@@ -142,24 +135,24 @@
         }
       ]
     },
-
     "RawMessages!arm": {
       "topicPath": "/arm/joint_states",
       "title": "Arm Joint States"
     },
-
     "RawMessages!mission": {
       "topicPath": "/mission/status",
       "title": "Mission Status"
     },
-
+    "RawMessages!agent_trace": {
+      "topicPath": "/agent/trace",
+      "title": "Agent Trace"
+    },
     "Log!rosout": {
       "searchTerms": [],
       "minLogLevel": 1,
       "title": "ROS Log"
     }
   },
-
   "layout": {
     "direction": "row",
     "splitPercentage": 58,
@@ -181,29 +174,35 @@
     },
     "second": {
       "direction": "column",
-      "splitPercentage": 30,
+      "splitPercentage": 28,
       "first": "Plot!odom",
       "second": {
         "direction": "column",
-        "splitPercentage": 35,
+        "splitPercentage": 32,
         "first": "Plot!imu",
         "second": {
           "direction": "column",
-          "splitPercentage": 50,
+          "splitPercentage": 45,
           "first": "RawMessages!arm",
           "second": {
             "direction": "column",
             "splitPercentage": 50,
-            "first": "RawMessages!mission",
+            "first": {
+              "direction": "row",
+              "splitPercentage": 50,
+              "first": "RawMessages!mission",
+              "second": "RawMessages!agent_trace"
+            },
             "second": "Log!rosout"
           }
         }
       }
     }
   },
-
   "globalVariables": {},
   "userNodes": {},
-  "playbackConfig": { "speed": 1 },
+  "playbackConfig": {
+    "speed": 1
+  },
   "version": "foxglove.studio@1"
 }

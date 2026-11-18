@@ -11,6 +11,11 @@
 #   /clock                       rosgraph_msgs/msg/Clock
 #   /tf                          tf2_msgs/msg/TFMessage         (odom -> base_footprint
 #                                from the gz odometry plugin; Nav2 / slam_toolbox need it)
+#   /arm/sim/joint_states        sensor_msgs/msg/JointState    (GZ arm joints -> ROS)
+#   /arm/sim/<joint>/cmd_pos     std_msgs/msg/Float64          (ROS -> GZ position target)
+#
+# /arm/joint_commands/out and /arm/joint_states stay in ROS. arm_sim_driver
+# applies arm_safety and is the only node that writes the cmd_pos topics.
 ---
 - ros_topic_name: "/clock"
   gz_topic_name: "/clock"
@@ -59,3 +64,47 @@
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
+
+# Arm joint states from gz-sim-joint-state-publisher-system (arm joints only).
+- ros_topic_name: "/arm/sim/joint_states"
+  gz_topic_name: "/arm/sim/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+# One JointPositionController topic per SO-101 joint. Names match arm_params.yaml.
+- ros_topic_name: "/arm/sim/arm_shoulder_pan/cmd_pos"
+  gz_topic_name: "/arm/sim/arm_shoulder_pan/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/sim/arm_shoulder_lift/cmd_pos"
+  gz_topic_name: "/arm/sim/arm_shoulder_lift/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/sim/arm_elbow_flex/cmd_pos"
+  gz_topic_name: "/arm/sim/arm_elbow_flex/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/sim/arm_wrist_flex/cmd_pos"
+  gz_topic_name: "/arm/sim/arm_wrist_flex/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/sim/arm_wrist_roll/cmd_pos"
+  gz_topic_name: "/arm/sim/arm_wrist_roll/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/sim/arm_gripper/cmd_pos"
+  gz_topic_name: "/arm/sim/arm_gripper/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ

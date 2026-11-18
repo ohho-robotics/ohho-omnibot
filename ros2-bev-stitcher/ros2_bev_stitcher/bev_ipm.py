@@ -212,6 +212,62 @@ DEFAULT_INTRINSICS: Dict[str, List[float]] = {
 }
 
 
+def compute_ipm_homographies_for_cameras(
+    camera_names: List[str],
+    canvas_size: int = 800,
+    pixels_per_meter: float = 80.0,
+    ground_z: float = 0.0,
+    per_camera: Optional[Dict[str, Dict[str, List[float]]]] = None,
+    intrinsics: Optional[Dict[str, float]] = None,
+) -> Dict[str, np.ndarray]:
+    """
+    Compute IPM homographies for named cameras (no ROS dependency).
+
+    ``per_camera`` maps camera name → ``position`` / ``orientation_rpy`` lists.
+    Missing names fall back to :data:`DEFAULT_CAMERA_CONFIGS`.
+    """
+    per_camera = per_camera or {}
+    base_intrinsics = intrinsics or DEFAULT_INTRINSICS
+
+    homographies: Dict[str, np.ndarray] = {}
+    for name in camera_names:
+        defaults = DEFAULT_CAMERA_CONFIGS.get(name, {})
+        cfg = per_camera.get(name, {})
+        pos = cfg.get("position", defaults.get("position", [0.0, 0.0, 0.1]))
+        rpy = cfg.get(
+            "orientation_rpy", defaults.get("orientation_rpy", [0.0, 0.3, 0.0])
+        )
+        fx = float(cfg.get("fx", base_intrinsics["fx"]))
+        fy = float(cfg.get("fy", base_intrinsics["fy"]))
+        cx_i = float(cfg.get("cx", base_intrinsics["cx"]))
+        cy_i = float(cfg.get("cy", base_intrinsics["cy"]))
+        K = np.array(
+            [[fx, 0.0, cx_i], [0.0, fy, cy_i], [0.0, 0.0, 1.0]],
+            dtype=np.float64,
+        )
+        R = camera_rotation(float(rpy[0]), float(rpy[1]), float(rpy[2]))
+        t = np.array(pos, dtype=np.float64)
+        homographies[name] = compute_ipm_homography(
+            camera_matrix=K,
+            rotation=R,
+            translation=t,
+            canvas_size=canvas_size,
+            pixels_per_meter=pixels_per_meter,
+            ground_z=ground_z,
+        )
+    return homographies
+
+
+def save_homography_npz(path: str, homographies: Dict[str, np.ndarray]) -> str:
+    """Write homographies to a .npz file; returns the absolute path."""
+    out = os.path.abspath(os.path.expanduser(path))
+    out_dir = os.path.dirname(out)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+    np.savez(out, **homographies)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # ROS 2 IPM calibrator node (requires rclpy)
 # ---------------------------------------------------------------------------
@@ -264,31 +320,29 @@ class IPMCalibratorNode(_Node if _ROS else object):
 
     def compute_all(self) -> Dict[str, np.ndarray]:
         """Compute homographies for all configured cameras."""
-        homographies: Dict[str, np.ndarray] = {}
+        per_camera: Dict[str, Dict[str, List[float]]] = {}
         for name in self._names:
-            pos = list(self.get_parameter(f"{name}.position").value)
-            rpy = list(self.get_parameter(f"{name}.orientation_rpy").value)
-            fx = self.get_parameter(f"{name}.fx").value
-            fy = self.get_parameter(f"{name}.fy").value
-            cx_i = self.get_parameter(f"{name}.cx").value
-            cy_i = self.get_parameter(f"{name}.cy").value
+            per_camera[name] = {
+                "position": list(self.get_parameter(f"{name}.position").value),
+                "orientation_rpy": list(
+                    self.get_parameter(f"{name}.orientation_rpy").value
+                ),
+                "fx": float(self.get_parameter(f"{name}.fx").value),
+                "fy": float(self.get_parameter(f"{name}.fy").value),
+                "cx": float(self.get_parameter(f"{name}.cx").value),
+                "cy": float(self.get_parameter(f"{name}.cy").value),
+            }
 
-            K = np.array(
-                [[fx, 0.0, cx_i], [0.0, fy, cy_i], [0.0, 0.0, 1.0]],
-                dtype=np.float64,
-            )
-            R = camera_rotation(rpy[0], rpy[1], rpy[2])
-            t = np.array(pos, dtype=np.float64)
-
-            H = compute_ipm_homography(
-                camera_matrix=K,
-                rotation=R,
-                translation=t,
-                canvas_size=self._canvas,
-                pixels_per_meter=self._ppm,
-                ground_z=self._ground_z,
-            )
-            homographies[name] = H
+        homographies = compute_ipm_homographies_for_cameras(
+            self._names,
+            canvas_size=self._canvas,
+            pixels_per_meter=self._ppm,
+            ground_z=self._ground_z,
+            per_camera=per_camera,
+        )
+        for name in self._names:
+            pos = per_camera[name]["position"]
+            rpy = per_camera[name]["orientation_rpy"]
             self.get_logger().info(
                 f"[{name}] IPM homography computed "
                 f"(pos={[round(v, 3) for v in pos]}, "
@@ -298,11 +352,9 @@ class IPMCalibratorNode(_Node if _ROS else object):
 
     def save(self, homographies: Dict[str, np.ndarray]) -> None:
         """Save homographies to a .npz file."""
-        out_dir = os.path.dirname(os.path.abspath(self._output))
-        os.makedirs(out_dir, exist_ok=True)
-        np.savez(self._output, **homographies)
+        out = save_homography_npz(self._output, homographies)
         self.get_logger().info(
-            f"Saved {len(homographies)} IPM homographies → {self._output}"
+            f"Saved {len(homographies)} IPM homographies → {out}"
         )
 
 

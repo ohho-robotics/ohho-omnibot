@@ -36,6 +36,8 @@ CPU_COMMANDS = (
 )
 REQUIRED_SKIPS = ("hardware", "ros", "gpu")
 FORBIDDEN = "not on pypi"
+ENGINE_LICENSE_HREF = "https://github.com/ohho-robotics/ohho-os/blob/main/LICENSE"
+STALE_ENGINE_LICENSE_HREF = "https://github.com/ohho-robotics/ohho-sdk/blob/main/LICENSE"
 MARKDOWN_SKIP_DIRS = {".git", ".venv", "Packages", "build", "install", "node_modules"}
 
 
@@ -118,6 +120,17 @@ def check_fences(fences: list[Fence]) -> None:
         _fail("missing skip annotation(s): " + ", ".join(missing))
 
 
+def check_engine_license_link() -> None:
+    text = README.read_text(encoding="utf-8")
+    if STALE_ENGINE_LICENSE_HREF in text:
+        _fail(
+            "README.md must not link engine licence to ohho-sdk; use "
+            + ENGINE_LICENSE_HREF
+        )
+    if ENGINE_LICENSE_HREF not in text:
+        _fail("README.md must link ohho-os licence at " + ENGINE_LICENSE_HREF)
+
+
 def check_forbidden_phrase() -> None:
     offenders: list[str] = []
     for path in ROOT.rglob("*.md"):
@@ -174,6 +187,7 @@ def run_cpu(fence: Fence) -> int:
 
 
 def main() -> int:
+    check_engine_license_link()
     check_forbidden_phrase()
     fences = parse_readme(README.read_text(encoding="utf-8"))
     check_fences(fences)

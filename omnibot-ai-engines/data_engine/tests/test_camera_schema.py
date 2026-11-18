@@ -152,6 +152,11 @@ def test_recorders_configs_and_policy_match_shared_keys():
         / "omnibot_lerobot"
         / "omnibot_lerobot"
         / "teleop_recorder_node.py",
+        REPO
+        / "omnibot-ai-ros2"
+        / "omnibot_lerobot"
+        / "omnibot_lerobot"
+        / "ohho_teleop_recorder.py",
     ]
     for path in recorders:
         text = path.read_text(encoding="utf-8")

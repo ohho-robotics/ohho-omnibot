@@ -38,12 +38,45 @@ LOG_DIR="$(dirname "${RESULTS}")/nav-logs"
 mkdir -p "${LOG_DIR}"
 : > "${RESULTS}"
 
+# Each scenario gets its own gz-transport partition and ROS domain.
+# A sim that survives SIGINT (gz sim needs SIGTERM) still answers
+# /gazebo/worlds on the default partition. The next create then queues the
+# robot on that server while this launch's clock comes from an empty world,
+# so map->base_link never appears and the 360 s ready check fails.
+cleanup_sim() {
+  pkill -f "[g]z sim" 2>/dev/null || true
+  pkill -f "parameter_bridge" 2>/dev/null || true
+  pkill -f "arm_sim_driver_node.py" 2>/dev/null || true
+  local i pid state alive
+  for i in $(seq 1 30); do
+    alive=0
+    for pid in $(pgrep -f "[g]z sim" || true); do
+      state=$(ps -o stat= -p "${pid}" 2>/dev/null || true)
+      case "${state}" in
+        ""|Z*) ;;
+        *) alive=1 ;;
+      esac
+    done
+    [[ "${alive}" -eq 0 ]] && break
+    sleep 0.5
+  done
+}
+
 failures=0
 for ((run = 1; run <= REPEAT; run++)); do
   for scenario in "${SCENARIOS[@]}"; do
     echo "=== run ${run}/${REPEAT}: ${scenario} ==="
     log="${LOG_DIR}/run${run}_${scenario}.log"
     lines_before=$(wc -l < "${RESULTS}")
+    cleanup_sim
+    case "${scenario}" in
+      kitchen) sid=1 ;;
+      desk) sid=2 ;;
+      door) sid=3 ;;
+      *) sid=4 ;;
+    esac
+    GZ_PARTITION="omnibotnav${run}${scenario}${BASHPID}" \
+    ROS_DOMAIN_ID="$((10 + run * 3 + sid))" \
     OMNIBOT_NAV_SCENARIO="${scenario}" OMNIBOT_NAV_RESULTS_FILE="${RESULTS}" \
       timeout --signal=INT --kill-after=30 "${RUN_TIMEOUT_S}" \
       launch_test "${TEST_FILE}" 2>&1 | tee "${log}" | grep -E "EVIDENCE|NAV_RESULT|FAIL|Ran [0-9]+ test|OK$"
@@ -57,10 +90,7 @@ for ((run = 1; run <= REPEAT; run++)); do
           "${scenario}" "${status}" >> "${RESULTS}"
       fi
     fi
-    # Make sure no Gazebo/Nav2 process leaks into the next fresh start.
-    pkill -f "gz sim" 2>/dev/null || true
-    pkill -f "ros_gz_bridge|parameter_bridge" 2>/dev/null || true
-    sleep 3
+    cleanup_sim
   done
 done
 

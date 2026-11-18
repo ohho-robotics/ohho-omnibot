@@ -26,7 +26,7 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="varunvaidhiya",
-    maintainer_email="varunvaidhiya@todo.todo",
+    maintainer_email="varun@ohho-robotics.com",
     description="LangChain ReAct agent layer for natural-language robot orchestration on OmniBot",
     license="Apache-2.0",
     tests_require=["pytest"],

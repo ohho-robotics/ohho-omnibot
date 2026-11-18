@@ -1,0 +1,107 @@
+# Proof v0 scenario regression suite — headless Gazebo + Nav2 only.
+# Each entry is one run: explicit start, goal, and one extra static obstacle (box).
+# Poses are in the `map` frame (same as the Gazebo world in apartment.sdf).
+# See maps/README.md and config/waypoints.yaml for the three named goals.
+
+version: 1
+frame_id: map
+world: apartment
+
+scenarios:
+  - id: origin_to_kitchen
+    start: {x: 0.0, y: 0.0, yaw_deg: 0.0}
+    goal: {x: -1.9, y: 0.7, yaw_deg: 180.0}
+    obstacle:
+      name: mid_corridor_box
+      pose: {x: -0.85, y: 0.25, yaw_deg: 0.0}
+      size: {x: 0.28, y: 0.55, z: 0.45}
+
+  - id: origin_to_desk
+    start: {x: 0.0, y: 0.0, yaw_deg: 0.0}
+    goal: {x: 2.55, y: -0.45, yaw_deg: 90.0}
+    obstacle:
+      name: east_approach_box
+      pose: {x: 1.35, y: -0.15, yaw_deg: 15.0}
+      size: {x: 0.30, y: 0.40, z: 0.45}
+
+  - id: origin_to_door
+    # North of the hall box, already facing the door. Spawn at the origin
+    # would sit 0.10 m from this box (inside the footprint).
+    start: {x: 0.0, y: 1.0, yaw_deg: -90.0}
+    # Same pose as the door waypoint in waypoints.yaml (the nav-sim "door" run).
+    goal: {x: -0.3, y: -1.45, yaw_deg: -90.0}
+    obstacle:
+      name: south_hall_box
+      # y=-0.50 put the box's west face 0.08 m from the goal x, so the last
+      # metre was a side-step between that box and the door leaf (0.54 m
+      # south of the goal, on the 0.55 m inflation). On a slow runner DWB
+      # was still northwest of the goal at 60 s with yaw error ~0.59 rad.
+      # y=-0.25 stays across the origin-to-door segment, 1.1 m from this
+      # start and 1.05 m from the goal, with a clear southbound run in.
+      pose: {x: -0.05, y: -0.25, yaw_deg: 0.0}
+      size: {x: 0.35, y: 0.30, z: 0.45}
+
+  - id: north_to_kitchen
+    start: {x: 0.0, y: 1.55, yaw_deg: -90.0}
+    goal: {x: -1.9, y: 0.7, yaw_deg: 180.0}
+    obstacle:
+      name: north_corridor_box
+      pose: {x: -0.55, y: 1.05, yaw_deg: 0.0}
+      size: {x: 0.28, y: 0.50, z: 0.45}
+
+  - id: west_mid_to_door
+    start: {x: -1.8, y: 0.0, yaw_deg: 90.0}
+    goal: {x: -0.3, y: -1.45, yaw_deg: -90.0}
+    obstacle:
+      name: west_to_south_box
+      pose: {x: -1.05, y: -0.85, yaw_deg: 0.0}
+      size: {x: 0.32, y: 0.38, z: 0.45}
+
+  - id: east_mid_to_desk
+    # East side, south of the desk, already facing the desk. The old start
+    # (2.9, -0.5) was 0.525 m from the east wall (inside the 0.55 m inflation)
+    # and only 0.35 m from the goal, under the 0.50 m progress radius, so a
+    # missed first 10 s window could not be recovered.
+    start: {x: 1.80, y: -1.70, yaw_deg: 59.0}
+    goal: {x: 2.55, y: -0.45, yaw_deg: 90.0}
+    obstacle:
+      name: desk_entry_box
+      # (2.75, -0.05) left a corner 0.24 m from the goal, inside the footprint
+      # circumradius and the inflation. The robot stopped at xy error 0.18 m
+      # with yaw already inside 0.20 rad, and Nav2 never reported success.
+      # This pose stays beside the east approach: 0.80 m from the start,
+      # 0.95 m from the goal, 0.53 m off the straight run.
+      pose: {x: 2.75, y: -1.60, yaw_deg: 0.0}
+      size: {x: 0.30, y: 0.40, z: 0.45}
+
+  - id: south_to_kitchen
+    start: {x: 0.0, y: -1.0, yaw_deg: 90.0}
+    goal: {x: -1.9, y: 0.7, yaw_deg: 180.0}
+    obstacle:
+      name: south_west_box
+      pose: {x: -1.05, y: 0.15, yaw_deg: 0.0}
+      size: {x: 0.30, y: 0.42, z: 0.45}
+
+  - id: center_to_desk
+    start: {x: 0.5, y: 0.5, yaw_deg: 0.0}
+    goal: {x: 2.55, y: -0.45, yaw_deg: 90.0}
+    obstacle:
+      name: center_east_box
+      pose: {x: 1.55, y: 0.15, yaw_deg: 0.0}
+      size: {x: 0.28, y: 0.48, z: 0.45}
+
+  - id: north_to_desk
+    start: {x: 0.0, y: 1.7, yaw_deg: 180.0}
+    goal: {x: 2.55, y: -0.45, yaw_deg: 90.0}
+    obstacle:
+      name: north_east_box
+      pose: {x: 1.05, y: 0.55, yaw_deg: 0.0}
+      size: {x: 0.30, y: 0.40, z: 0.45}
+
+  - id: southwest_to_kitchen
+    start: {x: -1.4, y: -1.4, yaw_deg: 45.0}
+    goal: {x: -1.9, y: 0.7, yaw_deg: 180.0}
+    obstacle:
+      name: sw_corner_box
+      pose: {x: -1.55, y: -0.35, yaw_deg: 0.0}
+      size: {x: 0.28, y: 0.45, z: 0.45}

@@ -1,0 +1,29 @@
+{
+  "policy_id": "act-vr-sim-pick",
+  "checkpoint": "checkpoints/act_vr_sim_pick/best",
+  "backend": "lerobot_act_cpu_smoke",
+  "weights_are_lerobot_act": true,
+  "checkpoint_persisted": false,
+  "parameters_changed": true,
+  "parameter_count": 11287365,
+  "wandb_run": null,
+  "device": "cpu",
+  "cuda": false,
+  "pretrained_backbone_weights": null,
+  "steps": 2,
+  "seed": 243,
+  "losses": [
+    0.9173784255981445,
+    0.995752215385437
+  ],
+  "dataset_source": "synthetic_smoke",
+  "image_shape": [
+    3,
+    64,
+    64
+  ],
+  "chunk_size": 4,
+  "action_dim": 9,
+  "loss_decreased": false,
+  "note": "Two CPU steps of a randomly initialised LeRobot ACTPolicy on one synthetic batch. Not a dataset fine-tune and not a W&B run. Weights were not written to disk."
+}
