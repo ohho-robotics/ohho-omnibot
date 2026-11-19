@@ -7,6 +7,10 @@ cd /workspaces/OmniBot
 
 echo "=== Installing rosdep dependencies ==="
 source /opt/ros/jazzy/setup.bash
+# Dockerfile.sim clears apt lists after the image build, so refresh the
+# index before rosdep. Skip GUI-only keys in this headless CPU container.
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends iproute2
 rosdep update
 rosdep install --from-paths src --ignore-src -y --rosdistro jazzy \
   --dependency-types=build \
@@ -14,7 +18,7 @@ rosdep install --from-paths src --ignore-src -y --rosdistro jazzy \
   --dependency-types=build_export \
   --dependency-types=buildtool_export \
   --dependency-types=exec \
-  --skip-keys "rtabmap_ros octomap_server pcl_ros octomap_msgs"
+  --skip-keys "rtabmap_ros octomap_server pcl_ros octomap_msgs joint_state_publisher_gui rviz2"
 
 echo "=== Installing standalone Python packages that live in this repo ==="
 pip3 install --break-system-packages \
