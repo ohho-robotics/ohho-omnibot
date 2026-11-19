@@ -1,0 +1,9 @@
+# Mock GenericSystem and the URDF state interfaces start at 0.
+# That is the SRDF "home" state (factory 2048 ticks).
+initial_positions:
+  arm_shoulder_pan: 0
+  arm_shoulder_lift: 0
+  arm_elbow_flex: 0
+  arm_wrist_flex: 0
+  arm_wrist_roll: 0
+  arm_gripper: 0

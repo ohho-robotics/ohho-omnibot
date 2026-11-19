@@ -51,6 +51,19 @@ def cmd_vel_topic_for_bridge(bridge_name):
     return "/cmd_vel"
 
 
+def message_time_fields(total_nanoseconds):
+    """Seconds and nanoseconds for a ROS time or duration field.
+
+    A default message is already 0, 0. Callers assign only the non-zero
+    fields. Constructing ``Time`` or ``Duration`` with an integer 0 makes
+    pybind11 raise ``Unable to convert call argument '0'``.
+    """
+    total = int(total_nanoseconds)
+    if total < 0:
+        total = 0
+    return divmod(total, 1_000_000_000)
+
+
 def _close(left, right, epsilon=CHANGE_EPSILON):
     return all(abs(a - b) <= epsilon for a, b in zip(left, right))
 

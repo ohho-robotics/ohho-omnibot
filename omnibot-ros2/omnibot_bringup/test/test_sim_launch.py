@@ -25,6 +25,7 @@ import rclpy
 from control_msgs.action import FollowJointTrajectory
 from control_msgs.action import ParallelGripperCommand
 from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -104,6 +105,7 @@ class TestSimSmoke(unittest.TestCase):
         cls.node.create_subscription(Image, "/camera/front/image_raw", cls.images.append, 10)
         cls.node.create_subscription(JointState, "/joint_states", cls.joints.append, 10)
         cls.cmd = cls.node.create_publisher(Twist, "/cmd_vel", 10)
+        cls.estop = cls.node.create_publisher(Bool, "/emergency_stop", 10)
         cls.arm = ActionClient(
             cls.node,
             FollowJointTrajectory,
@@ -127,7 +129,19 @@ class TestSimSmoke(unittest.TestCase):
                 return True
         return False
 
+    def _release_estop(self):
+        # arm_sim_scripted_move.py leaves /emergency_stop latched true. The
+        # adapter then holds the wheels at zero and the planar brake clears
+        # the body twist, so a later drive test must release it first.
+        release = Bool()
+        release.data = False
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            self.estop.publish(release)
+            rclpy.spin_once(self.node, timeout_sec=0.1)
+
     def test_odom_scan_and_motion(self):
+        self._release_estop()
         deadline = time.monotonic() + 30.0
         topics_ok = self._spin_until(
             deadline,
@@ -262,6 +276,7 @@ class TestSimSmoke(unittest.TestCase):
     def test_arm_scripted_move_and_estop_hold(self):
         """Controllers, a trajectory, a gripper command, then the e-stop hold."""
         self._wait_controllers()
+        self.addCleanup(self._release_estop)
         for index in range(len(ARM_JOINTS)):
             positions = [0.0] * len(ARM_JOINTS)
             positions[index] = 0.30

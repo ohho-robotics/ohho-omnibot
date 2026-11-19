@@ -1,0 +1,8 @@
+# Cartesian caps for Pilz LIN and CIRC on a 5-DOF arm of about 0.4 m reach.
+# Orientation along a LIN path is not a 6-DOF constraint; kinematics.yaml
+# sets position_only_ik for the arm group.
+cartesian_limits:
+  max_trans_vel: 0.25
+  max_trans_acc: 0.5
+  max_trans_dec: -0.5
+  max_rot_vel: 1.5

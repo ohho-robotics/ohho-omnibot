@@ -20,7 +20,7 @@ import rclpy
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from builtin_interfaces.msg import Duration
+from builtin_interfaces.msg import Time
 from geometry_msgs.msg import TransformStamped
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import TwistStamped
@@ -38,6 +38,7 @@ from ros2_control_adapter_logic import TRAJECTORY_SEC
 from ros2_control_adapter_logic import CmdPosTracker
 from ros2_control_adapter_logic import TwistRelay
 from ros2_control_adapter_logic import arm_subset
+from ros2_control_adapter_logic import message_time_fields
 
 
 def _load_arm_safety():
@@ -100,6 +101,9 @@ class Ros2ControlAdapter(Node):
         self._arm_dirty = False
         self._grip_dirty = False
         self._pending_gripper = None
+        self._gripper = None
+        self._gripper_type = None
+        self._gripper_failed = False
 
         # mecanum_drive_controller subscribes best-effort, keep-last 1.
         # A reliable publisher never connects, so the wheel command stays 0
@@ -139,13 +143,6 @@ class Ros2ControlAdapter(Node):
                 10,
             )
 
-        from control_msgs.action import ParallelGripperCommand
-
-        self._gripper_type = ParallelGripperCommand
-        self._gripper = ActionClient(
-            self, ParallelGripperCommand, str(self.get_parameter("gripper_action").value)
-        )
-
         self.create_subscription(Twist, str(self.get_parameter("cmd_vel_topic").value), self._on_twist, 10)
         self.create_subscription(Bool, "/emergency_stop", self._on_estop, 10)
         self.create_subscription(
@@ -171,12 +168,61 @@ class Ros2ControlAdapter(Node):
 
         period = 1.0 / float(self.get_parameter("publish_hz").value)
         self.create_timer(period, self._on_timer)
+        # The 20 Hz timer waits on /clock when use_sim_time is set. Publish
+        # the zero reference first so a later startup failure still leaves
+        # the mecanum controller with a hold.
+        try:
+            self._publish_reference(self._now_sec())
+        except RuntimeError as exc:
+            self.get_logger().error(f"initial zero reference was not published: {exc}")
+        self._ensure_gripper()
         self.get_logger().info(
             "ros2_control adapter"
             f" source={self._source}"
             f" cmd_vel={self.get_parameter('cmd_vel_topic').value}"
             f" relay_odom={self._relay_odom}"
         )
+
+    def _now_sec(self):
+        try:
+            return self.get_clock().now().nanoseconds * 1e-9
+        except RuntimeError:
+            return 0.0
+
+    def _stamp(self):
+        # Default Time is already 0, 0. Assign only non-zero fields.
+        # A constructor call whose first argument is integer 0 makes pybind11
+        # raise "Unable to convert call argument '0'".
+        stamp = Time()
+        try:
+            total = self.get_clock().now().nanoseconds
+        except RuntimeError:
+            return stamp
+        sec, nsec = message_time_fields(total)
+        if sec:
+            stamp.sec = sec
+        if nsec:
+            stamp.nanosec = nsec
+        return stamp
+
+    def _ensure_gripper(self):
+        if self._gripper is not None or self._gripper_failed:
+            return
+        try:
+            from control_msgs.action import ParallelGripperCommand
+
+            self._gripper_type = ParallelGripperCommand
+            self._gripper = ActionClient(
+                self,
+                ParallelGripperCommand,
+                str(self.get_parameter("gripper_action").value),
+            )
+        except RuntimeError as exc:
+            self._gripper_failed = True
+            self.get_logger().error(
+                "gripper action client was not created; base reference still publishes: "
+                f"{exc}"
+            )
 
     def _bind_arm_safety(self):
         path = str(self.get_parameter("arm_params_file").value)
@@ -232,7 +278,7 @@ class Ros2ControlAdapter(Node):
 
     def _on_estop(self, msg):
         self._estop = bool(msg.data)
-        now = self.get_clock().now().nanoseconds * 1e-9
+        now = self._now_sec()
         if self._estop:
             self._twists.force_zero(now)
             # The 20 Hz timer would leave the last wheel speed in the
@@ -247,7 +293,7 @@ class Ros2ControlAdapter(Node):
     def _on_twist(self, msg):
         if self._estop:
             return
-        now = self.get_clock().now().nanoseconds * 1e-9
+        now = self._now_sec()
         self._twists.update(
             (msg.linear.x, msg.linear.y, msg.linear.z),
             (msg.angular.x, msg.angular.y, msg.angular.z),
@@ -272,7 +318,7 @@ class Ros2ControlAdapter(Node):
         if self._feedback_pub is None and self._arm_state_pub is None:
             return
         state = JointState()
-        state.header.stamp = self.get_clock().now().to_msg()
+        state.header.stamp = self._stamp()
         state.name = list(names)
         state.position = list(positions)
         if velocities is not None:
@@ -301,9 +347,11 @@ class Ros2ControlAdapter(Node):
         message.joint_names = list(ARM_JOINTS)
         point = JointTrajectoryPoint()
         point.positions = [float(value) for value in positions]
-        point.time_from_start = Duration(
-            sec=0, nanosec=int(TRAJECTORY_SEC * 1e9)
-        )
+        sec, nsec = message_time_fields(round(TRAJECTORY_SEC * 1e9))
+        if sec:
+            point.time_from_start.sec = sec
+        if nsec:
+            point.time_from_start.nanosec = nsec
         message.points = [point]
         self._trajectory.publish(message)
 
@@ -312,7 +360,11 @@ class Ros2ControlAdapter(Node):
         self._flush_gripper()
 
     def _flush_gripper(self):
-        if self._pending_gripper is None or not self._gripper.server_is_ready():
+        if (
+            self._gripper is None
+            or self._pending_gripper is None
+            or not self._gripper.server_is_ready()
+        ):
             return
         goal = self._gripper_type.Goal()
         goal.command.name = [GRIPPER_JOINT]
@@ -323,7 +375,7 @@ class Ros2ControlAdapter(Node):
     def _publish_reference(self, now):
         sample = self._twists.sample(now)
         stamped = TwistStamped()
-        stamped.header.stamp = self.get_clock().now().to_msg()
+        stamped.header.stamp = self._stamp()
         stamped.header.frame_id = "base_footprint"
         stamped.twist.linear.x = sample[0]
         stamped.twist.linear.y = sample[1]
@@ -334,7 +386,7 @@ class Ros2ControlAdapter(Node):
         self._reference.publish(stamped)
 
     def _on_timer(self):
-        now = self.get_clock().now().nanoseconds * 1e-9
+        now = self._now_sec()
         self._publish_reference(now)
 
         if self._source == "cmd_pos":
@@ -361,7 +413,14 @@ def main(args=None):
     rclpy.init(args=args)
     node = Ros2ControlAdapter()
     try:
-        rclpy.spin(node)
+        # One bad startup message used to escape spin and exit the process,
+        # so the zero mecanum reference stopped and the base drifted.
+        while rclpy.ok():
+            try:
+                rclpy.spin_once(node, timeout_sec=0.1)
+            except RuntimeError as exc:
+                node.get_logger().error(f"ros2_control adapter continued after: {exc}")
+                time.sleep(0.05)
     except KeyboardInterrupt:
         pass
     finally:
