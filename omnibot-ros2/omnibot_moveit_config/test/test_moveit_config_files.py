@@ -255,6 +255,19 @@ def test_controllers_match_bringup_and_gripper_action():
     assert "moveit_manage_controllers" not in moveit
 
 
+def _xacro_number(value: str) -> float:
+    """A literal, or a ``${name}`` xacro property defined in the URDF."""
+    match = re.fullmatch(r"\$\{(\w+)\}", value.strip())
+    if match is None:
+        return float(value)
+    prop = re.search(
+        rf'<xacro:property\s+name="{match.group(1)}"\s+value="([^"]+)"',
+        URDF.read_text(encoding="utf-8"),
+    )
+    assert prop is not None, value
+    return float(prop.group(1))
+
+
 def test_joint_limits_are_the_tighter_of_urdf_and_arm_params():
     _main, _collision, joints = _model()
     limits = _load(PKG / "config" / "joint_limits.yaml")["joint_limits"]
@@ -278,7 +291,7 @@ def test_joint_limits_are_the_tighter_of_urdf_and_arm_params():
         assert entry["has_position_limits"] is True
         assert entry["has_velocity_limits"] is True
         assert entry["has_acceleration_limits"] is True
-        assert 0 < entry["max_velocity"] <= float(velocity)
+        assert 0 < entry["max_velocity"] <= _xacro_number(velocity)
         assert entry["max_velocity"] <= delta_cap
         assert entry["max_acceleration"] == pytest.approx(entry["max_velocity"])
     gripper_velocity = bringup["gripper_controller"]["ros__parameters"]["max_velocity"]
