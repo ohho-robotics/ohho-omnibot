@@ -4,7 +4,6 @@ extend-exclude = [
   ".venv",
   "build",
   "install",
-  "omnibot-vr/Packages",
 ]
 
 [lint]

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ohho-gateway"
+version = "0.1.0"
+description = "Authenticated TLS reverse proxy for OmniBot rosbridge, MJPEG, and WebRTC signaling"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = [
+  "aiohttp>=3.9",
+  "cryptography>=42",
+]
+
+[project.scripts]
+ohho-gateway = "ohho_gateway.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ohho_gateway*"]
