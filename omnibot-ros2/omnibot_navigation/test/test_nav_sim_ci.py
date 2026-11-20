@@ -43,3 +43,7 @@ def test_nav_scenarios_isolate_gz_transport_and_ros_domain():
     assert "GZ_PARTITION=" in regression
     assert "ROS_DOMAIN_ID=" in regression
     assert "cleanup_sim" in regression
+    nightly = (REPO / ".github" / "workflows" / "nav-regression-nightly.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "group: nav-regression-nightly-${{ github.ref }}" in nightly
