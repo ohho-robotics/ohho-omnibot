@@ -350,8 +350,10 @@ def test_adapter_waits_for_arm_joints_and_times_out_twists():
     assert "drop_link_velocity_cmd" in mock
     assert "JointForceCmd(0) stops VelocityControl" in mock
     assert "if (std::abs(command) >= 1e-3) {\n        moving = true;\n      }" in mock
-    assert "if (!unclaimed && !moving) {" in mock
+    assert "if (moving) {" in mock
+    assert "else if (sample_joint != sim::kNullEntity) {" in mock
     assert "zero_base(sample_joint);" in mock
+    assert "zero_velocity_state" in mock
     assert "release_wheel(joint.name);" in mock
     assert "planar_velocity_commanded" not in mock
     adapter = (
