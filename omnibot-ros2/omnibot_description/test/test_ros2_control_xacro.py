@@ -349,8 +349,10 @@ def test_adapter_waits_for_arm_joints_and_times_out_twists():
     assert "zero_base" in mock
     assert "drop_link_velocity_cmd" in mock
     assert "JointForceCmd(0) stops VelocityControl" in mock
-    assert "if (std::abs(command) >= 1e-3) {\n        stopped = false;\n      }" in mock
-    assert "if (stopped) {\n      zero_base(sample_joint);\n    }" in mock
+    assert "if (std::abs(command) >= 1e-3) {\n        moving = true;\n      }" in mock
+    assert "if (!unclaimed && !moving) {" in mock
+    assert "zero_base(sample_joint);" in mock
+    assert "release_wheel(joint.name);" in mock
     assert "planar_velocity_commanded" not in mock
     adapter = (
         REPO / "omnibot-ros2" / "omnibot_bringup" / "scripts" / "ros2_control_adapter.py"

@@ -26,24 +26,26 @@ namespace omnibot_bringup
 // the planar wheel block never came up and the mecanum controller stayed
 // inactive. This plugin exports the same velocity command and position and
 // velocity state. A non-zero command is not written into Gazebo, so
-// VelocityControl keeps the kinematic base. A claimed joint stays on a zero
-// velocity brake, including while the controller command is live. A zero
-// joint force cancels that body twist, so the live command must not release
-// the wheel. An unclaimed wheel is released once so the base can still move
-// before the controller claims it.
+// VelocityControl keeps the kinematic base.
 //
-// gz-physics Harmonic implements JointVelocityCmd as a DART SERVO. The servo
-// stays at the last command after the component is removed. JointForceCmd(0)
-// switches that actuator back to FORCE, which is the unclaimed-wheel path.
-// Physics applies force ahead of velocity, so the brake drops the force
-// component or the velocity command never lands.
-//
-// VelocityControl latches the last twist and writes it every PreUpdate.
-// OdometryPublisher then averages the last 10 pose steps, so /odom stays
-// above the stop threshold until the body velocity is actually zero. A
-// claimed stop clears that body command in this same write. The control
+// A claimed zero is a hold: brake the rollers and clear the latched body
+// twist. VelocityControl writes that twist every PreUpdate, and
+// OdometryPublisher averages the last 10 pose steps, so /odom stays above
+// the stop threshold until the body command is actually zero. The control
 // plugin's gz:system_priority is later than VelocityControl, so the clear
-// wins. A live wheel command does not clear it, or planar teleop cannot start.
+// wins. Do not skip the clear because a gz twist component is still set.
+// That component is the latch, and leaving it drives the chassis after
+// /cmd_vel goes silent.
+//
+// A live command releases every wheel. gz-physics Harmonic implements
+// JointVelocityCmd as a DART SERVO, and a servo left at 0 locks the roller.
+// Locked rollers scrub the chassis under VelocityControl, so the base lags
+// the commanded twist: Nav2 can report success while ground truth is still
+// outside the 0.30 m check, and a stall trips the progress checker.
+// JointForceCmd(0) stops VelocityControl if that force is left on the
+// joint, so release uses it once to leave SERVO mode and the next write
+// removes it. An unclaimed wheel is released so the base can move before
+// the controller claims it.
 class PlanarWheelMock : public gz_ros2_control::GazeboSimSystemInterface
 {
 public:
@@ -74,7 +76,8 @@ public:
     const rclcpp::Time & /*time*/, const rclcpp::Duration & period) override
   {
     const double dt = period.seconds();
-    bool stopped = true;
+    bool unclaimed = false;
+    bool moving = false;
     sim::Entity sample_joint = sim::kNullEntity;
     for (const auto & joint : info_.joints) {
       const std::string velocity = joint.name + "/velocity";
@@ -83,7 +86,7 @@ public:
       // before the mecanum controller is active. Braking then would lock it.
       if (!has_command(velocity)) {
         release_wheel(joint.name);
-        stopped = false;
+        unclaimed = true;
         continue;
       }
       double command = get_command<double>(velocity);
@@ -103,26 +106,30 @@ public:
       if (sample_joint == sim::kNullEntity) {
         sample_joint = joint_entity(joint.name);
       }
-      // A non-zero wheel speed would fight VelocityControl. Do not write it.
-      // JointForceCmd(0) stops VelocityControl, so keep the zero brake.
-      // A live command only marks the wheel moving so the body twist is
-      // left alone.
+      // Wheel speed is not written into Gazebo. A live command only marks
+      // the body as moving so the brake is released below.
       if (std::abs(command) >= 1e-3) {
-        stopped = false;
+        moving = true;
       }
-      brake_wheel(joint.name);
     }
-    // A claimed zero is a hold. VelocityControl latches the last gz twist and
-    // writes it every PreUpdate, and the mecanum controller's idle command is
-    // also zero. Leaving that latch in place drives the chassis while
-    // /cmd_vel/out is silent (the nav source must not move the base in teleop).
-    // A live wheel command does not clear it: the adapter mirrors a real drive
-    // twist onto the wheel reference, and clearing the body would stop planar
-    // teleop. The canonical-link zero from a previous hold is removed on that
-    // path so it cannot pin the next command.
-    if (stopped) {
+    // A claimed zero is a hold. VelocityControl latches the last gz twist
+    // and writes it every PreUpdate. Leaving that latch in place drives the
+    // chassis while /cmd_vel is silent, so the hold clears it. A live
+    // command releases every wheel. Braking a moving roller locks it, and
+    // the locked roller scrubs the planar chassis. The canonical-link zero
+    // from a previous hold is removed on the drive path so it cannot pin
+    // the next command.
+    if (!unclaimed && !moving) {
+      for (const auto & joint : info_.joints) {
+        brake_wheel(joint.name);
+      }
       zero_base(sample_joint);
     } else {
+      for (const auto & joint : info_.joints) {
+        if (has_command(joint.name + "/velocity")) {
+          release_wheel(joint.name);
+        }
+      }
       drop_link_velocity_cmd(sample_joint);
     }
     return hardware_interface::return_type::OK;
