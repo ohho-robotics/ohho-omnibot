@@ -40,11 +40,39 @@ for sid in scenario_ids('${SCENARIOS_FILE}'):
 "
 )
 
+# Same isolation as run_nav_scenarios.sh. A gz sim that survives SIGINT
+# still answers /gazebo/worlds on the default partition. The next launch
+# then queues the robot on that server while its clock comes from an empty
+# world, so map->base_link never appears.
+cleanup_sim() {
+  pkill -f "[g]z sim" 2>/dev/null || true
+  pkill -f "parameter_bridge" 2>/dev/null || true
+  pkill -f "arm_sim_driver_node.py" 2>/dev/null || true
+  local i pid state alive
+  for i in $(seq 1 30); do
+    alive=0
+    for pid in $(pgrep -f "[g]z sim" || true); do
+      state=$(ps -o stat= -p "${pid}" 2>/dev/null || true)
+      case "${state}" in
+        ""|Z*) ;;
+        *) alive=1 ;;
+      esac
+    done
+    [[ "${alive}" -eq 0 ]] && break
+    sleep 0.5
+  done
+}
+
 failures=0
+scenario_index=0
 for scenario in "${SCENARIO_IDS[@]}"; do
   echo "=== scenario regression: ${scenario} ==="
   log="${LOG_DIR}/${scenario}.log"
   lines_before=$(wc -l < "${RESULTS}")
+  cleanup_sim
+  scenario_index=$((scenario_index + 1))
+  GZ_PARTITION="omnibotreg${scenario_index}${BASHPID}" \
+  ROS_DOMAIN_ID="$((20 + scenario_index))" \
   OMNIBOT_NAV_REGRESSION_SCENARIO="${scenario}" OMNIBOT_NAV_RESULTS_FILE="${RESULTS}" \
     timeout --signal=INT --kill-after=60 "${RUN_TIMEOUT_S}" \
     launch_test "${TEST_FILE}" 2>&1 | tee "${log}" | grep -E "EVIDENCE|NAV_RESULT|FAIL|Ran [0-9]+ test|OK$"
@@ -57,9 +85,7 @@ for scenario in "${SCENARIO_IDS[@]}"; do
         "${scenario}" "${status}" >> "${RESULTS}"
     fi
   fi
-  pkill -f "gz sim" 2>/dev/null || true
-  pkill -f "ros_gz_bridge|parameter_bridge" 2>/dev/null || true
-  sleep 3
+  cleanup_sim
 done
 
 echo
