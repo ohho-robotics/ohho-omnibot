@@ -104,6 +104,23 @@ def test_raised_cap_is_refused():
         assemble_descriptor(raised)
 
 
+def test_capability_params_are_kept_and_linear_cap_stays_capped():
+    doc = load_descriptor_yaml(YAML_PATH)
+    assert doc["capability_params"] == {
+        "base.drive": {"max_vx": 0.2, "max_vy": 0.2, "max_wz": 1.0},
+        "base.holonomic_drive": {"max_vx": 0.2, "max_vy": 0.2, "max_wz": 1.0},
+        "manipulation": {"arm_groups": ["arm"], "ee_frames": []},
+    }
+    raised = copy.deepcopy(doc)
+    raised["safety"]["hard"]["max_vx_mps"] = 0.21
+    with pytest.raises(ValueError, match="ceiling"):
+        assemble_descriptor(raised)
+    raised_drive = copy.deepcopy(doc)
+    raised_drive["drive"]["caps"]["vx_mps"] = 0.21
+    with pytest.raises(ValueError, match="ceiling"):
+        assemble_descriptor(raised_drive)
+
+
 def test_drive_cap_above_hard_cap_is_refused():
     doc = load_descriptor_yaml(YAML_PATH)
     wider = copy.deepcopy(doc)
