@@ -1,9 +1,10 @@
 name: nav-sim
 
-# OHH-30: three headless Gazebo Nav2 scenarios (PR smoke). Full 10-scenario
-# scenario regression suite runs in nav-regression-nightly.yml (OHH-62).
-# (reach kitchen, desk, door from the spawn pose). Simulation only; nothing here
-# touches a robot. Nightly runs each scenario 5 times in a row.
+# OHH-30: three headless Gazebo Nav2 scenarios. Full 10-scenario suite runs
+# in nav-regression-nightly.yml (OHH-62). Each scenario starts at the spawn
+# pose and must reach kitchen, desk, or door. Simulation only; nothing here
+# touches a robot. Pull requests and the nightly schedule run each scenario
+# 5 times. A single pass stayed green while the 5-repeat schedule failed.
 on:
   schedule:
     - cron: "17 3 * * *"
@@ -35,7 +36,7 @@ jobs:
       GALLIUM_DRIVER: llvmpipe
       QT_QPA_PLATFORM: offscreen
       MESA_GL_VERSION_OVERRIDE: "3.3"
-      REPEAT: ${{ github.event_name == 'schedule' && '5' || github.event.inputs.repeat || '1' }}
+      REPEAT: ${{ github.event.inputs.repeat || '5' }}
     steps:
       - name: Install git and sudo
         run: apt-get update && apt-get install -y git sudo ca-certificates

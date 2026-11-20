@@ -6,9 +6,17 @@ on:
   schedule:
     - cron: "42 4 * * *"
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "omnibot-ros2/omnibot_navigation/**"
+      - "omnibot-ros2/omnibot_bringup/**"
+      - "omnibot-ros2/omnibot_description/**"
+      - ".github/workflows/nav-regression-nightly.yml"
 
+# Per ref, same as nav-sim. A single global group would let one pull request
+# cancel the pending suite of another pull request or of the scheduled run.
 concurrency:
-  group: nav-regression-nightly
+  group: nav-regression-nightly-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
