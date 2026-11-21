@@ -30,13 +30,14 @@ ANNOTATION = re.compile(
     r"^<!--\s*docs-test:\s*(cpu|skip\s+(hardware|ros|gpu))\s*-->\s*$"
 )
 CPU_COMMANDS = (
-    "pip install ohho-os",
+    "pip install ohho-os==1.1.2",
     "ohho doctor",
     "ohho sim --robot omnibot --seconds 2",
 )
 REQUIRED_SKIPS = ("hardware", "ros", "gpu")
 FORBIDDEN = "not on pypi"
-ENGINE_LICENSE_HREF = "https://github.com/ohho-robotics/ohho-os/blob/main/LICENSE"
+# ohho-os 1.1.2 is the last Apache-2.0 release; later OhhO OS is proprietary.
+ENGINE_LICENSE_HREF = "https://pypi.org/project/ohho-os/1.1.2/"
 STALE_ENGINE_LICENSE_HREF = "https://github.com/ohho-robotics/ohho-sdk/blob/main/LICENSE"
 MARKDOWN_SKIP_DIRS = {".git", ".venv", "Packages", "build", "install", "node_modules"}
 
