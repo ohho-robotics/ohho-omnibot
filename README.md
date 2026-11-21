@@ -31,29 +31,29 @@
   </p>
 </div>
 
-<p align="center"><strong>Ohho is the open harness layer for physical AI. Bring any model, we make it run on a real robot. OmniBot is the reference robot: an open-source ROS 2 Jazzy mobile manipulator (mecanum base + SO-101 arm) that you can run in simulation on a laptop in three commands, then build at home.</strong></p>
+<p align="center"><strong>OmniBot is the open reference robot from OHHO ROBOTICS LTD: an open-source (Apache-2.0) ROS 2 Jazzy mobile manipulator (mecanum base + SO-101 arm) that you can run in simulation on a laptop in three commands, then build at home.</strong></p>
 
 <p align="center">⭐ <strong>If OmniBot is useful or interesting to you, please star the repo</strong>: it helps other robotics people find it.</p>
 
 ## Why OmniBot
 
-- **Teleop from anywhere**: Xbox gamepad, Android app, Meta Quest VR ([OhhO-VR](https://github.com/ohho-robotics/OhhO-VR)), or the browser via rosbridge.
+- **Teleop from anywhere**: Xbox gamepad, Android app, Meta Quest VR (the proprietary OhhO-VR app), or the browser via rosbridge.
 A model alone isn't a robot. An LLM needs an agent harness (tools, memory, guardrails) before it can do real work; a VLA or RL policy needs the same around it before it can move real motors. OmniBot is that harness, end to end, in one repo:
 
 - **Simulation**: Gazebo Harmonic worlds, Nav2/SLAM, a CPU-only Docker sim, and Gazebo + RViz in the browser. Test a policy before it touches hardware.
 - **Data**: `teleop_recorder_node` writes LeRobot datasets and is started from `omnibot_lerobot` `teleop_record.launch.py` (not the default bring-up). Default `action_source` is `leader` (Xbox gamepad and leader arm). Quest and Android teleop on `/cmd_vel/teleop` and `/arm/joint_commands/teleop` need `action_source:=vr` and the `/ohho/record/start` and `/ohho/record/stop` services. Android record buttons publish rosbag topics `/rosbag_recorder/start` and `/rosbag_recorder/stop`. Documented browser sim teleop publishes `/cmd_vel` ([docs/reference.md](docs/reference.md)); the recorder's teleop action source is `/cmd_vel/teleop`.
 - **Policy runtime**: OpenVLA, SmolVLA, and RL policies drive the mecanum base and SO-101 arm over ROS 2, through one command mux per actuator.
 - **Safety guards**: e-stop torque latch, joint limits and per-cycle delta clamps, stale-inference rejection, refusal on missing or black camera frames, and a source-staleness watchdog on base velocity. See [docs/safety.md](docs/safety.md).
-- **Deployment**: `pip install ohho-os`, Prometheus + Grafana observability (fleet v0: one robot today), and an opt-in OTA update agent that needs the `omnibot_ota` ROS package, which this workspace does not build.
+- **Deployment**: `pip install ohho-os==1.1.2` (the last Apache-2.0 release of OhhO OS; see [Boundary with OhhO OS](#boundary-with-ohho-os)), Prometheus + Grafana observability (fleet v0: one robot today), and an opt-in OTA update agent that needs the `omnibot_ota` ROS package, which this workspace does not build.
 - **Honest and tested**: README commands run in CI. CPU Python line coverage is reported in the [CI `cpu` job](.github/workflows/ci.yml) (see [docs/test-coverage.md](docs/test-coverage.md)). Anything that needs a robot or GPU is labelled as such in [docs/reference.md](docs/reference.md).
 
 ## Quickstart (no robot, no GPU)
 
-[`ohho-os`](https://pypi.org/project/ohho-os/) is on PyPI under [Apache-2.0](https://github.com/ohho-robotics/ohho-os/blob/main/LICENSE). The docs-test job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs these three commands in a fresh virtualenv via [`scripts/docs_test_readme.py`](scripts/docs_test_readme.py).
+[`ohho-os` 1.1.2](https://pypi.org/project/ohho-os/1.1.2/) is the last release of OhhO OS published under Apache-2.0. Later OhhO OS versions are proprietary and licensed separately by OHHO ROBOTICS LTD; the quickstart pins 1.1.2 so it only uses that Apache-2.0 release. The docs-test job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs these three commands in a fresh virtualenv via [`scripts/docs_test_readme.py`](scripts/docs_test_readme.py).
 
 <!-- docs-test: cpu -->
 ```bash
-pip install ohho-os
+pip install ohho-os==1.1.2
 ohho doctor
 ohho sim --robot omnibot --seconds 2
 ```
@@ -306,7 +306,7 @@ These are the parts referenced in this repo's code and docs. Prices are not yet 
 | Orbbec Astra Pro RGB-D camera | 1 | [sensor guide](omnibot-ros2/omnibot_navigation/docs/SENSOR_INTEGRATION.md) | TBD |
 | Wrist camera | 1 | [`perception.launch.py`](omnibot-ros2/omnibot_bringup/launch/perception.launch.py) | TBD |
 | Xbox controller (teleop) | 1 | [`robot_with_joy.launch.py`](omnibot-ros2/omnibot_bringup/launch/robot_with_joy.launch.py) | TBD |
-| Meta Quest 3 / 3S (optional VR teleop) | 0–1 | [OhhO-VR](https://github.com/ohho-robotics/OhhO-VR) | TBD |
+| Meta Quest 3 / 3S (optional VR teleop) | 0–1 | OhhO-VR (proprietary, not open source) | TBD |
 | Desktop PC with NVIDIA GPU (optional, VLA/RL) | 0–1 | [`omnibot-ai-ros2/omnibot_vla/README.md`](omnibot-ai-ros2/omnibot_vla/README.md) | TBD |
 | Battery, wiring, mounts | — | Not documented yet | TBD |
 
@@ -360,11 +360,20 @@ Prometheus, alert rules, Grafana dashboards, and Loki compose stack live in [`in
 
 ## VR profile tag (not yet tagged)
 
-The Quest client lives in [OhhO-VR](https://github.com/ohho-robotics/OhhO-VR), not in a second Unity tree on this commit. The Gazebo VR launch (`sim_vr.launch.py`), the real-robot VR launch (`robot_vr.launch.py`), and the GPU sim compose file are on other branches. They are not in `origin/main` (`d296c9be6cc898e11e8f671c2457292b30cec905`). The intended git tag is `vr-profile-v1.0.0`. It is not yet tagged. The intended sim image name `ghcr.io/ohho-robotics/omnibot-sim:vr-1.0.0` is a placeholder and is not published. Notes and the human commands: [CHANGELOG.md](CHANGELOG.md), [docs/releases/vr-profile-tag-commands.md](docs/releases/vr-profile-tag-commands.md).
+The Quest client lives in OhhO-VR (proprietary, not open source), not in a second Unity tree on this commit. The Gazebo VR launch (`sim_vr.launch.py`), the real-robot VR launch (`robot_vr.launch.py`), and the GPU sim compose file are on other branches. They are not in `origin/main` (`d296c9be6cc898e11e8f671c2457292b30cec905`). The intended git tag is `vr-profile-v1.0.0`. It is not yet tagged. The intended sim image name `ghcr.io/ohho-robotics/omnibot-sim:vr-1.0.0` is a placeholder and is not published. Notes and the human commands: [CHANGELOG.md](CHANGELOG.md), [docs/releases/vr-profile-tag-commands.md](docs/releases/vr-profile-tag-commands.md).
 
 ## Contributing & community
 
-New here? Pick a [**good first issue**](https://github.com/ohho-robotics/OmniBot/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or a [**help wanted**](https://github.com/ohho-robotics/OmniBot/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) issue. Questions, build photos and ideas go in [**Discussions**](https://github.com/ohho-robotics/OmniBot/discussions). Contribution guidelines and the code of conduct live in the [org `.github` repo](https://github.com/ohho-robotics/.github).
+OmniBot is the open project of OHHO ROBOTICS LTD and welcomes contributions. New here? Pick a [**good first issue**](https://github.com/ohho-robotics/ohho-omnibot/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or a [**help wanted**](https://github.com/ohho-robotics/ohho-omnibot/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) issue. Questions, build photos and ideas go in [**Discussions**](https://github.com/ohho-robotics/ohho-omnibot/discussions). Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every commit from an outside contributor needs a DCO sign-off (`git commit -s`). The code of conduct lives in the [org `.github` repo](https://github.com/ohho-robotics/.github).
+
+## Boundary with OhhO OS
+
+OmniBot stays open source under Apache-2.0. OhhO OS, the engine behind the OHHO ROBOTICS LTD commercial products, is proprietary and closed source. To keep the two cleanly separate:
+
+- **No closed code here.** Nothing in this repository may copy, vendor, bundle, or embed source, binaries, or models from closed OhhO OS (including ohho-os after the `last-apache-2.0` tag, OhhO Planning, OhhO Fleet, and OhhO Verified).
+- **Public interfaces only.** OmniBot talks to OhhO OS only through public interfaces: the documented ROS 2 topics, services, and actions listed in [docs/reference.md](docs/reference.md) and [docs/architecture.md](docs/architecture.md), and the published `ohho` CLI and API of `ohho-os` 1.1.2 (Apache-2.0).
+- **No new hard dependency.** OmniBot must keep working without a licence for closed OhhO OS. Any closed OhhO OS integration stays optional and lives outside this repository.
+- Code in this repository is Apache-2.0, including code moved here before the boundary was written down. Pull requests that break these rules are not merged.
 
 Demos and updates: [YouTube](https://www.youtube.com/@varun.vaidhiya/videos) · [X @varunvaidhiya](https://x.com/varunvaidhiya).
 
@@ -382,10 +391,10 @@ Demos and updates: [YouTube](https://www.youtube.com/@varun.vaidhiya/videos) · 
 | [`omnibot-digital-twin/`](omnibot-digital-twin/) | Gazebo world and compose files |
 | [`infra/observability/`](infra/observability/) | Prometheus, Grafana dashboards, alert rules, and Loki stack |
 | [`omnibot-android/`](omnibot-android/) | Kotlin controller |
-| [`omnibot-vr/`](omnibot-vr/) | Retired pointer to the Quest app ([OhhO-VR](https://github.com/ohho-robotics/OhhO-VR)) |
+| [`omnibot-vr/`](omnibot-vr/) | Retired pointer to the Quest app (the proprietary OhhO-VR app) |
 
 ## License
 
-[Apache-2.0](LICENSE) for OhhO code in this repository. Quest-app licences live in [OhhO-VR](https://github.com/ohho-robotics/OhhO-VR). See [NOTICE](NOTICE).
+[Apache-2.0](LICENSE) for OhhO code in this repository. The Quest app (OhhO-VR) and OhhO OS after `ohho-os` 1.1.2 are proprietary software of OHHO ROBOTICS LTD and are not part of this repository. See [NOTICE](NOTICE) and [Boundary with OhhO OS](#boundary-with-ohho-os).
 
 ⭐ **Star the repo** to follow progress.

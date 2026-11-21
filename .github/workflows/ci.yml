@@ -35,7 +35,7 @@ jobs:
             -e omnibot-ai-engines/agent_engine \
             -e yahboom-python-driver \
             -e ohho-gateway \
-            ohho-os \
+            ohho-os==1.1.2 \
             pytest numpy pyarrow click pyyaml ruff coverage opencv-python-headless pandas aiortc \
             xacro trimesh fast-simplification
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
