@@ -3,6 +3,7 @@
 """Assemble the OmniBot descriptor from YAML. No ROS install required."""
 
 import copy
+import json
 import math
 import re
 import subprocess
@@ -119,6 +120,77 @@ def test_capability_params_are_kept_and_linear_cap_stays_capped():
     raised_drive["drive"]["caps"]["vx_mps"] = 0.21
     with pytest.raises(ValueError, match="ceiling"):
         assemble_descriptor(raised_drive)
+
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+GOLDEN_PATH = FIXTURES / "omnibot.descriptor.golden.json"
+
+# Runtime-only list fields where the robot's own descriptor legitimately
+# carries more than the ohho-sdk golden pins. The drift test below still
+# requires every golden entry to appear verbatim in the assembled descriptor;
+# only extra robot-side entries are tolerated. Anything not listed here must
+# match the golden exactly.
+_GOLDEN_LIST_ALLOWLIST = {
+    # The golden pins the front RGB feed; OmniBot also streams wrist, depth
+    # and BEV images on the real robot and in sim.
+    "topics.images": "extra robot camera topics",
+    # The golden pins the front camera; the robot descriptor also lists the
+    # wrist, depth and BEV cameras.
+    "cameras": "extra robot cameras",
+    # The golden pins the calibrated tag 0 (docs/apriltags.md); the robot
+    # descriptor publishes the full nominal mount set (ids 0, 1, 2) that the
+    # URDF and the print/mesh pipeline are generated from.
+    "apriltags": "extra nominal mount tags",
+}
+
+
+def _diff_against_golden(golden, actual, path, mismatches):
+    """Collect field-by-field differences between golden and assembled doc."""
+    where = path or "descriptor"
+    if isinstance(golden, dict):
+        if not isinstance(actual, dict):
+            mismatches.append(f"{where}: expected an object, got {actual!r}")
+            return
+        for key, want in golden.items():
+            child = f"{path}.{key}" if path else key
+            if key not in actual:
+                mismatches.append(f"{child}: missing from the assembled descriptor")
+                continue
+            _diff_against_golden(want, actual[key], child, mismatches)
+        return
+    if isinstance(golden, list):
+        if not isinstance(actual, list):
+            mismatches.append(f"{where}: expected a list, got {actual!r}")
+            return
+        if path in _GOLDEN_LIST_ALLOWLIST:
+            for index, want in enumerate(golden):
+                if want not in actual:
+                    mismatches.append(
+                        f"{where}[{index}]: golden entry {want!r} is not "
+                        "in the assembled descriptor"
+                    )
+            return
+        if golden != actual:
+            mismatches.append(f"{where}: golden {golden!r} != assembled {actual!r}")
+        return
+    if golden != actual:
+        mismatches.append(f"{where}: golden {golden!r} != assembled {actual!r}")
+
+
+def test_assembled_descriptor_matches_sdk_golden():
+    """Drift test against the vendored ohho-sdk golden descriptor.
+
+    Fixture origin: fixtures/omnibot.descriptor.golden.SOURCE.md. Every golden
+    field must be present and equal in the assembled robot_descriptor.yaml;
+    only the documented runtime-only list fields in _GOLDEN_LIST_ALLOWLIST may
+    carry extra robot-side entries, and the golden entries themselves must
+    still appear verbatim.
+    """
+    golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+    doc = load_descriptor_yaml(YAML_PATH)
+    mismatches = []
+    _diff_against_golden(golden, doc, "", mismatches)
+    assert mismatches == []
 
 
 def test_drive_cap_above_hard_cap_is_refused():
