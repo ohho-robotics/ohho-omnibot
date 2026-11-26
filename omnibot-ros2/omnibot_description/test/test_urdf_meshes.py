@@ -256,6 +256,53 @@ def test_base_and_wheel_inertia_match_the_stated_mass_and_shape():
             assert float(values[key]) > 0.0
 
 
+STANDOFF_LINKS = [
+    "so_fl_a_standoff_link",
+    "so_fl_b_standoff_link",
+    "so_fr_a_standoff_link",
+    "so_fr_b_standoff_link",
+    "so_rl_a_standoff_link",
+    "so_rl_b_standoff_link",
+    "so_rr_a_standoff_link",
+    "so_rr_b_standoff_link",
+]
+
+
+def test_standoff_inertia_matches_solid_cylinder():
+    robot = _expand(export.WEB_XACRO_ARGS)
+    links = {
+        element.attrib["name"]: element
+        for element in robot
+        if _local(element.tag) == "link"
+    }
+    mass, radius, length = 0.04, 0.007, 0.160
+    transverse = mass / 12.0 * (3.0 * radius**2 + length**2)
+    axial = mass / 2.0 * radius**2
+    assert len(STANDOFF_LINKS) == 8
+    for name in STANDOFF_LINKS:
+        inertial = links[name].find("inertial")
+        assert inertial.find("origin").attrib["rpy"] == "0 0 0"
+        assert float(inertial.find("mass").attrib["value"]) == pytest.approx(mass)
+        cylinder = links[name].find("collision/geometry/cylinder")
+        assert float(cylinder.attrib["radius"]) == pytest.approx(radius)
+        assert float(cylinder.attrib["length"]) == pytest.approx(length)
+        values = inertial.find("inertia").attrib
+        ixx = float(values["ixx"])
+        iyy = float(values["iyy"])
+        izz = float(values["izz"])
+        assert ixx == pytest.approx(transverse)
+        assert iyy == pytest.approx(transverse)
+        assert izz == pytest.approx(axial)
+        assert float(values["ixy"]) == 0.0
+        assert float(values["ixz"]) == 0.0
+        assert float(values["iyz"]) == 0.0
+        assert ixx > 0.0 and iyy > 0.0 and izz > 0.0
+        # Principal-moment triangle inequality and a diagonal positive-definite tensor.
+        assert ixx + iyy >= izz
+        assert ixx + izz >= iyy
+        assert iyy + izz >= ixx
+
+
 def test_simplified_base_meshes_match_the_generator(tmp_path):
     written = meshes.write_base_meshes(XACRO, tmp_path)
     assert {path.name for path in written} == {

@@ -51,6 +51,7 @@
     <xacro:property name="chassis_width"     value="0.250"/>  <!-- 250 mm left-to-right -->
     <xacro:property name="plate_thickness"   value="0.006"/>  <!-- 6 mm aluminium plate -->
     <xacro:property name="standoff_height"   value="0.160"/>  <!-- 160 mm between plate faces -->
+    <xacro:property name="standoff_radius"  value="0.007"/>  <!-- 7 mm cylinder radius -->
     <xacro:property name="ground_clearance"  value="0.070"/>  <!-- ground → bottom of bottom plate -->
 
     <!-- Bottom plate (base_link) centre above base_footprint -->
@@ -101,12 +102,15 @@
          lumps unmodelled electronics onto the bottom plate (the comment
          on base_link). top_plate_mass 1.0 kg is that same plate, a little
          under the solid-aluminium figure. wheel_mass 0.2 kg is a round
-         estimate for the 80 mm mecanum wheel. Inertias below use these
-         masses with the solid box (plates) and the Y-axis cylinder (wheels).
+         estimate for the 80 mm mecanum wheel. standoff_mass 0.04 kg is a
+         round estimate for each aluminium standoff. Inertias below use these
+         masses with the solid box (plates), the Y-axis cylinder (wheels),
+         and the Z-axis cylinder (standoffs; URDF cylinder axis is Z).
          ================================================================ -->
     <xacro:property name="base_mass"       value="1.5"/>
     <xacro:property name="top_plate_mass"  value="1.0"/>
     <xacro:property name="wheel_mass"      value="0.2"/>
+    <xacro:property name="standoff_mass"   value="0.04"/>
     <xacro:property name="camera_mass"     value="0.05"/>
     <xacro:property name="astra_mass"      value="0.300"/>
 
@@ -176,7 +180,7 @@
             <visual>
                 <origin xyz="0 0 0" rpy="0 0 0"/>
                 <geometry>
-                    <cylinder radius="0.007" length="${standoff_height}"/>
+                    <cylinder radius="${standoff_radius}" length="${standoff_height}"/>
                 </geometry>
                 <material name="standoff_silver">
                     <color rgba="0.65 0.65 0.65 1"/>
@@ -185,14 +189,22 @@
             <collision>
                 <origin xyz="0 0 0" rpy="0 0 0"/>
                 <geometry>
-                    <cylinder radius="0.007" length="${standoff_height}"/>
+                    <cylinder radius="${standoff_radius}" length="${standoff_height}"/>
                 </geometry>
             </collision>
-            <!-- 0.04 kg and 0.0001 kg·m^2 are round estimates, not a datasheet. -->
+            <!-- standoff_mass 0.04 kg is a round estimate, not a datasheet.
+                 Inertia is the solid-cylinder tensor in the link frame
+                 (URDF cylinder axis is Z):
+                 Ixx = Iyy = m(3r^2 + L^2)/12, Izz = m r^2 / 2. -->
             <inertial>
-                <mass value="0.04"/>
+                <mass value="${standoff_mass}"/>
                 <origin xyz="0 0 0" rpy="0 0 0"/>
-                <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+                <inertia
+                    ixx="${standoff_mass/12.0*(3*standoff_radius*standoff_radius + standoff_height*standoff_height)}"
+                    ixy="0" ixz="0"
+                    iyy="${standoff_mass/12.0*(3*standoff_radius*standoff_radius + standoff_height*standoff_height)}"
+                    iyz="0"
+                    izz="${standoff_mass/2.0*(standoff_radius*standoff_radius)}"/>
             </inertial>
         </link>
         <joint name="${prefix}_standoff_joint" type="fixed">
